@@ -47,12 +47,13 @@ git push -u origin main
 SSH เข้าไปที่ VPS Hostinger:
 
 ```bash
-# 1. ไปที่โฟลเดอร์สำหรับเก็บ Project (เช่น /opt หรือ /var/www หรือ home directory)
-cd /opt
+# 1. ไปที่โฟลเดอร์สำหรับติดตั้งบน VPS (/var/www)
+mkdir -p /var/www
+cd /var/www
 
-# 2. Clone Repository จาก GitHub
-git clone https://github.com/nchaiwat/IRM.git irm-system
-cd irm-system
+# 2. Clone Repository จาก GitHub ลงโฟลเดอร์ Irm
+git clone https://github.com/nchaiwat/IRM.git Irm
+cd /var/www/Irm
 
 # 3. คัดลอกและตั้งค่า .env สำหรับ Production
 cp .env.prod.example .env
