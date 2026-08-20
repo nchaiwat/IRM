@@ -70,9 +70,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ menus }) => {
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950/50">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-md shadow-sky-500/20">
-            IRM
-          </div>
+          <img
+            src="/logo.png"
+            alt="IRM Logo"
+            className="w-9 h-9 rounded-lg object-cover shadow-md shadow-sky-500/30 border border-sky-400/20"
+          />
           <div>
             <h1 className="font-bold text-base text-white tracking-wide leading-none">IRM System</h1>
             <p className="text-[11px] text-slate-400 font-medium">Incoming Raw Material</p>
