@@ -585,7 +585,11 @@ async def generate_onprem_sync_script(
     filename = f"irm_agent_sync_v{version_num}.py"
 
     # Resolve target URL
-    vps_url = app_base_url.strip().rstrip("/") if app_base_url else (s_map.get("app_base_url") or "http://localhost").rstrip("/")
+    vps_url = app_base_url.strip().rstrip("/") if app_base_url else (s_map.get("app_base_url") or "https://irm.windowasia.com").rstrip("/")
+    if "irm.windowasia.com" in vps_url and vps_url.startswith("http://"):
+        vps_url = vps_url.replace("http://", "https://")
+    elif not vps_url.startswith("http"):
+        vps_url = f"https://{vps_url}"
     ingest_endpoint = f"{vps_url}/api/sap/inbound-push"
 
     ingest_token = s_map.get("sap_ingest_token") or "tok_irm_ingest_sec_8a39f029b4c12e87"
@@ -666,31 +670,44 @@ def query_sap_data():
     logger.info(f"Connecting to SAP MS SQL Server ({{SQL_SERVER}}:{{SQL_PORT}}/{{SQL_DATABASE}})...")
     records = []
     
-    # 1. ลองเชื่อมต่อด้วย pyodbc (ODBC Driver 17 / 18)
+    # 1. ลองเชื่อมต่อด้วย pyodbc (รองรับ ODBC Driver 17, 18, SQL Server)
     try:
         import pyodbc
-        conn_str = (
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={{SQL_SERVER}},{{SQL_PORT}};"
-            f"DATABASE={{SQL_DATABASE}};"
-            f"UID={{SQL_USER}};"
-            f"PWD={{SQL_PASSWORD}};"
-            f"Timeout=20;"
-        )
-        conn = pyodbc.connect(conn_str)
-        cursor = conn.cursor()
-        cursor.execute(SAP_SQL_QUERY)
-        columns = [col[0] for col in cursor.description]
-        for row in cursor.fetchall():
-            row_dict = dict(zip(columns, row))
-            for k, v in row_dict.items():
-                if isinstance(v, datetime):
-                    row_dict[k] = v.isoformat()
-            records.append(row_dict)
-        cursor.close()
-        conn.close()
-        logger.info(f"Successfully fetched {{len(records)}} records using pyodbc.")
-        return records
+        drivers = [
+            "DRIVER={{ODBC Driver 17 for SQL Server}};",
+            "DRIVER={{ODBC Driver 18 for SQL Server}};TrustServerCertificate=yes;",
+            "DRIVER={{SQL Server}};",
+        ]
+        conn = None
+        for drv in drivers:
+            try:
+                conn_str = (
+                    f"{{drv}}"
+                    f"SERVER={{SQL_SERVER}},{{SQL_PORT}};"
+                    f"DATABASE={{SQL_DATABASE}};"
+                    f"UID={{SQL_USER}};"
+                    f"PWD={{SQL_PASSWORD}};"
+                    "Timeout=20;"
+                )
+                conn = pyodbc.connect(conn_str)
+                break
+            except Exception:
+                continue
+
+        if conn is not None:
+            cursor = conn.cursor()
+            cursor.execute(SAP_SQL_QUERY)
+            columns = [col[0] for col in cursor.description]
+            for row in cursor.fetchall():
+                row_dict = dict(zip(columns, row))
+                for k, v in row_dict.items():
+                    if isinstance(v, datetime):
+                        row_dict[k] = v.isoformat()
+                records.append(row_dict)
+            cursor.close()
+            conn.close()
+            logger.info(f"Successfully fetched {{len(records)}} records using pyodbc.")
+            return records
     except Exception as err_odbc:
         logger.warning(f"pyodbc connection attempt failed: {{err_odbc}}. Trying pymssql...")
 

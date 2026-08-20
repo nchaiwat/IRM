@@ -46,7 +46,7 @@ AGENT_VERSION  = "v1"
 AGENT_FILENAME = "irm_agent_sync_v1.py"
 GENERATED_AT   = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-IRM_INGEST_URL = "http://localhost/api/sap/inbound-push"
+IRM_INGEST_URL = "https://irm.windowasia.com/api/sap/inbound-push"
 IRM_INGEST_KEY = "tok_irm_ingest_sec_8a39f029b4c12e87"
 
 # SAP MS SQL Server On-Premise Connection
@@ -90,6 +90,7 @@ SAP_SQL_QUERY = """SELECT
                 WHERE OPDN.CANCELED <> 'Y'
                   AND PDN1.ItemCode = T0.ItemCode
                   AND PDN1.BaseRef = T1.DocNum
+                  AND PDN1.BaseLine = T0.LineNum
                   AND PDN1.BaseEntry = T1.DocEntry
             )
             ELSE (
@@ -122,6 +123,7 @@ SAP_SQL_QUERY = """SELECT
                 WHERE OPDN.CANCELED <> 'Y'
                   AND PDN1.ItemCode = T0.ItemCode
                   AND PDN1.BaseRef = T1.DocNum
+                  AND PDN1.BaseLine = T0.LineNum
                   AND PDN1.BaseEntry = T1.DocEntry
             )
             ELSE T0.Quantity - (
@@ -131,6 +133,7 @@ SAP_SQL_QUERY = """SELECT
                 WHERE OPDN.CANCELED <> 'Y'
                   AND PDN1.ItemCode = T0.ItemCode
                   AND PDN1.BaseRef = T1.DocNum
+                  AND PDN1.BaseLine = T0.LineNum
                   AND PDN1.BaseEntry = T1.DocEntry
             )
         END, T0.Quantity) AS FLOAT) AS remaining_qty,
@@ -153,31 +156,44 @@ def query_sap_data():
     logger.info(f"Connecting to SAP MS SQL Server ({SQL_SERVER}:{SQL_PORT}/{SQL_DATABASE})...")
     records = []
     
-    # 1. ลองเชื่อมต่อด้วย pyodbc (ODBC Driver 17 / 18)
+    # 1. ลองเชื่อมต่อด้วย pyodbc (รองรับ ODBC Driver 17, 18, SQL Server)
     try:
         import pyodbc
-        conn_str = (
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={SQL_SERVER},{SQL_PORT};"
-            f"DATABASE={SQL_DATABASE};"
-            f"UID={SQL_USER};"
-            f"PWD={SQL_PASSWORD};"
-            f"Timeout=20;"
-        )
-        conn = pyodbc.connect(conn_str)
-        cursor = conn.cursor()
-        cursor.execute(SAP_SQL_QUERY)
-        columns = [col[0] for col in cursor.description]
-        for row in cursor.fetchall():
-            row_dict = dict(zip(columns, row))
-            for k, v in row_dict.items():
-                if isinstance(v, datetime):
-                    row_dict[k] = v.isoformat()
-            records.append(row_dict)
-        cursor.close()
-        conn.close()
-        logger.info(f"Successfully fetched {len(records)} records using pyodbc.")
-        return records
+        drivers = [
+            "DRIVER={ODBC Driver 17 for SQL Server};",
+            "DRIVER={ODBC Driver 18 for SQL Server};TrustServerCertificate=yes;",
+            "DRIVER={SQL Server};",
+        ]
+        conn = None
+        for drv in drivers:
+            try:
+                conn_str = (
+                    f"{drv}"
+                    f"SERVER={SQL_SERVER},{SQL_PORT};"
+                    f"DATABASE={SQL_DATABASE};"
+                    f"UID={SQL_USER};"
+                    f"PWD={SQL_PASSWORD};"
+                    "Timeout=20;"
+                )
+                conn = pyodbc.connect(conn_str)
+                break
+            except Exception:
+                continue
+
+        if conn is not None:
+            cursor = conn.cursor()
+            cursor.execute(SAP_SQL_QUERY)
+            columns = [col[0] for col in cursor.description]
+            for row in cursor.fetchall():
+                row_dict = dict(zip(columns, row))
+                for k, v in row_dict.items():
+                    if isinstance(v, datetime):
+                        row_dict[k] = v.isoformat()
+                records.append(row_dict)
+            cursor.close()
+            conn.close()
+            logger.info(f"Successfully fetched {len(records)} records using pyodbc.")
+            return records
     except Exception as err_odbc:
         logger.warning(f"pyodbc connection attempt failed: {err_odbc}. Trying pymssql...")
 

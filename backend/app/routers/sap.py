@@ -91,9 +91,11 @@ async def download_or_view_agent_script(
     If download=true, increments the version number, logs the download audit trail, and returns a file download.
     """
     # Determine base URL from request host
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost"
-    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
-    base_url = f"{scheme}://{host}"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "irm.windowasia.com"
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+    if "irm.windowasia.com" in host:
+        proto = "https"
+    base_url = f"{proto}://{host}"
 
     script_content, filename, version_num = await generate_onprem_sync_script(
         db,
