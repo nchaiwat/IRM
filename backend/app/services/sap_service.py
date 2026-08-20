@@ -135,6 +135,30 @@ WHERE T0.LineStatus = 'O'
 ORDER BY T1.DocNum DESC, T0.LineNum ASC;"""
 
 
+def normalize_item_group(raw_group: str, item_code: str = "", item_name: str = "") -> str:
+    """Map SAP raw group codes (113, 115) to proper standard group names (HW, RM-กระจก, FG-UPVC)."""
+    g = str(raw_group or "").strip()
+    code = str(item_code or "").upper().strip()
+    name = str(item_name or "").strip()
+
+    if code.startswith("RB") or "กระจก" in name:
+        return "RM-กระจก"
+    if code.startswith("HW-") or "ฮาร์ดแวร์" in name or "กรรไกร" in name or "มือจับ" in name or "ล็อก" in name:
+        return "HW"
+    if code.startswith("FA") or code.startswith("FU") or code.startswith("FP") or "FG-Non BOI" in g:
+        return "FG-Non BOI"
+    if code.startswith("UPVC") or "UPVC" in name:
+        return "FG-UPVC"
+    if code.startswith("ALU") or "ALU" in name or "อลูมิเนียม" in name:
+        return "FG-ALU"
+
+    if g in ["113", ""]:
+        return "HW"
+    if g == "115":
+        return "FG-UPVC"
+    return g
+
+
 def parse_raw_sap_rows(raw_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sanitize and format raw SAP rows into typed dictionary objects."""
     parsed_records = []
@@ -167,6 +191,11 @@ def parse_raw_sap_rows(raw_records: List[Dict[str, Any]]) -> List[Dict[str, Any]
 
         s_contact = str(r.get("supplier_contact") or "").strip() or None
 
+        icode = str(r.get("item_code") or "").strip()
+        iname = str(r.get("item_name") or "").strip()
+        raw_grp = str(r.get("item_group") or "").strip()
+        clean_grp = normalize_item_group(raw_grp, item_code=icode, item_name=iname)
+
         parsed_records.append(
             {
                 "po_number": str(r.get("po_number") or "").strip(),
@@ -178,13 +207,13 @@ def parse_raw_sap_rows(raw_records: List[Dict[str, Any]]) -> List[Dict[str, Any]
                 "supplier_email": s_email,
                 "supplier_contact": s_contact,
                 "buyer_name": str(r.get("buyer_name") or "").strip(),
-                "item_code": str(r.get("item_code") or "").strip(),
-                "item_name": str(r.get("item_name") or "").strip(),
+                "item_code": icode,
+                "item_name": iname,
                 "quantity": float(r.get("quantity") or 0.0),
                 "unit": str(r.get("unit") or "").strip(),
                 "received_qty": float(r.get("received_qty") or 0.0),
                 "remaining_qty": float(r.get("remaining_qty") or 0.0),
-                "item_group": str(r.get("item_group") or "113").strip(),
+                "item_group": clean_grp,
                 "due_date": due_date_val,
             }
         )
