@@ -191,11 +191,16 @@ async def generate_token_for_supplier(
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
 
-    token_obj = await get_or_create_supplier_token(db, supplier.supplier_code)
+    stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
+    base_setting = (await db.execute(stmt_base)).scalar_one_or_none()
+    base_url = base_setting.value.strip().rstrip("/") if base_setting and base_setting.value else "https://irm.windowasia.com"
+    if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+
     return {
         "token": token_obj.token,
         "expires_at": token_obj.expires_at.strftime("%d/%m/%Y %H:%M:%S"),
-        "portal_url": f"http://localhost/supplier/portal/{token_obj.token}",
+        "portal_url": f"{base_url}/supplier/portal/{token_obj.token}",
     }
 
 

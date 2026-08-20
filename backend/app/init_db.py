@@ -233,6 +233,13 @@ async def seed_data():
                     .where(SystemSetting.key == key)
                     .values(category=cat)
                 )
+
+            # Ensure app_base_url points to https://irm.windowasia.com
+            await session.execute(
+                update(SystemSetting)
+                .where(SystemSetting.key == "app_base_url", SystemSetting.value.like("%localhost%"))
+                .values(value="https://irm.windowasia.com")
+            )
             await session.commit()
             print("✅ Step 3: System Settings seeded and categories verified.")
     except Exception as e:

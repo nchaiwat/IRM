@@ -151,7 +151,24 @@ async def send_single_supplier_email(
         return {"status": "skipped", "reason": "No valid email"}
 
     token_obj = await get_or_create_supplier_token(db, supplier.supplier_code)
-    portal_url = f"http://localhost/supplier/portal/{token_obj.token}"
+    
+    # Resolve base URL from SystemSetting 'app_base_url' or environment or default to https://irm.windowasia.com
+    stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
+    base_setting = (await db.execute(stmt_base)).scalar_one_or_none()
+    
+    if base_setting and base_setting.value:
+        base_url = base_setting.value.strip().rstrip("/")
+    else:
+        from app.config import get_settings
+        cfg = get_settings()
+        base_url = (cfg.FRONTEND_URL or "https://irm.windowasia.com").strip().rstrip("/")
+
+    if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    elif not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
+    portal_url = f"{base_url}/supplier/portal/{token_obj.token}"
     expiry_formatted = token_obj.expires_at.strftime("%d/%m/%Y เวลา 23:59 น.")
 
     # Count open PO items for this supplier
