@@ -37,7 +37,7 @@ docker-compose.override.yml
 
 # Logs
 *.log
-logs/
+/logs/
 
 # Temp
 *.tmp

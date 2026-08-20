@@ -201,8 +201,8 @@ async def get_dashboard_analytics(
                 supplier_stats[sup_code]["on_time_count"] += 1
 
     # 3. Compute Percentages and Scorecards
-    otif_rate = round((on_time_items / total_evaluated_items * 100), 1) if total_evaluated_items > 0 else 92.5
-    portal_adoption_rate = round((supplier_portal_updates / total_updates * 100), 1) if total_updates > 0 else 68.0
+    otif_rate = round((on_time_items / total_evaluated_items * 100), 1) if total_evaluated_items > 0 else 0.0
+    portal_adoption_rate = round((supplier_portal_updates / total_updates * 100), 1) if total_updates > 0 else 0.0
     split_delivery_pct = round((items_with_split_rounds / max(len(all_rows), 1) * 100), 1)
 
     # Format Group Stats
@@ -221,12 +221,15 @@ async def get_dashboard_analytics(
     supplier_list = []
     for s_code, s_val in supplier_stats.items():
         s_eval = s_val["evaluated_count"]
-        s_otif = round((s_val["on_time_count"] / s_eval * 100), 1) if s_eval > 0 else 90.0
+        s_otif = round((s_val["on_time_count"] / s_eval * 100), 1) if s_eval > 0 else 0.0
         s_total = s_val["total_items"] or 1
         s_portal_rate = round((s_val["portal_responses"] / s_total * 100), 1)
 
         # Grade calculation
-        if s_otif >= 95 and s_val["reschedules"] <= 1:
+        if s_eval == 0:
+            grade = "-"
+            status_text = "⚪ รอข้อมูลส่งมอบ (No Delivery Yet)"
+        elif s_otif >= 95 and s_val["reschedules"] <= 1:
             grade = "A"
             status_text = "🟢 ดีเยี่ยม (SLA Met)"
         elif s_otif >= 85:

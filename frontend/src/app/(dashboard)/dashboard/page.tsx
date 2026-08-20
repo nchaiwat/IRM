@@ -241,7 +241,9 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="mt-2 flex items-baseline justify-between gap-2">
-              <span className="text-2xl font-black text-emerald-600 tracking-tight">{sum?.otif_rate}%</span>
+              <span className="text-2xl font-black text-emerald-600 tracking-tight">
+                {sum?.otif_rate !== undefined ? `${sum.otif_rate}%` : '0%'}
+              </span>
               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 Target ≥ 95%
               </span>
@@ -255,7 +257,9 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 pt-2.5 border-t border-slate-100">
             <span>SLA Commitment</span>
-            <span className="font-bold text-slate-700">เกรดเฉลี่ย B+</span>
+            <span className="font-bold text-slate-700">
+              {(sum?.otif_rate || 0) === 0 ? 'รอข้อมูลส่งมอบ' : (sum?.otif_rate || 0) >= 95 ? 'เกรดเฉลี่ย A' : (sum?.otif_rate || 0) >= 85 ? 'เกรดเฉลี่ย B+' : 'เกรดเฉลี่ย C'}
+            </span>
           </div>
         </div>
 
