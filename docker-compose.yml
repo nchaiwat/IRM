@@ -4,6 +4,7 @@ services:
     image: postgres:16-alpine
     container_name: irm-db
     environment:
+      TZ: Asia/Bangkok
       POSTGRES_DB: irm
       POSTGRES_USER: irm
       POSTGRES_PASSWORD: ${DB_PASSWORD:-irm_dev_2026}
@@ -22,6 +23,8 @@ services:
   irm-redis:
     image: redis:7-alpine
     container_name: irm-redis
+    environment:
+      TZ: Asia/Bangkok
     volumes:
       - irm_redis:/data
     networks:
@@ -40,6 +43,7 @@ services:
       dockerfile: Dockerfile
     container_name: irm-backend
     environment:
+      TZ: Asia/Bangkok
       DB_HOST: irm-db
       DB_PORT: 5432
       DB_NAME: irm
@@ -67,6 +71,7 @@ services:
       dockerfile: Dockerfile
     container_name: irm-frontend
     environment:
+      TZ: Asia/Bangkok
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://irm.windowasia.com/api}
     networks:
       - irm-network
@@ -78,6 +83,8 @@ services:
   irm-nginx:
     image: nginx:alpine
     container_name: irm-nginx
+    environment:
+      TZ: Asia/Bangkok
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:

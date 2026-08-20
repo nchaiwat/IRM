@@ -17,6 +17,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV TZ=Asia/Bangkok
+
+RUN apk add --no-cache tzdata && cp /usr/share/zoneinfo/Asia/Bangkok /etc/localtime && echo "Asia/Bangkok" > /etc/timezone
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

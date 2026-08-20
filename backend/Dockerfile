@@ -10,7 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     freetds-dev \
     freetds-bin \
+    tzdata \
+    && ln -snf /usr/share/zoneinfo/Asia/Bangkok /etc/localtime && echo "Asia/Bangkok" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Bangkok
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .

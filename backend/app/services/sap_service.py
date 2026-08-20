@@ -287,7 +287,8 @@ async def _process_and_save_sap_records(
 ) -> dict:
     """Core logic to upsert POs, auto-populate Masters, detect closed POs, and purge expired logs."""
     from app.services.telegram_service import send_telegram_sap_sync
-    now_dt = datetime.now(timezone.utc)
+    bkk_tz = timezone(timedelta(hours=7))
+    now_dt = datetime.now(bkk_tz)
 
     new_items_count = 0
     new_suppliers_count = 0
@@ -599,7 +600,8 @@ async def generate_onprem_sync_script(
     sql_user = s_map.get("sap_user") or "irm_readonly"
     sql_pass = s_map.get("sap_password") or ""
     item_groups = s_map.get("sap_item_groups") or "[113, 115]"
-    gen_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    bkk_tz = timezone(timedelta(hours=7))
+    gen_time_str = datetime.now(bkk_tz).strftime("%d/%m/%Y %H:%M:%S")
 
     sql_query_text = build_sap_query_sql(item_groups)
 
