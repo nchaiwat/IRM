@@ -1,0 +1,98 @@
+services:
+  # 1. Database (PostgreSQL)
+  irm-db:
+    image: postgres:16-alpine
+    container_name: irm-db
+    environment:
+      POSTGRES_DB: irm
+      POSTGRES_USER: irm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-irm_dev_2026}
+    volumes:
+      - irm_pgdata:/var/lib/postgresql/data
+    networks:
+      - irm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U irm"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # 2. Redis Cache
+  irm-redis:
+    image: redis:7-alpine
+    container_name: irm-redis
+    volumes:
+      - irm_redis:/data
+    networks:
+      - irm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # 3. Backend (FastAPI)
+  irm-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: irm-backend
+    environment:
+      DB_HOST: irm-db
+      DB_PORT: 5432
+      DB_NAME: irm
+      DB_USER: irm
+      DB_PASSWORD: ${DB_PASSWORD:-irm_dev_2026}
+      REDIS_HOST: irm-redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-irm-dev-secret-key-2026}
+      BACKEND_URL: http://localhost/api
+      FRONTEND_URL: http://localhost
+    networks:
+      - irm-network
+    depends_on:
+      irm-db:
+        condition: service_healthy
+      irm-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 4. Frontend (Next.js)
+  irm-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: irm-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost/api
+    networks:
+      - irm-network
+    depends_on:
+      - irm-backend
+    restart: unless-stopped
+
+  # 5. Reverse Proxy (Nginx on Port 80)
+  irm-nginx:
+    image: nginx:alpine
+    container_name: irm-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - irm-network
+    depends_on:
+      - irm-frontend
+      - irm-backend
+    restart: unless-stopped
+
+networks:
+  irm-network:
+    name: irm-network
+    driver: bridge
+
+volumes:
+  irm_pgdata:
+  irm_redis:

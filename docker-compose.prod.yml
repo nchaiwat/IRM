@@ -1,0 +1,116 @@
+# ==============================================================================
+# 🏢 IRM (Incoming Raw Material System) — Production Docker Compose
+# Target Domain: https://irm.windowasia.com
+# Window Asia Public Company Limited (Window Asia PCL.)
+# ==============================================================================
+# ⚠️ Safety Note for VPS Hostinger:
+# This configuration is fully namespaced (irm-prod-*) and will NOT interfere
+# with existing production containers (FleetSys, Qol, WorkSync, etc.).
+# ==============================================================================
+
+services:
+  # ─── 1. PostgreSQL 16 (Isolated Internal Storage) ──────────────────────────
+  irm-db:
+    image: postgres:16-alpine
+    container_name: irm-prod-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-irm_db}
+      POSTGRES_USER: ${DB_USER:-irm_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - irm_prod_pgdata:/var/lib/postgresql/data
+    networks:
+      - irm-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-irm_admin} -d ${DB_NAME:-irm_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # ─── 2. Redis 7 (Isolated Fast Key-Value & Cache) ──────────────────────────
+  irm-redis:
+    image: redis:7-alpine
+    container_name: irm-prod-redis
+    volumes:
+      - irm_prod_redis:/data
+    networks:
+      - irm-prod-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # ─── 3. Backend (FastAPI + APScheduler + SAP Services) ─────────────────────
+  irm-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: irm-prod-backend
+    environment:
+      APP_ENV: production
+      APP_BASE_URL: ${APP_BASE_URL:-https://irm.windowasia.com}
+      DB_HOST: irm-db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-irm_db}
+      DB_USER: ${DB_USER:-irm_admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      REDIS_HOST: irm-redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      BACKEND_URL: ${BACKEND_URL:-https://irm.windowasia.com/api}
+      FRONTEND_URL: ${FRONTEND_URL:-https://irm.windowasia.com}
+    networks:
+      - irm-prod-network
+    depends_on:
+      irm-db:
+        condition: service_healthy
+      irm-redis:
+        condition: service_healthy
+    restart: always
+
+  # ─── 4. Frontend (Next.js 15 App Router) ───────────────────────────────────
+  irm-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: irm-prod-frontend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://irm.windowasia.com/api}
+    networks:
+      - irm-prod-network
+    depends_on:
+      - irm-backend
+    restart: always
+
+  # ─── 5. Web Gateway (Nginx Reverse Proxy) ──────────────────────────────────
+  irm-nginx:
+    image: nginx:alpine
+    container_name: irm-prod-nginx
+    ports:
+      # Use dedicated host port (e.g. 8088) so it won't conflict with existing apps (FleetSys, Qol, WorkSync)
+      # Then proxy irm.windowasia.com from Host Nginx / Cloudflare / Nginx Proxy Manager to 127.0.0.1:8088
+      - "${IRM_HTTP_PORT:-8088}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - irm-prod-network
+    depends_on:
+      - irm-frontend
+      - irm-backend
+    restart: always
+
+# ─── Networks & Volumes (Strictly Namespaced) ────────────────────────────────
+networks:
+  irm-prod-network:
+    name: irm-prod-network
+    driver: bridge
+
+volumes:
+  irm_prod_pgdata:
+    name: irm_prod_pgdata
+  irm_prod_redis:
+    name: irm_prod_redis
