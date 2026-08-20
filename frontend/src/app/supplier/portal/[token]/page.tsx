@@ -520,9 +520,20 @@ export default function SupplierPortalPage() {
                                     value={formInputs[item.id]?.date || ''}
                                     onChange={(e) => handleInputChange(item.id, 'date', e.target.value)}
                                     maxLength={10}
-                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 transition"
+                                    className="w-full pl-2.5 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 transition"
                                   />
-                                  <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+                                  <input
+                                    type="date"
+                                    tabIndex={-1}
+                                    className="absolute right-1 w-6 h-6 opacity-0 cursor-pointer z-10"
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        const [y, m, d] = e.target.value.split('-');
+                                        handleInputChange(item.id, 'date', `${d}/${m}/${y}`);
+                                      }
+                                    }}
+                                  />
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500 absolute right-2 pointer-events-none" />
                                 </div>
                               )}
                               {!isLocked && (
@@ -536,7 +547,7 @@ export default function SupplierPortalPage() {
                                       <span>↳ แตกส่งหลายงวด (Split)</span>
                                     </button>
                                   ) : (
-                                    <span className="text-sky-700 font-bold">งวดที่ 1 (งวดแรก)</span>
+                                    <span className="text-sky-800 font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">งวดที่ 1 (งวดแรก)</span>
                                   )}
                                 </div>
                               )}
@@ -591,11 +602,11 @@ export default function SupplierPortalPage() {
 
                           {/* Sub-item Split Delivery Rows */}
                           {subItemsList.map((sub, sIdx) => (
-                            <tr key={`sub-${item.id}-${sIdx}`} className="bg-sky-50/20 border-b border-sky-100/60 text-slate-600">
+                            <tr key={`sub-${item.id}-${sIdx}`} className="bg-sky-50/30 border-b border-sky-100/60 text-slate-700">
                               <td className="text-center font-mono text-[10px] text-slate-400"></td>
-                              <td colSpan={6} className="py-1.5 px-3 pl-8 text-xs font-medium text-sky-800">
-                                <span className="inline-flex items-center gap-1.5 font-bold">
-                                  <span className="text-sky-500">↳</span> งวดที่ {sIdx + 2}:
+                              <td colSpan={6} className="py-1.5 px-3 text-right">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 bg-sky-100/80 border border-sky-200 px-2 py-0.5 rounded-md shadow-2xs">
+                                  <span>↳ งวดที่ {sIdx + 2}:</span>
                                 </span>
                               </td>
 
@@ -611,9 +622,20 @@ export default function SupplierPortalPage() {
                                       value={sub.estimate_date}
                                       onChange={(e) => handleSubItemChange(item.id, sIdx, 'estimate_date', e.target.value)}
                                       maxLength={10}
-                                      className="w-full px-2.5 py-1 rounded-lg border border-sky-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400"
+                                      className="w-full pl-2.5 pr-8 py-1 rounded-lg border border-sky-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400"
                                     />
-                                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+                                    <input
+                                      type="date"
+                                      tabIndex={-1}
+                                      className="absolute right-1 w-6 h-6 opacity-0 cursor-pointer z-10"
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          const [y, m, d] = e.target.value.split('-');
+                                          handleSubItemChange(item.id, sIdx, 'estimate_date', `${d}/${m}/${y}`);
+                                        }
+                                      }}
+                                    />
+                                    <Calendar className="w-3.5 h-3.5 text-sky-600 absolute right-2 pointer-events-none" />
                                   </div>
                                 )}
                               </td>
@@ -640,6 +662,7 @@ export default function SupplierPortalPage() {
                                     type="button"
                                     onClick={() => handleRemoveSubItem(item.id, sIdx)}
                                     className="p-1 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
+                                    title="ลบรอบส่งนี้"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -648,16 +671,19 @@ export default function SupplierPortalPage() {
                             </tr>
                           ))}
                           {hasSubItems && !isLocked && (
-                            <tr className="bg-sky-50/30 border-b border-sky-100">
+                            <tr className="bg-sky-50/20 border-b border-sky-100">
                               <td className="text-center"></td>
-                              <td colSpan={9} className="py-2 px-3">
+                              <td colSpan={6} className="text-right py-1.5 px-3">
+                                <span className="text-[11px] text-slate-400 font-medium">เพิ่มรอบส่ง:</span>
+                              </td>
+                              <td colSpan={3} className="py-1.5 px-3 text-left">
                                 <button
                                   type="button"
                                   onClick={() => handleAddSubItem(item.id)}
-                                  className="text-[10px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-sky-200 shadow-2xs"
+                                  className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1.5 bg-white hover:bg-sky-50 px-3 py-1 rounded-lg border border-sky-300 shadow-xs transition"
                                 >
-                                  <Plus className="w-3 h-3" />
-                                  <span>เพิ่มงวดส่งถัดไป</span>
+                                  <Plus className="w-3.5 h-3.5 text-sky-600" />
+                                  <span>+ เพิ่มงวดส่ง (งวดที่ {subItemsList.length + 2})</span>
                                 </button>
                               </td>
                             </tr>
