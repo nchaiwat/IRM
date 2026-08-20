@@ -248,9 +248,62 @@ export default function SettingsPage() {
             <span>ตั้งค่าระบบ (System Setting)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            กำหนดค่าการส่งอีเมล, Telegram Bot, SAP B1 Read-Only Connection, Ingest Agent สำหรับ On-Premise, และรอบเวลา Sync อัตโนมัติ
+            กำหนดค่าการส่งอีเมล (SMTP), Telegram Bot, SAP B1 Read-Only Connection, Ingest Agent สำหรับ On-Premise, และรอบเวลา Sync อัตโนมัติ
           </p>
         </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          type="button"
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
+        >
+          {saving ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          <span>{saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าทั้งหมด'}</span>
+        </button>
+      </div>
+
+      {/* Quick Jump Navigation Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
+        <a
+          href="#sec-agent"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Cpu className="w-4 h-4 text-indigo-600" />
+          <span>1. SAP On-Premise Agent</span>
+        </a>
+        <a
+          href="#sec-email"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Mail className="w-4 h-4 text-sky-600" />
+          <span>2. การส่งอีเมล (SMTP)</span>
+        </a>
+        <a
+          href="#sec-telegram"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Send className="w-4 h-4 text-sky-500" />
+          <span>3. Telegram Bot & Group</span>
+        </a>
+        <a
+          href="#sec-schedule"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Clock className="w-4 h-4 text-amber-600" />
+          <span>4. รอบเวลาและวันส่งแจ้งเตือน</span>
+        </a>
+        <a
+          href="#sec-sap-sql"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Server className="w-4 h-4 text-emerald-600" />
+          <span>5. SAP B1 MS SQL Connection</span>
+        </a>
       </div>
 
       {/* Alert Message */}
@@ -506,7 +559,7 @@ pause`}
         {/* ================================================================= */}
         {/* Section 2: Email Configuration (SMTP)                            */}
         {/* ================================================================= */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div id="sec-email" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
           {/* Implementation Safety Banner */}
           <div className="bg-red-50/90 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3 text-xs text-red-900 shadow-sm">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -599,7 +652,7 @@ pause`}
         {/* ================================================================= */}
         {/* Section 3: Telegram Bot Notification Configuration              */}
         {/* ================================================================= */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div id="sec-telegram" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
               <Send className="w-5 h-5 text-sky-500" />
@@ -659,7 +712,7 @@ pause`}
         {/* ================================================================= */}
         {/* Section 4: Schedule Settings                                     */}
         {/* ================================================================= */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div id="sec-schedule" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-800 font-bold text-base">
             <Clock className="w-5 h-5 text-indigo-600" />
             <span>4. กำหนดรอบเวลาและวันส่งแจ้งเตือน</span>
@@ -719,7 +772,7 @@ pause`}
         {/* ================================================================= */}
         {/* Section 5: SAP Connection Credentials (For Script Generation)    */}
         {/* ================================================================= */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div id="sec-sap-sql" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
               <Server className="w-5 h-5 text-emerald-600" />
