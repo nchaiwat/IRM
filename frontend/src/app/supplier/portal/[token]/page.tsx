@@ -346,23 +346,22 @@ export default function SupplierPortalPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans pb-16">
-      {/* Header */}
-      <header className="bg-slate-900 text-white py-5 px-6 shadow-lg border-b border-slate-800">
+      {/* Sticky Main Header */}
+      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur text-white py-4 px-6 shadow-lg border-b border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-md shadow-sky-500/20">
-              IRM
+            <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-md border border-slate-700/50">
+              <img src="/logo.png" alt="IRM Logo" className="w-10 h-10 object-contain rounded-xl" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">IRM Supplier Portal</h1>
+              <h1 className="text-lg font-bold text-white tracking-tight">IRM Supplier Portal</h1>
               <p className="text-xs text-slate-400">ระบบระบุวันและจำนวนส่งมอบวัตถุดิบ (Window Asia PCL.)</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-xl text-xs">
-            <Building2 className="w-4 h-4 text-sky-400" />
-            <span className="font-semibold text-slate-200">{portalData?.supplier_name}</span>
-            <span className="font-mono text-slate-400 font-normal">({portalData?.supplier_code})</span>
+          <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/60 px-4 py-2 rounded-xl text-xs shadow-inner">
+            <Building2 className="w-4 h-4 text-sky-400 shrink-0" />
+            <span className="font-semibold text-slate-100">{portalData?.supplier_name}</span>
           </div>
         </div>
       </header>
@@ -429,20 +428,20 @@ export default function SupplierPortalPage() {
               <span className="text-xs text-slate-500">จำนวนทั้งหมด <strong>{portalData?.items.length}</strong> รายการ</span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[calc(100vh-250px)] border-t border-slate-200 shadow-inner">
               <table className="w-full text-left text-xs border-collapse min-w-[980px]">
-                <thead className="bg-slate-900 text-slate-200 font-bold sticky top-0 z-10 shadow-sm">
+                <thead className="bg-slate-900 text-slate-200 font-bold sticky top-0 z-20 shadow-md">
                   <tr>
-                    <th className="py-2.5 px-2 text-center w-10 whitespace-nowrap">#</th>
-                    <th className="py-2.5 px-3 w-28 whitespace-nowrap">PO</th>
-                    <th className="py-2.5 px-3 w-24 whitespace-nowrap">PO Date</th>
-                    <th className="py-2.5 px-3 min-w-[200px]">รหัสสินค้า & ชื่อสินค้า</th>
-                    <th className="py-2.5 px-3 text-right w-24 whitespace-nowrap">ยอดสั่งซื้อ</th>
-                    <th className="py-2.5 px-3 text-right w-24 whitespace-nowrap">รับแล้ว</th>
-                    <th className="py-2.5 px-3 text-right w-24 whitespace-nowrap text-sky-300 bg-slate-950">ยอดคงเหลือ</th>
-                    <th className="py-2.5 px-3 bg-sky-950 text-sky-300 w-44 whitespace-nowrap">ระบุวันส่งสินค้า *</th>
-                    <th className="py-2.5 px-3 text-right bg-sky-950 text-sky-300 w-36 whitespace-nowrap">จำนวนที่ส่ง (Qty) *</th>
-                    <th className="py-2.5 px-3 text-center w-28 whitespace-nowrap">สถานะ</th>
+                    <th className="py-3 px-2 text-center w-10 whitespace-nowrap bg-slate-900">#</th>
+                    <th className="py-3 px-3 w-28 whitespace-nowrap bg-slate-900">PO</th>
+                    <th className="py-3 px-3 w-24 whitespace-nowrap bg-slate-900">PO Date</th>
+                    <th className="py-3 px-3 min-w-[200px] bg-slate-900">รหัสสินค้า & ชื่อสินค้า</th>
+                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap bg-slate-900">ยอดสั่งซื้อ</th>
+                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap bg-slate-900">รับแล้ว</th>
+                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap text-sky-300 bg-slate-950">ยอดคงเหลือ</th>
+                    <th className="py-3 px-3 bg-sky-950 text-sky-300 w-44 whitespace-nowrap">ระบุวันส่งสินค้า *</th>
+                    <th className="py-3 px-3 text-right bg-sky-950 text-sky-300 w-36 whitespace-nowrap">จำนวนที่ส่ง (Qty) *</th>
+                    <th className="py-3 px-3 text-center w-28 whitespace-nowrap bg-slate-900">สถานะ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -459,198 +458,188 @@ export default function SupplierPortalPage() {
                       const hasSubItems = subItemsList.length > 0;
                       const currentVal = formInputs[item.id]?.qty;
                       const isOverQty = !portalData.allow_over_delivery && typeof currentVal === 'number' && currentVal > item.remaining_qty;
-                      const isPermittedOver = portalData.allow_over_delivery && typeof currentVal === 'number' && currentVal > item.remaining_qty;
 
                       return (
                         <React.Fragment key={item.id}>
-                          <tr
-                            id={`row-${item.id}`}
-                            className={`hover:bg-slate-50 transition ${isFirstInPo && index > 0 ? '!border-t-4 !border-t-slate-400/90 shadow-[0_-3px_6px_rgba(0,0,0,0.06)]' : 'border-t border-slate-100'}`}
-                          >
-                            {/* 1. # */}
-                            <td className="py-3 px-2 text-center text-slate-400 font-bold align-top">{index + 1}</td>
-
-                            {/* 2. PO Number */}
-                            <td className="py-3 px-3 font-medium whitespace-nowrap align-top">
+                          <tr className={`border-b border-slate-100 transition-colors ${
+                            index % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'
+                          } ${isOverQty ? 'bg-rose-50/40' : ''}`}>
+                            <td className="py-2.5 px-2 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
+                            
+                            {/* PO Number */}
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-800 text-[11px]">
                               {isFirstInPo ? (
-                                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-slate-700">
                                   {item.po_number}
                                 </span>
                               ) : (
-                                <span className="text-slate-300 text-xs font-mono select-none pl-1">↳</span>
+                                <span className="text-slate-300 pl-3">↳</span>
                               )}
                             </td>
 
-                            {/* 3. PO Date */}
-                            <td className="py-3 px-3 text-slate-600 whitespace-nowrap align-top">
-                              {isFirstInPo ? formatDateThai(item.po_date) : <span className="text-slate-200">-</span>}
+                            {/* PO Date */}
+                            <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                              {isFirstInPo ? formatDateThai(item.po_date) : ''}
                             </td>
 
-                            {/* 4. Item Code & Name */}
-                            <td className="py-3 px-3 align-top">
-                              <div className="font-bold text-slate-900">{item.item_code}</div>
-                              <div className="text-[11px] text-slate-500 leading-tight">{item.item_name}</div>
+                            {/* Item Code & Name */}
+                            <td className="py-2.5 px-3">
+                              <div className="font-mono font-bold text-slate-900 text-xs">{item.item_code}</div>
+                              <div className="text-slate-500 text-[11px] truncate max-w-xs">{item.item_name}</div>
                             </td>
 
-                            {/* 5. Total PO Qty */}
-                            <td className="py-3 px-3 text-right whitespace-nowrap align-top font-medium text-slate-600">
-                              <div>{item.quantity.toLocaleString()}</div>
+                            {/* Quantity */}
+                            <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-700">
+                              <div>{item.quantity?.toLocaleString()}</div>
                               <div className="text-[10px] text-slate-400">{item.unit}</div>
                             </td>
 
-                            {/* 6. Received Qty */}
-                            <td className="py-3 px-3 text-right whitespace-nowrap align-top text-emerald-700 font-medium">
-                              <div>{item.received_qty.toLocaleString()}</div>
+                            {/* Received Qty */}
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-500">
+                              <div>{item.received_qty?.toLocaleString() || 0}</div>
                               <div className="text-[10px] text-slate-400">{item.unit}</div>
                             </td>
 
-                            {/* 7. Remaining Qty */}
-                            <td className="py-3 px-3 text-right whitespace-nowrap align-top font-black text-slate-900 bg-slate-50/70">
-                              <div className="text-slate-900">{item.remaining_qty.toLocaleString()}</div>
-                              <div className="text-[10px] text-slate-500 font-normal">{item.unit}</div>
+                            {/* Remaining Qty */}
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 bg-sky-50/40">
+                              <div>{item.remaining_qty?.toLocaleString()}</div>
+                              <div className="text-[10px] text-slate-400">{item.unit}</div>
                             </td>
 
-                            {/* 8. Date Input (or Split trigger) */}
-                            <td className="py-3 px-3 align-top">
-                              {hasSubItems ? (
-                                <div className="text-sky-700 font-bold text-[11px] flex items-center gap-1 py-1">
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                  <span>แตกส่ง {subItemsList.length} รอบ</span>
+                            {/* Estimate Date Input */}
+                            <td className="py-2.5 px-3">
+                              {isLocked ? (
+                                <div className="font-mono text-slate-700 text-xs">
+                                  {formInputs[item.id]?.date || '-'}
                                 </div>
                               ) : (
-                                <div className="space-y-1">
-                                  <div className="relative flex items-center">
-                                    <input
-                                      type="text"
-                                      disabled={isLocked}
-                                      placeholder="วว/ดด/ปปปป"
-                                      value={formInputs[item.id]?.date || ''}
-                                      onChange={(e) => handleInputChange(item.id, 'date', e.target.value)}
-                                      className="w-full pl-3 pr-8 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                                    />
-                                    <input
-                                      type="date"
-                                      disabled={isLocked}
-                                      className="absolute right-2 opacity-0 w-5 h-5 cursor-pointer disabled:cursor-not-allowed"
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          const [y, m, d] = e.target.value.split('-');
-                                          handleInputChange(item.id, 'date', `${d}/${m}/${y}`);
-                                        }
-                                      }}
-                                    />
-                                    <Calendar className="w-4 h-4 text-slate-400 absolute right-2 pointer-events-none" />
-                                  </div>
-                                  {!isLocked && (
+                                <div className="relative flex items-center">
+                                  <input
+                                    type="text"
+                                    placeholder="วว/ดด/ปปปป"
+                                    value={formInputs[item.id]?.date || ''}
+                                    onChange={(e) => handleInputChange(item.id, 'date', e.target.value)}
+                                    maxLength={10}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 transition"
+                                  />
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+                                </div>
+                              )}
+                              {!isLocked && (
+                                <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+                                  {!hasSubItems ? (
                                     <button
                                       type="button"
                                       onClick={() => handleAddSubItem(item.id)}
-                                      className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold hover:underline flex items-center gap-0.5"
+                                      className="text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-0.5"
                                     >
                                       <span>↳ แตกส่งหลายงวด (Split)</span>
                                     </button>
+                                  ) : (
+                                    <span className="text-sky-700 font-bold">งวดที่ 1 (งวดแรก)</span>
                                   )}
                                 </div>
                               )}
                             </td>
 
-                            {/* 9. Qty Input */}
-                            <td className="py-3 px-3 text-right align-top">
-                              {hasSubItems ? (
-                                <div className="text-[11px] font-bold text-slate-700 py-1">
-                                  รวม: {subItemsList.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0).toLocaleString()}
+                            {/* Estimate Qty Input */}
+                            <td className="py-2.5 px-3 text-right">
+                              {isLocked ? (
+                                <div className="font-mono font-bold text-slate-800 text-xs">
+                                  {formInputs[item.id]?.qty?.toLocaleString() || '-'}
                                 </div>
                               ) : (
-                                <div className="space-y-1">
+                                <div>
                                   <input
                                     type="number"
-                                    disabled={isLocked}
-                                    value={formInputs[item.id]?.qty === '' ? '' : formInputs[item.id]?.qty}
-                                    onChange={(e) => handleInputChange(item.id, 'qty', e.target.value === '' ? '' : Number(e.target.value))}
-                                    className={`w-full text-right px-3 py-1.5 text-xs font-bold rounded-lg border focus:ring-2 focus:outline-none disabled:bg-slate-100 ${
+                                    min="0"
+                                    max={portalData.allow_over_delivery ? undefined : item.remaining_qty}
+                                    value={formInputs[item.id]?.qty ?? ''}
+                                    onChange={(e) => handleInputChange(item.id, 'qty', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                    className={`w-full px-2.5 py-1.5 rounded-lg border text-right text-xs font-mono font-bold focus:ring-1 transition ${
                                       isOverQty
-                                        ? 'border-rose-400 bg-rose-50 text-rose-700 focus:ring-rose-400'
-                                        : isPermittedOver
-                                        ? 'border-amber-400 bg-amber-50 text-amber-900 focus:ring-amber-400'
-                                        : 'border-slate-300 bg-white text-slate-900 focus:ring-sky-500'
+                                        ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500 bg-rose-50'
+                                        : 'border-slate-300 text-slate-800 focus:border-sky-500 focus:ring-sky-500 bg-white'
                                     }`}
                                   />
                                   {isOverQty && (
-                                    <div className="text-[10px] font-semibold text-rose-600 leading-tight">
-                                      ! ยอดส่งสูงกว่ายอดค้างส่ง
-                                    </div>
-                                  )}
-                                  {isPermittedOver && (
-                                    <div className="text-[10px] font-semibold text-amber-700 leading-tight">
-                                      ⚠️ ส่งเกินยอดค้างส่ง (ได้รับอนุญาต)
+                                    <div className="text-[10px] text-rose-600 mt-0.5 text-right font-medium">
+                                      ห้ามส่งเกินยอดคงเหลือ ({item.remaining_qty})
                                     </div>
                                   )}
                                 </div>
                               )}
                             </td>
 
-                            {/* 10. Status */}
-                            <td className="py-3 px-3 text-center align-top whitespace-nowrap">
-                              {isLocked || item.status === 'supplier_responded' ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  <Check className="w-3 h-3" />
-                                  <span>ตอบกลับแล้ว</span>
+                            {/* Status */}
+                            <td className="py-2.5 px-3 text-center">
+                              {isLocked ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  ยืนยันแล้ว
+                                </span>
+                              ) : formInputs[item.id]?.date && formInputs[item.id]?.qty ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                                  กรอกแล้ว
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                  <span>รอการตอบกลับ</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  รอการตอบกลับ
                                 </span>
                               )}
                             </td>
                           </tr>
 
-                          {/* SUB ITEMS ROWS (SPLIT ROUNDS) */}
-                          {hasSubItems && subItemsList.map((sub, sIdx) => (
-                            <tr key={`${item.id}-sub-${sIdx}`} className="bg-sky-50/50 border-t border-sky-100">
-                              <td colSpan={7} className="py-2 px-3 text-right text-[11px] font-semibold text-sky-800">
-                                ↳ งวดที่ {sIdx + 1}:
+                          {/* Sub-item Split Delivery Rows */}
+                          {subItemsList.map((sub, sIdx) => (
+                            <tr key={`sub-${item.id}-${sIdx}`} className="bg-sky-50/20 border-b border-sky-100/60 text-slate-600">
+                              <td className="text-center font-mono text-[10px] text-slate-400"></td>
+                              <td colSpan={6} className="py-1.5 px-3 pl-8 text-xs font-medium text-sky-800">
+                                <span className="inline-flex items-center gap-1.5 font-bold">
+                                  <span className="text-sky-500">↳</span> งวดที่ {sIdx + 2}:
+                                </span>
                               </td>
-                              <td className="py-2 px-3">
-                                <div className="relative flex items-center">
+
+                              {/* Sub Date */}
+                              <td className="py-1.5 px-3">
+                                {isLocked ? (
+                                  <div className="font-mono text-slate-700 text-xs">{sub.estimate_date || '-'}</div>
+                                ) : (
+                                  <div className="relative flex items-center">
+                                    <input
+                                      type="text"
+                                      placeholder="วว/ดด/ปปปป"
+                                      value={sub.estimate_date}
+                                      onChange={(e) => handleSubItemChange(item.id, sIdx, 'estimate_date', e.target.value)}
+                                      maxLength={10}
+                                      className="w-full px-2.5 py-1 rounded-lg border border-sky-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400"
+                                    />
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Sub Qty */}
+                              <td className="py-1.5 px-3 text-right">
+                                {isLocked ? (
+                                  <div className="font-mono font-bold text-slate-800 text-xs">{sub.quantity?.toLocaleString() || '-'}</div>
+                                ) : (
                                   <input
-                                    type="text"
-                                    disabled={isLocked}
-                                    placeholder="วว/ดด/ปปปป"
-                                    value={sub.estimate_date}
-                                    onChange={(e) => handleSubItemChange(item.id, sIdx, 'estimate_date', e.target.value)}
-                                    className="w-full pl-3 pr-8 py-1 text-xs font-mono bg-white border border-sky-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none disabled:bg-slate-100"
+                                    type="number"
+                                    min="0"
+                                    value={sub.quantity}
+                                    onChange={(e) => handleSubItemChange(item.id, sIdx, 'quantity', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                    className="w-full px-2.5 py-1 rounded-lg border border-sky-300 text-right text-xs font-mono font-bold text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white"
                                   />
-                                  <input
-                                    type="date"
-                                    disabled={isLocked}
-                                    className="absolute right-2 opacity-0 w-5 h-5 cursor-pointer disabled:cursor-not-allowed"
-                                    onChange={(e) => {
-                                      if (e.target.value) {
-                                        const [y, m, d] = e.target.value.split('-');
-                                        handleSubItemChange(item.id, sIdx, 'estimate_date', `${d}/${m}/${y}`);
-                                      }
-                                    }}
-                                  />
-                                  <Calendar className="w-3.5 h-3.5 text-sky-500 absolute right-2 pointer-events-none" />
-                                </div>
+                                )}
                               </td>
-                              <td className="py-2 px-3 text-right">
-                                <input
-                                  type="number"
-                                  disabled={isLocked}
-                                  placeholder="จำนวน"
-                                  value={sub.quantity === '' ? '' : sub.quantity}
-                                  onChange={(e) => handleSubItemChange(item.id, sIdx, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
-                                  className="w-full text-right px-3 py-1 text-xs font-bold rounded-lg border border-sky-300 bg-white text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none disabled:bg-slate-100"
-                                />
-                              </td>
-                              <td className="py-2 px-3 text-center">
+
+                              {/* Delete Sub Item Action */}
+                              <td className="py-1.5 px-3 text-center">
                                 {!isLocked && (
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveSubItem(item.id, sIdx)}
                                     className="p-1 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
-                                    title="ลบรอบส่งนี้"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -659,9 +648,9 @@ export default function SupplierPortalPage() {
                             </tr>
                           ))}
                           {hasSubItems && !isLocked && (
-                            <tr className="bg-sky-50/30 border-t border-sky-100">
-                              <td colSpan={7}></td>
-                              <td colSpan={3} className="py-1.5 px-3 text-left">
+                            <tr className="bg-sky-50/30 border-b border-sky-100">
+                              <td className="text-center"></td>
+                              <td colSpan={9} className="py-2 px-3">
                                 <button
                                   type="button"
                                   onClick={() => handleAddSubItem(item.id)}
@@ -682,11 +671,11 @@ export default function SupplierPortalPage() {
             </div>
           </div>
 
-          {/* Action Bottom Bar */}
+          {/* Sticky Action Bottom Bar */}
           {!isLocked && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-slate-200 shadow-md">
-              <div className="text-xs text-slate-500 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <div className="sticky bottom-4 z-30 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xl">
+              <div className="text-xs text-slate-600 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
                 <span>กรุณาตรวจสอบวันและจำนวนส่งมอบให้ครบถ้วนก่อนกดยืนยัน</span>
               </div>
 
