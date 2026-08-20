@@ -245,7 +245,11 @@ def push_data_to_irm(records):
     }
     
     import requests
-    response = requests.post(IRM_INGEST_URL, json=payload, headers=headers, timeout=60)
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    # Send POST with verify=False to support Traefik / SSL Certs seamlessly
+    response = requests.post(IRM_INGEST_URL, json=payload, headers=headers, timeout=90, verify=False)
     
     if response.status_code == 200:
         result = response.json()
