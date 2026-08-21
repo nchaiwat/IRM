@@ -726,12 +726,23 @@ export default function SupplierPortalPage() {
                             {/* 7. Est. Date */}
                             <td className="py-2.5 px-2 align-top">
                               {isLocked ? (
-                                <div className="font-mono text-slate-700 text-xs text-center">
-                                  {hasSubItems ? `แตกส่ง ${subItemsList.length} รอบ` : (formInputs[item.id]?.date || '-')}
-                                </div>
+                                hasSubItems ? (
+                                  <div 
+                                    onClick={() => handleToggleSplit(item.id)}
+                                    className="text-sky-700 hover:text-sky-900 font-bold text-xs py-1 text-center cursor-pointer hover:underline flex items-center justify-center gap-1"
+                                    title="คลิกเพื่อดูหลักฐานรอบส่งที่ระบุไว้"
+                                  >
+                                    <span>แตกส่ง {subItemsList.length} รอบ</span>
+                                    <span className="text-[10px] text-sky-500 font-normal underline">(คลิกดู)</span>
+                                  </div>
+                                ) : (
+                                  <div className="font-mono text-slate-700 text-xs text-center py-1 font-semibold">
+                                    {formInputs[item.id]?.date || '-'}
+                                  </div>
+                                )
                               ) : hasSubItems ? (
                                 <div 
-                                  onClick={() => !isLocked && handleToggleSplit(item.id)}
+                                  onClick={() => handleToggleSplit(item.id)}
                                   className="text-sky-700 hover:text-sky-900 font-bold text-xs py-1 text-center cursor-pointer hover:underline"
                                   title="คลิกเพื่อแก้ไขรอบส่ง"
                                 >
@@ -784,12 +795,12 @@ export default function SupplierPortalPage() {
                             {/* 8. Est. Qty */}
                             <td className="py-2.5 px-2 text-right align-top">
                               {isLocked ? (
-                                <div className="font-mono font-bold text-slate-800 text-xs">
+                                <div className="font-mono font-bold text-slate-800 text-xs py-1">
                                   {hasSubItems ? totalSplitQty.toLocaleString() : (formInputs[item.id]?.qty?.toLocaleString() || '-')}
                                 </div>
                               ) : hasSubItems ? (
                                 <div 
-                                  onClick={() => !isLocked && handleToggleSplit(item.id)}
+                                  onClick={() => handleToggleSplit(item.id)}
                                   className="font-mono font-bold text-sky-800 text-xs py-1 cursor-pointer hover:underline"
                                   title="คลิกเพื่อแก้ไขรอบส่ง"
                                 >
@@ -820,7 +831,24 @@ export default function SupplierPortalPage() {
 
                             {/* 9. Actions */}
                             <td className="py-2.5 px-2 text-center align-top whitespace-nowrap">
-                              {!isLocked && (
+                              {isLocked ? (
+                                hasSubItems ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleSplit(item.id)}
+                                    className={`p-1.5 rounded-lg border transition shadow-2xs cursor-pointer ${
+                                      isCardOpen
+                                        ? 'bg-sky-600 text-white border-sky-600'
+                                        : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                                    }`}
+                                    title="ดูรายละเอียดรอบส่ง (Read-only)"
+                                  >
+                                    <Layers className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-300">-</span>
+                                )
+                              ) : (
                                 <button
                                   type="button"
                                   onClick={() => handleToggleSplit(item.id)}
@@ -837,7 +865,7 @@ export default function SupplierPortalPage() {
                             </td>
                           </tr>
 
-                          {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW WITH [บันทึก] AND [ยกเลิก] */}
+                          {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW (Supports both Read-Only Evidence Mode & Edit Mode) */}
                           {(isCardOpen || (hasSubItems && isCardOpen)) && (
                             <tr className="bg-sky-50/40 border-y border-sky-200">
                               <td colSpan={9} className="p-3">
@@ -847,6 +875,12 @@ export default function SupplierPortalPage() {
                                       <span className="font-bold text-slate-800 flex items-center gap-1.5">
                                         <Layers className="w-4 h-4 text-sky-600" />
                                         <span>{item.item_code} {item.item_name}</span>
+                                        {isLocked && (
+                                          <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                            <span>หลักฐานการส่งมอบ</span>
+                                          </span>
+                                        )}
                                       </span>
                                       <div className="text-right flex items-center gap-3">
                                         <span className="text-slate-500 font-medium">
@@ -860,93 +894,113 @@ export default function SupplierPortalPage() {
                                       </div>
                                     </div>
 
-                                    {isSplitOverLimit && (
+                                    {/* Warnings if editing */}
+                                    {!isLocked && isSplitOverLimit && (
                                       <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 font-bold text-xs flex items-center justify-between">
                                         <span>⚠️ ยอดส่งรวมเกินจำนวนค้างรับ (Supplier ไม่อนุญาตให้ส่งเกิน)</span>
                                         <span>เกินไป +{(totalSplitQty - item.remaining_qty).toLocaleString()} {item.unit}</span>
                                       </div>
                                     )}
 
-                                    {!isSplitOverLimit && isSplitExceed && portalData?.allow_over_delivery && (
+                                    {!isLocked && !isSplitOverLimit && isSplitExceed && portalData?.allow_over_delivery && (
                                       <div className="p-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 font-bold text-xs flex items-center justify-between shadow-2xs">
                                         <span>⚡ Supplier รายนี้ได้รับอนุญาตให้ส่งเกินยอดสั่งซื้อได้</span>
                                         <span className="bg-amber-200/80 px-2 py-0.5 rounded text-amber-950">ส่งเกิน +{(totalSplitQty - item.remaining_qty).toLocaleString()} {item.unit}</span>
                                       </div>
                                     )}
 
-                                    <div className="space-y-2">
-                                      {subItemsList.map((sub, idx) => {
-                                        const isRoundInvalid = isSplitOverLimit || Number(sub.quantity) < 0;
-                                        return (
-                                          <div key={idx} className="flex items-center justify-end gap-2 text-xs">
-                                            <span className="w-16 font-bold text-slate-600 text-right">รอบที่ {idx + 1}</span>
-                                            
-                                            {/* Date Input with working showPicker */}
-                                            <div className="relative flex items-center">
+                                    {/* ROUNDS LIST: Read-Only Evidence Mode vs Edit Mode */}
+                                    {isLocked ? (
+                                      <div className="space-y-2 py-1">
+                                        {subItemsList.map((sub, idx) => (
+                                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                                            <span className="font-bold text-slate-800 flex items-center gap-2">
+                                              <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-black">
+                                                {idx + 1}
+                                              </span>
+                                              <span>รอบที่ {idx + 1}</span>
+                                            </span>
+                                            <div className="flex items-center gap-4">
+                                              <span className="font-mono text-slate-700 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                                                <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                                                <span className="font-semibold">{sub.estimate_date}</span>
+                                              </span>
+                                              <span className="font-mono font-black text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                                                {Number(sub.quantity).toLocaleString()} {item.unit}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {subItemsList.map((sub, idx) => {
+                                          const isRoundInvalid = isSplitOverLimit || Number(sub.quantity) < 0;
+                                          return (
+                                            <div key={idx} className="flex items-center justify-end gap-2 text-xs">
+                                              <span className="w-16 font-bold text-slate-600 text-right">รอบที่ {idx + 1}</span>
+                                              
+                                              {/* Date Input with working showPicker */}
+                                              <div className="relative flex items-center">
+                                                <input
+                                                  type="text"
+                                                  placeholder="วัน/เดือน/ปี เช่น 27/08/2026"
+                                                  value={sub.estimate_date}
+                                                  onChange={(e) => handleSubItemChange(item.id, idx, 'estimate_date', e.target.value)}
+                                                  maxLength={10}
+                                                  className={`pl-3 pr-8 py-1.5 border rounded-lg text-xs outline-none w-36 font-semibold transition ${
+                                                    !sub.estimate_date || sub.estimate_date.length < 10
+                                                      ? 'bg-amber-50 border-amber-300 focus:border-amber-500'
+                                                      : 'bg-slate-50 border-slate-200 focus:border-sky-500'
+                                                  }`}
+                                                />
+                                                <input
+                                                  type="date"
+                                                  tabIndex={-1}
+                                                  className="sr-only"
+                                                  onChange={(e) => {
+                                                    if (e.target.value) {
+                                                      const [y, m, d] = e.target.value.split('-');
+                                                      handleSubItemChange(item.id, idx, 'estimate_date', `${d}/${m}/${y}`);
+                                                    }
+                                                  }}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    const parent = e.currentTarget.parentElement;
+                                                    const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
+                                                    if (dateInput) {
+                                                      if ('showPicker' in HTMLInputElement.prototype) {
+                                                        dateInput.showPicker();
+                                                      } else {
+                                                        dateInput.focus();
+                                                      }
+                                                    }
+                                                  }}
+                                                  className="p-1 text-slate-400 hover:text-sky-600 absolute right-1.5 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer"
+                                                  title="คลิกเพื่อเปิดปฏิทิน"
+                                                >
+                                                  <Calendar className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+
+                                              {/* Quantity Input */}
                                               <input
-                                                type="text"
-                                                disabled={isLocked}
-                                                placeholder="วัน/เดือน/ปี เช่น 27/08/2026"
-                                                value={sub.estimate_date}
-                                                onChange={(e) => handleSubItemChange(item.id, idx, 'estimate_date', e.target.value)}
-                                                maxLength={10}
-                                                className={`pl-3 pr-8 py-1.5 border rounded-lg text-xs outline-none w-36 font-semibold transition ${
-                                                  !sub.estimate_date || sub.estimate_date.length < 10
-                                                    ? 'bg-amber-50 border-amber-300 focus:border-amber-500'
-                                                    : 'bg-slate-50 border-slate-200 focus:border-sky-500'
+                                                type="number"
+                                                min="0"
+                                                placeholder="จำนวน"
+                                                value={sub.quantity === '' ? '' : sub.quantity}
+                                                onChange={(e) => handleSubItemChange(item.id, idx, 'quantity', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                                className={`px-3 py-1.5 border rounded-lg text-xs outline-none w-28 font-bold text-right transition ${
+                                                  isRoundInvalid
+                                                    ? 'border-red-400 bg-red-50 text-red-700'
+                                                    : 'border-slate-200 bg-slate-50 focus:border-sky-500'
                                                 }`}
                                               />
-                                              <input
-                                                type="date"
-                                                tabIndex={-1}
-                                                disabled={isLocked}
-                                                className="sr-only"
-                                                onChange={(e) => {
-                                                  if (e.target.value) {
-                                                    const [y, m, d] = e.target.value.split('-');
-                                                    handleSubItemChange(item.id, idx, 'estimate_date', `${d}/${m}/${y}`);
-                                                  }
-                                                }}
-                                              />
-                                              <button
-                                                type="button"
-                                                disabled={isLocked}
-                                                onClick={(e) => {
-                                                  const parent = e.currentTarget.parentElement;
-                                                  const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
-                                                  if (dateInput) {
-                                                    if ('showPicker' in HTMLInputElement.prototype) {
-                                                      dateInput.showPicker();
-                                                    } else {
-                                                      dateInput.focus();
-                                                    }
-                                                  }
-                                                }}
-                                                className="p-1 text-slate-400 hover:text-sky-600 absolute right-1.5 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer disabled:cursor-not-allowed"
-                                                title="คลิกเพื่อเปิดปฏิทิน"
-                                              >
-                                                <Calendar className="w-3.5 h-3.5" />
-                                              </button>
-                                            </div>
+                                              <span className="w-8 text-[11px] text-slate-500 text-left">{item.unit}</span>
 
-                                            {/* Quantity Input */}
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              disabled={isLocked}
-                                              placeholder="จำนวน"
-                                              value={sub.quantity === '' ? '' : sub.quantity}
-                                              onChange={(e) => handleSubItemChange(item.id, idx, 'quantity', e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                              className={`px-3 py-1.5 border rounded-lg text-xs outline-none w-28 font-bold text-right transition ${
-                                                isRoundInvalid
-                                                  ? 'border-red-400 bg-red-50 text-red-700'
-                                                  : 'border-slate-200 bg-slate-50 focus:border-sky-500'
-                                              }`}
-                                            />
-                                            <span className="w-8 text-[11px] text-slate-500 text-left">{item.unit}</span>
-
-                                            {/* Delete Round Button */}
-                                            {!isLocked && (
+                                              {/* Delete Round Button */}
                                               <button
                                                 type="button"
                                                 onClick={() => handleRemoveSubItem(item.id, idx)}
@@ -955,19 +1009,32 @@ export default function SupplierPortalPage() {
                                               >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                               </button>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
 
-                                    {/* BOTTOM ACTIONS IN SPLIT CARD: [+ เพิ่มรอบส่ง], [ยกเลิก], [บันทึก] */}
-                                    {!isLocked && (
+                                    {/* BOTTOM ACTIONS IN SPLIT CARD */}
+                                    {isLocked ? (
+                                      <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                                        <span className="text-[11px] text-slate-500 italic">
+                                          * ข้อมูลนี้ได้รับการยืนยันแล้ว ไม่สามารถแก้ไขได้
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedSplitRow(null)}
+                                          className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 font-medium transition cursor-pointer"
+                                        >
+                                          ปิด
+                                        </button>
+                                      </div>
+                                    ) : (
                                       <div className="pt-2 flex items-center justify-between border-t border-slate-100">
                                         <button
                                           type="button"
                                           onClick={() => handleAddSubItem(item.id)}
-                                          className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 hover:underline"
+                                          className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
                                         >
                                           <Plus className="w-3.5 h-3.5" />
                                           <span>เพิ่มรอบส่ง</span>
