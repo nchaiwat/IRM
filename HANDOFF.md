@@ -1,274 +1,82 @@
-# 📦 IRM — Project Handoff & Technical Documentation
-> **Incoming Raw Material Tracking System (ระบบติดตามการรับวัตถุดิบ)**  
-> **องค์กร:** Window Asia Public Company Limited (Window Asia PCL.)  
-> **เวอร์ชัน:** 1.0 Production-Ready (สิงหาคม 2026)  
-> **พอร์ตบริการ:** Port 80 (HTTP Reverse Proxy)
+# 📌 IRM System — HANDOFF & MEMORY LOG
+> **วันที่บันทึก:** 21 สิงหาคม 2026  
+> **สถานะโครงการ:** Production-Ready & Deployed on VPS (`https://irm.windowasia.com`)  
+> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)
 
 ---
 
-## 📑 สารบัญ (Table of Contents)
-1. [ภาพรวมระบบและสถาปัตยกรรม (Architecture Overview)](#1-ภาพรวมระบบและสถาปัตยกรรม)
-2. [Tech Stack & Container Topology](#2-tech-stack--container-topology)
-3. [ข้อมูลการเข้าสู่ระบบเริ่มต้น (Default Credentials)](#3-ข้อมูลการเข้าสู่ระบบเริ่มต้น)
-4. [ฟังก์ชันการทำงานหลักและโมดูลทั้งหมด (Core Modules)](#4-ฟังก์ชันการทำงานหลักและโมดูลทั้งหมด)
-   - [4.1 หน้า Operation (ตารางติดตามและจัดรอบส่ง)](#41-หน้า-operation-operation)
-   - [4.2 หน้า Item Master (กลุ่มสินค้าและ Lead Time)](#42-หน้า-item-master-items)
-   - [4.3 หน้า Supplier Master (จัดการผู้จำหน่ายและสิทธิ์ส่งเกิน)](#43-หน้า-supplier-master-suppliers)
-   - [4.4 หน้า Supplier Portal (ลิงก์ตอบกลับของคู่ค้า)](#44-หน้า-supplier-portal-supplierportaltoken)
-   - [4.5 การแจ้งเตือน Telegram (Standard Header & Rich Emojis)](#45-การแจ้งเตือน-telegram)
-   - [4.6 มาตรฐานชื่อไฟล์ Export CSV](#46-มาตรฐานชื่อไฟล์-export-csv)
-   - [4.7 ระบบประวัติการแก้ไข (History Audit Trail)](#47-ระบบประวัติการแก้ไข-history-audit-trail)
-   - [4.8 แดชบอร์ดวิเคราะห์ผลงาน (Analytics Dashboard & Scorecard)](#48-แดชบอร์ดวิเคราะห์ผลงาน-dashboard)
-5. [เมทริกซ์การจัดการ Conflict และการล็อกข้อมูล (Concurrency & Locking Model)](#5-เมทริกซ์การจัดการ-conflict-และการล็อกข้อมูล)
-6. [แนวทางการ Deploy บน Cloud / On-Premise (Deployment Strategies)](#6-แนวทางการ-deploy)
-7. [คำสั่งที่ใช้ในการดูแลระบบ (Operational & Docker Commands)](#7-คำสั่งที่ใช้ในการดูแลระบบ)
+## 🎯 1. ภาพรวมระบบ (System Overview)
+ระบบ **IRM (Inbound Raw Material Delivery Tracking & Calendar Planning)** ของบริษัท Window Asia PCL. พัฒนาขึ้นเพื่อติดตามการส่งมอบวัตถุดิบ 7 กลุ่ม (กระจก, อลูมิเนียม, UPVC, ฮาร์ดแวร์ ฯลฯ) จาก SAP Business One เชื่อมโยงกับ Supplier ผ่าน Cryptographic Portal และแสดงผลปฏิทินส่งของ (Calendar) สำหรับฝ่ายจัดซื้อ (PU), ฝ่ายวางแผนการผลิต (PC), และคลังสินค้า (WH)
 
 ---
 
-## 1. ภาพรวมระบบและสถาปัตยกรรม
+## 🏗️ 2. สรุปฟังก์ชันและ Business Logic สำคัญที่ปรับปรุงล่าสุด
 
-ระบบ **IRM (Incoming Raw Material)** พัฒนาขึ้นสำหรับ **ฝ่ายจัดซื้อ (Purchasing Department)** เพื่อใช้ในการวางแผน ติดตาม และยืนยันกำหนดการส่งมอบวัตถุดิบจาก Supplier ตามใบสั่งซื้อ (PO) ที่เปิดค้างอยู่ใน **SAP Business One (SAP B1)** โดยลดภาระงานโทรศัพท์/อีเมลตามงาน และเปลี่ยนเป็นการให้ Supplier ยืนยันกำหนดส่งด้วยตนเองผ่าน Secure Web Portal
+### 1) 🔑 Supplier Portal & One-Time Cryptographic Token
+- **Token Security:** ลิงก์ถูกสร้างแบบ Cryptographic Token 16-20 bytes ไม่ซ้ำกัน
+- **Automatic Token Revocation (ป้องกันเปิดลิงก์เก่า):** เมื่อมีการส่งอีเมลรอบใหม่หา Supplier รายเดิม ระบบจะ **สั่งยกเลิก (Revoke & Expire) Token เก่าทั้งหมดทันที** หากผู้ขายเปิดลิงก์จากอีเมลของเมื่อวานจะถูกปฏิเสธทันที
+- **Permanent One-Time Submit Lock:** เมื่อผู้ขายกดยืนยันส่งข้อมูล (`is_submitted = True`):
+  - ลิงก์จะถูกล็อคเป็นโหมดอ่านอย่างเดียว (Read-only) ทันที
+  - ซ่อนปุ่มแก้ไข/ส่งข้อมูล และแสดงแบนเนอร์แจ้งเตือนสีเขียว
+  - **Read-Only Evidence Viewer:** กรณีมีการแตกส่งหลายรอบ (`แตกส่ง X รอบ`) ผู้ขายสามารถคลิกเพื่อกางการ์ดดูรายละเอียดรอบที่ 1 และรอบที่ 2 ที่ตัวเองเคยระบุไว้เพื่อใช้เป็นหลักฐานยืนยันได้
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           IRM SYSTEM TOPOLOGY                           │
-└─────────────────────────────────────────────────────────────────────────┘
-   [ SAP B1 (SQL/API) ] ──(Sync)──► [ IRM Backend (FastAPI) ]
-                                            │
-                                            ▼
-   [ Buyer (Admin) ] ────(Port 80)────► [ Nginx ] ◄────(Port 80)──── [ Supplier ]
-   (Dashboard/Operation)                    │                         (Secure Portal)
-                                            ▼
-                                   [ IRM Frontend (Next.js) ]
-                                            │
-                                   [ PostgreSQL 16 + Redis 7 ]
-                                            │
-                                            ▼
-   [ Telegram Group & DMs ] ◄──(Notifications)── [ APScheduler ]
-```
+### 2) 📦 Split Rounds (แตกส่งย่อย / Sub-Items)
+- **ไม่หารตัวเลข:** รอบที่ 1 คงยอดค้างรับเต็มจำนวน (`remQty`) และวันที่เดิม ส่วนรอบที่ 2 เริ่มต้นด้วยวันที่ว่างเปล่า (`''`) และจำนวน `0` ให้ผู้ขายกรอกเอง
+- **Sequential Date Validation:** วันที่ในรอบถัดไป (รอบ 2, 3...) ต้องเป็นวันหลังจากรอบก่อนหน้าเสมอ
+- **Save Draft in Card:** มีปุ่ม `[บันทึก]` และ `[ยกเลิก]` ภายในการ์ด เพื่อพับเก็บสรุปยอดลงตารางก่อนกดส่งจริง
 
----
+### 3) 📅 Calendar Dual-Status Flow (Exact Date vs Estimate)
+- 🟢 **สีเขียว (`Confirmed - Exact Date`):** เกิดขึ้นเมื่อ **ฝ่ายจัดซื้อ (PU) เป็นผู้กดปุ่ม `✔ Accept / Confirm` เท่านั้น** เป็นวันที่แน่นอน 100% สำหรับฝ่ายคลังสินค้าและฝ่ายผลิต
+- 🟠 **สีส้ม (`Estimate - รอ PU ยืนยัน`):** วันที่ที่ Supplier เสนอมาผ่าน Portal หรือวันที่ประเมินไว้เบื้องต้น ซึ่งยังไม่ผ่านการอนุมัติจากจัดซื้อ
+- **Interactive Filter Tabs:** หัวปฏิทินมีปุ่มสลับดู:
+  - `[ ทั้งหมด ]`
+  - `[ 🟢 ยืนยันแล้ว (Confirmed - Exact Date) ]`
+  - `[ 🟠 รอ PU ยืนยัน (Estimate) ]`
 
-## 2. Tech Stack & Container Topology
-
-ระบบทำงานบน **Docker Compose** แยกอิสระทั้งหมด 5 Containers ในวง Network `irm-network`:
-
-| Container Name | Service | Port Mapping (Host:Container) | หน้าที่หลัก |
-| :--- | :--- | :--- | :--- |
-| **`irm-nginx`** | Nginx Alpine | `80:80` | Reverse Proxy รวม Route Frontend (`/`) และ API Backend (`/api`) |
-| **`irm-frontend`** | Next.js 15 (App Router, TailwindCSS, Lucide) | Internal (3000) | UI สำหรับผู้ใช้งานฝ่ายจัดซื้อ, ผู้ดูแลระบบ และ Supplier Portal |
-| **`irm-backend`** | FastAPI (Python 3.11, SQLAlchemy Async, APScheduler) | Internal (8000) | Business Logic, Background Jobs, SAP Sync, Real Email & Telegram Service |
-| **`irm-db`** | PostgreSQL 16 Alpine | Internal (5432) | ฐานข้อมูลหลัก (PO Headers, Items, Sub-items, Masters, Audit Logs, Settings) |
-| **`irm-redis`** | Redis 7 Alpine | Internal (6379) | Cache และ Fast Key-Value Store |
+### 4) 🧹 Database Clean State (No Mock Seeds)
+- ตัดชุดคำสั่ง Auto-Seed ข้อมูลจำลอง (Mock Item 34 รายการ, Mock Supplier 8 รายชื่อ, Mock PO) ออกจาก:
+  - `backend/app/init_db.py`
+  - `backend/app/routers/suppliers.py`
+  - `backend/app/routers/items.py`
+- เพิ่มสคริปต์ `backend/clear_transactions.py` และคำสั่ง TRUNCATE ที่ปลอดภัย (คง Users, Roles, Settings ไว้ 100%)
 
 ---
 
-## 3. ข้อมูลการเข้าสู่ระบบเริ่มต้น
+## 📂 3. โครงสร้างไฟล์และจุดแก้ไขสำคัญ (Key Files)
 
-* **URL เข้าใช้งาน Web:** [http://localhost](http://localhost) (หรือตาม IP/Domain ที่ Deploy)
-* **URL API Swagger Docs:** [http://localhost/docs](http://localhost/docs)
-* **ผู้ดูแลระบบ (Default Super Admin):**
-  * **Username:** `admin`
-  * **Password:** `irm@2026`
-* **ผู้ใช้งานตัวอย่างฝ่ายจัดซื้อ (Default Buyers):**
-  * `patcha` / `irm@2026` (พัชชา)
-  * `pinyada` / `irm@2026` (ภิญญาดา)
-
----
-
-## 4. ฟังก์ชันการทำงานหลักและโมดูลทั้งหมด
-
-### 4.1 หน้า Operation (`/operation`)
-* **Dual Synchronized Scrollbars:** แถบเลื่อน Mirror Scrollbar ด้านบน ซิงค์กับตารางด้านล่าง ช่วยให้ผู้ใช้จอ 14" เลื่อนดูคอลัมน์ขวาได้ทันที
-* **Sticky Columns:** ตรึง 3 คอลัมน์แรก (`#`, `PO No. / Date`, `Group`) ไม่ให้เลื่อนหลุดสายตา
-* **Visual Color Strip Highlighting:**
-  * 🟢 **เขียว:** รายการที่ปรับเปลี่ยนแล้ว (Est. Date / Qty ระบุแล้ว)
-  * 🟠 **ส้ม:** รายการที่ Supplier ตอบกลับแล้ว รอจัดซื้อ Accept
-  * ⚪ **เทา:** รายการที่ยังไม่ปรับเปลี่ยน
-* **Quick Filter Tabs:** ปุ่มเม็ดยากรองด้านบน: *ทั้งหมด*, *มาใหม่วันนี้*, *ปรับเปลี่ยนแล้ว*, *ยังไม่ปรับเปลี่ยน*, *Sup ตอบกลับ*
-* **Inline Sub-Item Split Editor:**
-  * กดปุ่ม `+` เพื่อแตกงวดส่ง (Split) ได้สูงสุดไม่จำกัดงวด
-  * รองรับสิทธิ์ **ส่งเกินยอดสั่งซื้อ (Allow Over-Delivery)**
-* **ปุ่ม Accept (ยืนยันรับทราบ):**
-  * เมื่อ Sup ส่งข้อมูลมา จะขึ้นปุ่ม `✓ Accept`
-  * เมื่อกด Accept ปุ่มจะหายไปทันที และ **คงสถานะผู้ปรับปรุงล่าสุดเป็น `🏢 Supplier` พร้อมเวลาจริงเสมอ** (ไม่เปลี่ยนเป็น Admin)
+| ไฟล์ | หน้าที่ / การทำงาน |
+| :--- | :--- |
+| [`frontend/src/app/supplier/portal/[token]/page.tsx`](file:///d:/Python/IRM/frontend/src/app/supplier/portal/%5Btoken%5D/page.tsx) | หน้าจอ Portal สำหรับ Supplier (ล็อค Read-only, ดูรอบส่งย่อย, Dual Scrollbar) |
+| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/%28dashboard%29/calendar/page.tsx) | หน้าปฏิทิน (แยกสีเขียว Confirmed vs ส้ม Estimate + Filter Tabs) |
+| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/%28dashboard%29/operation/page.tsx) | หน้า Operation จัดการ PO, Sub-items, Accept รอบส่งจาก Supplier |
+| [`backend/app/routers/supplier_portal.py`](file:///d:/Python/IRM/backend/app/routers/supplier_portal.py) | API รับส่งข้อมูล Portal และบันทึก `is_submitted = True` |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | สร้าง Token และฟังก์ชัน Revoke Token เก่าเมื่อส่งอีเมลใหม่ |
+| [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | API จัดการ Supplier Master (ตัด Fallback Auto-Seed ออกแล้ว) |
+| [`backend/app/routers/items.py`](file:///d:/Python/IRM/backend/app/routers/items.py) | API จัดการ Item Master (ตัด Fallback Auto-Seed ออกแล้ว) |
+| [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | Database Initializer (คงเฉพาะ Admin User & System Settings) |
+| [`backend/clear_transactions.py`](file:///d:/Python/IRM/backend/clear_transactions.py) | สคริปต์ล้างข้อมูล Transaction โดยไม่กระทบ Users/Settings |
 
 ---
 
-### 4.2 หน้า Item Master (`/items`)
-* **จำแนกครบ 7 กลุ่มสินค้า:**
-  1. `RM-ALU/UPVC (เต็ม)` (สีฟ้า)
-  2. `HW` (สีส้ม)
-  3. `FG-Non BOI` (สีม่วง)
-  4. `RM-กระจก` (สีเขียว)
-  5. `SP - Sparepart` (สีชมพู)
-  6. `RM-เหล็กดัด` (สีเหลือง)
-  7. `HW-Partner` (สีเทา)
-* **Quick Group Filter Tabs:** แท็บฟิลเตอร์ด้านบนคลิกเพื่อดูเฉพาะกลุ่มสินค้าที่ต้องการได้ทันที
-* **กำหนด Lead Time & Notify Alert:** กำหนดรอบวัน Lead Time และวันแจ้งเตือนล่วงหน้าต่อรหัสสินค้า
-* **Import / Export CSV:** นำเข้าและส่งออกข้อมูลรหัสสินค้า
+## 🚀 4. คำสั่งจัดการระบบบน VPS Hostinger (`/var/www/Irm`)
 
----
-
-### 4.3 หน้า Supplier Master (`/suppliers`)
-* **การแก้ไข Email ถาวร (Safe from SAP Sync):**
-  * Email ที่ผู้ใช้กรอกหรือแก้ไขในระบบ IRM จะได้รับการป้องกัน ไม่ถูกการ Sync ข้อมูลจาก SAP เขียนทับ
-* **การล้างแป้นพิมพ์ภาษาไทยอัตโนมัติ (Email Auto-Sanitization):**
-  * ป้องกันการพิมพ์ตกภาษาไทย เช่น `ืn.chaiwat@gmail.com` ➔ แก้เป็น `n.chaiwat@gmail.com`
-* **สวิตช์อนุญาตให้ส่งเกินยอดสั่งซื้อ (Allow Over-Delivery):**
-  * สามารถเปิด-ปิดสิทธิ์ `อนุญาตให้ส่งเกิน (Over-Delivery)` ราย Supplier ได้ทันที
-* **การส่ง Email แบบ UTF-8:** ใช้มาตรฐาน `EmailMessage` รองรับภาษาไทย 100%
-* **🛡️ Implementation Safe Lock (ระงับการส่งอีเมลอัตโนมัติ 100%):**
-  * ในช่วง Implementation ระบบได้ทำการ **Hard-Lock ปิดกั้นการส่งอีเมลตามรอบ Schedule (วันจันทร์และพฤหัสบดี) โดยเด็ดขาด (`mail_schedule_enabled = false`)** ทั้งในระดับ APScheduler และ Service Layer เพื่อความปลอดภัยสูงสุด ป้องกันไม่ให้มีอีเมลจริงหลุดออกไปหาคู่ค้าภายนอกเด็ดขาด
-
----
-
-### 4.4 หน้า Supplier Portal (`/supplier/portal/[token]`)
-* **ขอบเขตของลิงก์ (All-PO Token Scope):**
-  * ลิงก์ที่ส่งจากหน้า Supplier Master จะดึง **ทุกใบสั่งซื้อ (PO) ที่เปิดค้างอยู่ทั้งหมด** ของ Supplier รายนั้นมาแสดงในหน้าเดียว
-* **การคำนวณและกรอกยอดส่งเกิน:**
-  * หาก Supplier ได้รับสิทธิ์ Over-Delivery ระบบจะไม่ขึ้นบล็อกแจ้งเตือน และอนุญาตให้บันทึกทั้งร่าง (Draft) และกดยืนยันจริง
-* **Full-Locking on Confirmation (ล็อกอ่านอย่างเดียวทันทีหลังกดยืนยัน):**
-  * เมื่อ Supplier กดยืนยันส่งข้อมูล:
-    1. ปิดช่องกรอกและปุ่มเลือกวันที่ทั้งหมดเป็น Read-only
-    2. ซ่อนปุ่ม `[ 🗑️ ลบงวดส่ง ]`
-    3. ซ่อนปุ่ม `[ + เพิ่มงวดส่งถัดไป ]`
-    4. ซ่อนปุ่ม `[ ↳ แตกส่งหลายงวด ]`
-    5. ซ่อนแถบปุ่มบันทึกด้านล่างทั้ง `[ บันทึกชั่วคราว ]` และ `[ ยืนยันส่งข้อมูลให้ฝ่ายจัดซื้อ ]`
-    6. อัปเดตสถานะเป็น `🟢 ตอบกลับแล้ว`
-
----
-
-### 4.5 การแจ้งเตือน Telegram
-ข้อความ Telegram ทุกข้อความในระบบถูกบังคับใช้ **Standard Header Template เดียวกัน 100%** พร้อม **Rich Emojis** ในทุก Bullet Point:
-
-```text
-📦 IRM System · 19 ส.ค. 2569 16:55 น.
-────────────────────────────
-🟢 Supplier ยืนยันกำหนดส่งวัตถุดิบผ่าน Portal
-
-• 🏢 ผู้จำหน่าย: บริษัท อินซูโฟม อุตสาหกรรม (สมุทรสาคร) จำกัด (VD-0720)
-• 📑 เลขที่ PO: 260810099
-• 📦 จำนวนที่ตอบกลับ: 1 รายการ
-• 🚚 สรุปกำหนดส่งมอบ:
-   - HW-3107-00000 โฟมแท่ง (10,340 ชิ้น) ➔ แตกส่ง 3 งวด (18/10, 21/10, 27/10)
-• 💻 ขั้นตอนถัดไป: ฝ่ายจัดซื้อสามารถเข้าตรวจสอบที่หน้า Operation
-```
-
-#### รายการ Incident ทั้ง 7 แบบในระบบ:
-1. `🔄 การ Sync ข้อมูลจาก SAP B1 สำเร็จ / ล้มเหลว`
-2. `📬 รายงานการกระจาย Email แจ้งเตือน Supplier`
-3. `🟢 Supplier ยืนยันกำหนดส่งวัตถุดิบผ่าน Portal`
-4. `⏰ แจ้งเตือนวัตถุดิบใกล้ถึงกำหนดส่งมอบ (Upcoming Inbound)`
-5. `🚨 แจ้งเตือนด่วน: รายการวัตถุดิบเกินกำหนดส่ง (Critical Overdue)`
-6. `🔓 แจ้งเตือนการปลดล็อครายการโดยฝ่ายจัดซื้อ (Unlock Override)`
-7. `📢 ทดสอบการส่งข้อความเข้ากลุ่ม / ส่วนตัว`
-
----
-
-### 4.6 มาตรฐานชื่อไฟล์ Export CSV
-ทุกไฟล์ที่ถูก Export ออกมาจากระบบ จะขึ้นต้นด้วย `IRM_` และต่อท้ายด้วย Timestamp `_YYYYMMDD_HHMMSS.csv`:
-
-| หน้าจอ | รูปแบบชื่อไฟล์ | ตัวอย่าง |
-| :--- | :--- | :--- |
-| **Item Master** | `IRM_Item_Master_Export_YYYYMMDD_HHMMSS.csv` | `IRM_Item_Master_Export_20260819_172811.csv` |
-| **Supplier Master** | `IRM_Supplier_Master_Export_YYYYMMDD_HHMMSS.csv` | `IRM_Supplier_Master_Export_20260819_172811.csv` |
-| **Analytics Dashboard** | `IRM_Supplier_Scorecard_YYYYMMDD_HHMMSS.csv` | `IRM_Supplier_Scorecard_20260819_172811.csv` |
-| **Transaction Logs** | `IRM_Transaction_Logs_YYYYMMDD_HHMMSS.csv` | `IRM_Transaction_Logs_20260819_172811.csv` |
-
----
-
-### 4.7 ระบบประวัติการแก้ไข (History Audit Trail)
-* หน้าต่าง Modal ประวัติการเปลี่ยนแปลง (ไอคอนนาฬิกา 🕘) ถูกจัดเรียง **เหตุการณ์ล่าสุดขึ้นมาอยู่บนสุดเสมอ (Newest First)**
-* รายการบนสุดจะมีป้ายแท็กไฮไลต์ **`ล่าสุด` (สีน้ำเงินคราม)** ทำให้ผู้ใช้ทราบสถานะปัจจุบันได้ทันทีโดยไม่ต้องเลื่อน Scroll ลงไปดูด้านล่าง
-
----
-
-### 4.8 แดชบอร์ดวิเคราะห์ผลงาน (Dashboard)
-* **Scorecard & OTIF Tracking:** คำนวณ On-Time In-Full Rate (%) แยกตามเกรด Supplier (A, B, C, D)
-* **SLA Status:** ติดตามเวลาตอบกลับของคู่ค้าเทียบกับเวลาหมดอายุของ Token
-* **Lead Time Forecast Chart:** กราฟจำแนกแนวโน้มการรับเข้าวัตถุดิบล่วงหน้า 30 วัน
-
----
-
-## 5. เมทริกซ์การจัดการ Conflict และการล็อกข้อมูล
-
-| ลำดับเหตุการณ์ | ฝั่ง Supplier Portal | ฝั่ง Operation (จัดซื้อ) | ผลลัพธ์และสิ่งที่ระบบยึดถือ |
-| :--- | :--- | :--- | :--- |
-| **1. ส่ง Email ให้ Sup** | เรคอร์ดเข้าสู่สถานะรอตอบกลับ | ขึ้นไอคอนแม่กุญแจ `🔒 รอ Sup ตอบ` | ระบบล็อกให้สิทธิ์ Supplier ตอบก่อน |
-| **2. User กดยกเลิกสิทธิ์ (Unlock)** | หากเปิดลิงก์รอบใหม่ จะเห็นข้อมูลที่ User แก้ไข | ปลดล็อค `🔓` และแก้ไขวัน/ยอดส่งได้ | **ยึดตาม User ล่าสุด** |
-| **3. Sup เซฟ Draft ไว้ แล้ว User มาแก้** | เปิดรอบใหม่จะเห็นข้อมูลที่ User ปรับแก้ | เห็นค่างวดที่ Sup ร่างไว้และปรับแก้ทับได้ | **ยึดตามการแก้ไขล่าสุด** |
-| **4. Sup กดยืนยันส่งจริง (Final Submit)** | หน้าจอล็อกเป็น Read-only ทันที | ขึ้นแท็บ `Sup ตอบกลับ` พร้อมปุ่ม `Accept` | **ยึดตาม Supplier** ➔ รอจัดซื้อกด Accept |
-| **5. User กดปุ่ม Accept** | จอยังคงล็อกเหมือนเดิม | ปุ่ม Accept หายไป, ผู้ปรับปรุงคงเป็น Sup | ยืนยันรับแผนเข้าสู่การผลิตสมบูรณ์ |
-
----
-
-## 6. แนวทางการเชื่อมต่อ SAP & Deploy บน VPS Hostinger
-
-### 🌟 แนะนำ: สถาปัตยกรรม SAP On-Premise Outbound Push Agent (Zero Firewall Changes)
-เมื่อระบบ IRM ติดตั้งอยู่บน **VPS Hostinger (Public Cloud)** และฐานข้อมูล SAP B1 อยู่ภายในโรงงาน (**On-Premise Behind Firewall/NAT**):
-
-1. **สถาปัตยกรรม Outbound HTTPS Push (พอร์ต 443):**
-   * ฝ่าย IT ไม่ต้องเปิด Port Forwarding (Port 1433) หรือแก้ Firewall ขาเข้าที่โรงงาน
-   * Server ในโรงงานจะทำหน้าที่เป็น Agent ดึงข้อมูล Open POs จาก SAP MS SQL ในวง LAN และส่งคำขอแบบ **Outbound HTTPS POST** ไปยัง IRM บน VPS Hostinger ที่ Endpoint:
-     `POST https://<vps-domain>/api/sap/inbound-push`
-   * การส่งข้อมูลได้รับการป้องกันด้วย **Secret Ingest Token (`X-IRM-Ingest-Key`)**
-
-2. **ระบบนับเวอร์ชันไฟล์อัตโนมัติ (`irm_agent_sync_v1.py`, `irm_agent_sync_v2.py`, ...):**
-   * เข้าหน้า `System Settings` (`/admin/settings`) ➔ หมวด **`1. SAP On-Premise Sync Agent`**
-   * ระบบจะแสดง Version ปัจจุบัน เช่น `v1 (irm_agent_sync_v1.py)`
-   * เมื่อกดปุ่ม **[📥 ดาวน์โหลด Script (irm_agent_sync_v2.py)]** ระบบจะ:
-     1. รันเลขเวอร์ชันถัดไปอัตโนมัติ (v1 ➔ v2 ➔ v3...)
-     2. ฝังค่า `AGENT_VERSION = "v2"` และ `AGENT_FILENAME = "irm_agent_sync_v2.py"` ลงในไฟล์
-     3. บันทึกประวัติการดาวน์โหลดลงใน **Transaction Logs** พร้อมระบุชื่อผู้ดาวน์โหลดและเวลา เพื่อให้ตรวจสอบย้อนหลังได้ว่า On-Premise ใช้ไฟล์ตรงกับเวอร์ชันปัจจุบันของ IRM หรือไม่
-
-3. **การตั้งเวลารันอัตโนมัติบน On-Premise Server (Task Scheduler):**
-   * ไฟล์ Python ที่ดาวน์โหลดเป็นแบบ Single-run (รันครั้งเดียวจบ) โดย Admin สามารถนำคำสั่งจากหน้าจอไปตั้งเวลาใน Windows Task Scheduler ได้เอง:
-     ```cmd
-     schtasks /create /tn "IRM_SAP_Sync_Daily" /tr "python C:\IRM_Agent\irm_agent_sync_v1.py" /sc daily /st 04:00 /ru "SYSTEM" /f
-     ```
-   * **Linux Crontab:**
-     ```cron
-     0 4 * * * /usr/bin/python3 /opt/irm/irm_agent_sync_v1.py >> /var/log/sap_sync.log 2>&1
-     ```
-
----
-
-## 7. คำสั่งที่ใช้ในการดูแลระบบ
-
-### การเริ่มและหยุดระบบ (Docker)
+### 🔄 ดึงโค้ดล่าสุด & Rebuild:
 ```bash
-# เริ่มระบบทั้งหมดพร้อม Build
-docker-compose up -d --build
-
-# ดูสถานะ Container ทั้ง 5 ตัว
-docker-compose ps
-
-# ดู Logs แบบ Real-time
-docker-compose logs -f irm-backend
-docker-compose logs -f irm-frontend
-
-# ปิดระบบทั้งหมด
-docker-compose down
+cd /var/www/Irm
+git pull origin main
+docker compose build --no-cache irm-backend irm-frontend
+docker compose up -d
 ```
 
-### การ Rebuild เฉพาะ Container
+### 🧹 ล้างข้อมูล Transaction & Masters (เริ่มใหม่จากศูนย์):
 ```bash
-# Rebuild Frontend
-docker-compose up -d --build irm-frontend
-
-# Rebuild Backend
-docker-compose up -d --build irm-backend
-```
-
-### การสำรองและกู้คืนฐานข้อมูล (PostgreSQL Backup & Restore)
-```bash
-# Backup Database
-docker-compose exec irm-db pg_dump -U irm_user irm_db > irm_backup_$(date +%Y%m%d).sql
-
-# Restore Database
-cat irm_backup_20260819.sql | docker-compose exec -T irm-db psql -U irm_user irm_db
+docker compose exec irm-db psql -U irm -d irm -c "TRUNCATE TABLE item_masters, supplier_masters, sub_items, po_item_audit_logs, po_items, po_headers, supplier_portal_tokens, transaction_logs RESTART IDENTITY CASCADE;"
+docker compose exec irm-redis redis-cli flushall
 ```
 
 ---
-*เอกสารฉบับนี้จัดทำขึ้นเพื่อใช้เป็นคู่มือส่งมอบงานระบบ IRM (Incoming Raw Material System) ฉบับสมบูรณ์*
+
+## 📌 5. สิ่งที่จะทำต่อในรอบหน้า (Next Steps)
+1. **SAP Data Ingestion Test:** ทดสอบรัน Agent ซิงก์ข้อมูล PO จริงจาก SAP On-Premise เข้าสู่ระบบ IRM
+2. **Review Operation Workflow:** ปรับแต่งการคลิกดู Sub-Item ในหน้า Operation ให้เปิดแบบ Review Mode ก่อนกดยืนยัน Accept
+3. **End-to-End Test:** ทดสอบวงจรเต็ม: SAP Ingest ➔ ส่ง Email Supplier ➔ Supplier ตอบกลับ ➔ PU Accept ➔ แสดงผลบน Calendar แบบ Exact Date 🟢
