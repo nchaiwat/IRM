@@ -80,36 +80,10 @@ async def list_suppliers(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """List all supplier masters. Guaranteed inline auto-seed if empty."""
+    """List all supplier masters."""
     stmt = select(SupplierMaster).order_by(SupplierMaster.supplier_code.asc())
     result = await db.execute(stmt)
-    suppliers = result.scalars().all()
-
-    if not suppliers:
-        suppliers_seed = [
-            ("VD-0004", "บริษัท กรีนเทคพลัส อินเตอร์กรุ๊ป จำกัด", "n.chaiwat@gmail.com", "02-123-4567", "คุณสมชาย"),
-            ("VD-0123", "บริษัท ริเวลเทค โปรดักส์ จำกัด", "info@riveltech.co.th", "02-987-6543", "คุณวิชัย"),
-            ("VD-0021", "บริษัท ไทรพอยท์ อินเตอร์เทรดดิ้ง จำกัด", "contact@tripoint.co.th", "02-555-1234", "คุณสุรชัย"),
-            ("VD-0088", "บริษัท คินลอง ฮาร์ดแวร์ (ประเทศไทย) จำกัด", "sales@kinlong.co.th", "02-777-8888", "คุณกิตติ"),
-            ("VD-0120", "ห้างหุ้นส่วนจำกัด กระจกคิ้วเชียงเซ้ง", "sales@chiangseng.co.th", "02-444-3333", "คุณเชียง"),
-            ("VD-0558", "บริษัท คิม แซนด์ อินเตอร์เนชั่นแนล จำกัด", "info@kimsand.co.th", "02-222-1111", "คุณคิม"),
-            ("VD-0706", "บริษัท ฮอสเด็ค (ประเทศไทย) จำกัด", "info@hosdeck.co.th", "02-333-2222", "คุณฮอส"),
-            ("VD-0044", "บริษัท ซี เจ ควิก โปรดักส์ จำกัด", "sales@cjquick.co.th", "02-666-5555", "คุณซีเจ"),
-        ]
-        for scode, sname, semail, sphone, scontact in suppliers_seed:
-            db.add(SupplierMaster(
-                supplier_code=scode,
-                supplier_name=sname,
-                email=semail,
-                telephone=sphone,
-                contact_person=scontact,
-                is_new=True,
-            ))
-        await db.commit()
-        result = await db.execute(stmt)
-        suppliers = result.scalars().all()
-
-    return suppliers
+    return result.scalars().all()
 
 
 @router.post("", response_model=SupplierMasterResponse, status_code=status.HTTP_201_CREATED)
