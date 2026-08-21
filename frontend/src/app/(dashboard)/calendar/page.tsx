@@ -71,9 +71,18 @@ export default function CalendarPage() {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
 
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'estimate'>('all');
+
+  // Filter events by status
+  const filteredEvents = events.filter((ev) => {
+    if (statusFilter === 'confirmed') return ev.status === 'confirmed';
+    if (statusFilter === 'estimate') return ev.status !== 'confirmed';
+    return true;
+  });
+
   // Group events by date string (YYYY-MM-DD)
   const eventsByDate: Record<string, CalendarEvent[]> = {};
-  events.forEach((ev) => {
+  filteredEvents.forEach((ev) => {
     if (ev.date) {
       const dStr = ev.date;
       if (!eventsByDate[dStr]) eventsByDate[dStr] = [];
@@ -146,20 +155,60 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend Badges */}
-      <div className="flex items-center gap-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs font-semibold">
-        <span className="text-slate-500">สัญลักษณ์สถานะ:</span>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-          <span className="text-slate-700">Estimate / Responded (รอยืนยัน)</span>
+      {/* Filter Tabs & Legend Badges */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs">
+        {/* Interactive Filter Tabs */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+              statusFilter === 'all'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            ทั้งหมด ({events.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('confirmed')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+              statusFilter === 'confirmed'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${statusFilter === 'confirmed' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+            <span>ยืนยันแล้ว (Confirmed - Exact Date)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${statusFilter === 'confirmed' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+              {events.filter(e => e.status === 'confirmed').length}
+            </span>
+          </button>
+          <button
+            onClick={() => setStatusFilter('estimate')}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+              statusFilter === 'estimate'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'text-amber-700 hover:bg-amber-50'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${statusFilter === 'estimate' ? 'bg-white' : 'bg-amber-400'}`}></span>
+            <span>รอ PU ยืนยัน (Estimate)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${statusFilter === 'estimate' ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-900'}`}>
+              {events.filter(e => e.status !== 'confirmed').length}
+            </span>
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-          <span className="text-slate-700">Confirmed (ยืนยันแล้ว)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-rose-500"></span>
-          <span className="text-slate-700">Delay (ส่งล่าช้า)</span>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 font-semibold text-slate-600">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-md bg-emerald-500 shadow-2xs"></span>
+            <span>Confirmed (Exact Date)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-md bg-amber-400 shadow-2xs"></span>
+            <span>Estimate (รอ PU Confirm)</span>
+          </div>
         </div>
       </div>
 
