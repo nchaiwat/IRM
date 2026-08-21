@@ -729,11 +729,10 @@ export default function SupplierPortalPage() {
                                 hasSubItems ? (
                                   <div 
                                     onClick={() => handleToggleSplit(item.id)}
-                                    className="text-sky-700 hover:text-sky-900 font-bold text-xs py-1 text-center cursor-pointer hover:underline flex items-center justify-center gap-1"
-                                    title="คลิกเพื่อดูหลักฐานรอบส่งที่ระบุไว้"
+                                    className="text-sky-700 hover:text-sky-900 font-bold text-xs py-1 text-center cursor-pointer hover:underline"
+                                    title="คลิกเพื่อดูรอบส่ง"
                                   >
-                                    <span>แตกส่ง {subItemsList.length} รอบ</span>
-                                    <span className="text-[10px] text-sky-500 font-normal underline">(คลิกดู)</span>
+                                    แตกส่ง {subItemsList.length} รอบ
                                   </div>
                                 ) : (
                                   <div className="font-mono text-slate-700 text-xs text-center py-1 font-semibold">
@@ -875,12 +874,6 @@ export default function SupplierPortalPage() {
                                       <span className="font-bold text-slate-800 flex items-center gap-1.5">
                                         <Layers className="w-4 h-4 text-sky-600" />
                                         <span>{item.item_code} {item.item_name}</span>
-                                        {isLocked && (
-                                          <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
-                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                            <span>หลักฐานการส่งมอบ</span>
-                                          </span>
-                                        )}
                                       </span>
                                       <div className="text-right flex items-center gap-3">
                                         <span className="text-slate-500 font-medium">
@@ -1017,14 +1010,11 @@ export default function SupplierPortalPage() {
 
                                     {/* BOTTOM ACTIONS IN SPLIT CARD */}
                                     {isLocked ? (
-                                      <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                                        <span className="text-[11px] text-slate-500 italic">
-                                          * ข้อมูลนี้ได้รับการยืนยันแล้ว ไม่สามารถแก้ไขได้
-                                        </span>
+                                      <div className="pt-2 flex items-center justify-end border-t border-slate-100">
                                         <button
                                           type="button"
                                           onClick={() => setExpandedSplitRow(null)}
-                                          className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 font-medium transition cursor-pointer"
+                                          className="px-4 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 font-medium transition cursor-pointer"
                                         >
                                           ปิด
                                         </button>
