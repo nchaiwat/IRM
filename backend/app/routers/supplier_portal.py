@@ -166,8 +166,11 @@ async def submit_supplier_response(
     """
     now_dt = datetime.now(timezone.utc)
 
-    # 1. Validate Cryptographic Token
-    stmt_token = select(SupplierPortalToken).where(SupplierPortalToken.token == token)
+    # 1. Validate Cryptographic Token with format tolerance
+    clean_token = token.strip().replace(" ", "_")
+    stmt_token = select(SupplierPortalToken).where(
+        (SupplierPortalToken.token == token) | (SupplierPortalToken.token == clean_token)
+    )
     token_obj = (await db.execute(stmt_token)).scalar_one_or_none()
 
     if token_obj:
@@ -279,6 +282,12 @@ async def submit_supplier_response(
         db.add(audit_log)
         updated_count += 1
 
+    # Mark token as submitted (One-time submission lock)
+    if not data.is_draft and token_obj:
+        token_obj.is_submitted = True
+        db.add(token_obj)
+
+    await db.commit()
 
     # Record Transaction Log
     try:

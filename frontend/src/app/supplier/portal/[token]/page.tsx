@@ -572,15 +572,15 @@ export default function SupplierPortalPage() {
           )}
         </div>
 
-        {/* Success Banner */}
-        {submittedSuccess && (
+        {/* Success Banner / Locked Mode */}
+        {(submittedSuccess || portalData?.is_submitted) && (
           <div className="p-6 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-950 space-y-2 shadow-sm">
             <div className="flex items-center gap-2.5 font-bold text-base text-emerald-800">
               <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
               <span>ยืนยันส่งข้อมูลให้ฝ่ายจัดซื้อเรียบร้อยแล้ว</span>
             </div>
             <p className="text-xs text-emerald-800 leading-relaxed pl-8.5">
-              ข้อมูลกำหนดวันส่งมอบและจำนวนสินค้าได้รับการบันทึกเข้าสู่ระบบ IRM เรียบร้อยแล้ว ฝ่ายจัดซื้อจะทำการตรวจสอบและนำเข้าแผนงานต่อไป ขอขอบพระคุณครับ
+              ข้อมูลกำหนดวันส่งมอบและจำนวนสินค้าได้รับการบันทึกเข้าสู่ระบบ IRM เรียบร้อยแล้ว (ลิงก์นี้ถูกล็อคการแก้ไขแล้ว หน้านี้อยู่ในโหมดอ่านอย่างเดียว) ฝ่ายจัดซื้อจะทำการตรวจสอบและนำเข้าแผนงานต่อไป ขอขอบพระคุณครับ
             </p>
           </div>
         )}
