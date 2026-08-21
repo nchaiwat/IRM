@@ -10,22 +10,18 @@ import {
   Package, 
   Send, 
   AlertCircle, 
-  Lock, 
   Clock, 
   Trash2, 
   Plus, 
   Save, 
   Layers, 
-  Check, 
-  Clock3 
+  Check 
 } from 'lucide-react';
 
 interface SupplierItem {
   id: number;
   po_number: string;
   po_date: string;
-  buyer_name?: string;
-  item_group?: string;
   item_code: string;
   item_name: string;
   quantity: number;
@@ -62,6 +58,11 @@ export default function SupplierPortalPage() {
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [draftSavedMessage, setDraftSavedMessage] = useState<string | null>(null);
 
+  // Dual Synchronized Scrollbars
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const mainTableRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1050);
+
   // Form input state: item_id -> { date, qty, subItems }
   const [formInputs, setFormInputs] = useState<Record<number, {
     date: string;
@@ -74,6 +75,27 @@ export default function SupplierPortalPage() {
       fetchPortalData();
     }
   }, [token]);
+
+  // Sync scroll between Top Scrollbar and Table container
+  const handleTopScroll = () => {
+    if (topScrollRef.current && mainTableRef.current) {
+      mainTableRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleMainScroll = () => {
+    if (topScrollRef.current && mainTableRef.current) {
+      topScrollRef.current.scrollLeft = mainTableRef.current.scrollLeft;
+    }
+  };
+
+  // Update table width measurement when items load
+  useEffect(() => {
+    if (mainTableRef.current) {
+      const scrollW = mainTableRef.current.scrollWidth;
+      setTableScrollWidth(scrollW > 980 ? scrollW : 1050);
+    }
+  }, [portalData, loading]);
 
   const formatDateThai = (isoStr: string | null | undefined) => {
     if (!isoStr) return '';
@@ -488,7 +510,7 @@ export default function SupplierPortalPage() {
           </div>
         )}
 
-        {/* OPERATION-STYLED DATA TABLE */}
+        {/* TAILORED DATA TABLE FOR SUPPLIER */}
         <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -499,22 +521,34 @@ export default function SupplierPortalPage() {
               <span className="text-xs text-slate-500">จำนวนทั้งหมด <strong>{portalData?.items.length}</strong> รายการ</span>
             </div>
 
-            <div className="overflow-auto max-h-[calc(100vh-250px)] border-t border-slate-200 shadow-inner">
-              <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
+            {/* TOP SYNCHRONIZED SCROLLBAR (สะดวกสำหรับจอเล็ก / Tablet / Mobile) */}
+            <div 
+              ref={topScrollRef}
+              onScroll={handleTopScroll}
+              className="overflow-x-auto overflow-y-hidden h-3 bg-slate-100 border-b border-slate-200 cursor-ew-resize"
+              title="แถบเลื่อนซ้าย-ขวาด้านบนตาราง"
+            >
+              <div style={{ width: `${tableScrollWidth}px` }} className="h-1" />
+            </div>
+
+            {/* MAIN TABLE CONTAINER WITH STICKY HEADER & DIVIDER */}
+            <div 
+              ref={mainTableRef}
+              onScroll={handleMainScroll}
+              className="overflow-auto max-h-[calc(100vh-250px)] shadow-inner"
+            >
+              <table className="w-full text-left text-xs border-collapse min-w-[960px]">
                 <thead className="bg-slate-900 text-slate-200 font-bold sticky top-0 z-20 shadow-md">
                   <tr>
                     <th className="py-2.5 px-2 text-center w-10 border-b border-slate-800 bg-slate-950">#</th>
                     <th className="py-2.5 px-3 w-32 border-b border-slate-800 bg-slate-900 whitespace-nowrap">PO No. / Date</th>
-                    <th className="py-2.5 px-2 text-center w-24 border-b border-slate-800 bg-slate-900 whitespace-nowrap">Group</th>
-                    <th className="py-2.5 px-3 border-b border-slate-800 bg-slate-900 min-w-[200px]">Item Code & Description</th>
-                    <th className="py-2.5 px-2 text-right border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">PO Qty / Unit</th>
+                    <th className="py-2.5 px-3 border-b border-slate-800 bg-slate-900 min-w-[220px]">Item Code & Description</th>
+                    <th className="py-2.5 px-2 text-right border-b border-slate-800 bg-slate-900 w-28 whitespace-nowrap">PO Qty / Unit</th>
                     <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">Due To</th>
                     <th className="py-2.5 px-3 text-right border-b border-slate-800 bg-slate-900 w-32 whitespace-nowrap">รับแล้ว / เหลือ</th>
-                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">Buyer</th>
-                    <th className="py-2.5 px-2 bg-sky-950 text-sky-300 border-b border-slate-800 w-32 text-center whitespace-nowrap">Est. Date</th>
-                    <th className="py-2.5 px-2 text-right bg-sky-950 text-sky-300 border-b border-slate-800 w-28 whitespace-nowrap">Est. Qty</th>
-                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">สถานะ</th>
-                    <th className="py-2.5 px-2 text-right border-b border-slate-800 bg-slate-900 w-16 whitespace-nowrap">การจัดการ</th>
+                    <th className="py-2.5 px-2 bg-sky-950 text-sky-300 border-b border-slate-800 w-32 text-center whitespace-nowrap">Est. Date *</th>
+                    <th className="py-2.5 px-2 text-right bg-sky-950 text-sky-300 border-b border-slate-800 w-28 whitespace-nowrap">Est. Qty *</th>
+                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-16 whitespace-nowrap">การจัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -540,11 +574,15 @@ export default function SupplierPortalPage() {
 
                       return (
                         <React.Fragment key={item.id}>
-                          {/* MAIN ROW */}
+                          {/* MAIN ROW WITH OPERATION-STYLE PO DIVIDER BORDER */}
                           <tr
                             id={`row-${item.id}`}
                             className={`transition-colors border-l-4 ${
                               hasSubItems ? 'border-l-sky-500 bg-[#f0f9ff]' : 'border-l-slate-200'
+                            } ${
+                              isFirstInPo && index > 0 
+                                ? '!border-t-4 !border-t-slate-400/90 shadow-[0_-3px_6px_rgba(0,0,0,0.06)]' 
+                                : ''
                             } ${
                               index % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'
                             } ${isOverQty || isSplitOverLimit ? '!bg-rose-50/50' : ''}`}
@@ -566,31 +604,24 @@ export default function SupplierPortalPage() {
                               )}
                             </td>
 
-                            {/* 3. Group */}
-                            <td className="py-2.5 px-2 text-center align-top whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-600">
-                                {item.item_group || 'HW'}
-                              </span>
-                            </td>
-
-                            {/* 4. Item Code & Description */}
+                            {/* 3. Item Code & Description */}
                             <td className="py-2.5 px-3 align-top">
                               <div className="font-mono font-bold text-slate-900 text-xs">{item.item_code}</div>
                               <div className="text-slate-500 text-[11px] truncate max-w-xs">{item.item_name}</div>
                             </td>
 
-                            {/* 5. PO Qty / Unit */}
+                            {/* 4. PO Qty / Unit */}
                             <td className="py-2.5 px-2 text-right font-mono font-medium text-slate-700 align-top whitespace-nowrap">
                               <div>{item.quantity?.toLocaleString()}</div>
                               <div className="text-[10px] text-slate-400">{item.unit}</div>
                             </td>
 
-                            {/* 6. Due To */}
+                            {/* 5. Due To */}
                             <td className="py-2.5 px-2 text-center font-mono text-slate-600 text-[11px] align-top whitespace-nowrap">
                               {item.due_date ? formatDateThai(item.due_date) : '-'}
                             </td>
 
-                            {/* 7. รับแล้ว / เหลือ */}
+                            {/* 6. รับแล้ว / เหลือ */}
                             <td className="py-2.5 px-3 text-right font-mono align-top whitespace-nowrap">
                               <div className="text-emerald-700 font-medium text-[11px]">
                                 รับแล้ว: {item.received_qty?.toLocaleString() || 0}
@@ -600,12 +631,7 @@ export default function SupplierPortalPage() {
                               </div>
                             </td>
 
-                            {/* 8. Buyer */}
-                            <td className="py-2.5 px-2 text-center text-slate-600 text-xs align-top whitespace-nowrap">
-                              {item.buyer_name || '-'}
-                            </td>
-
-                            {/* 9. Est. Date */}
+                            {/* 7. Est. Date */}
                             <td className="py-2.5 px-2 align-top">
                               {isLocked ? (
                                 <div className="font-mono text-slate-700 text-xs text-center">
@@ -659,7 +685,7 @@ export default function SupplierPortalPage() {
                               )}
                             </td>
 
-                            {/* 10. Est. Qty */}
+                            {/* 8. Est. Qty */}
                             <td className="py-2.5 px-2 text-right align-top">
                               {isLocked ? (
                                 <div className="font-mono font-bold text-slate-800 text-xs">
@@ -692,28 +718,8 @@ export default function SupplierPortalPage() {
                               )}
                             </td>
 
-                            {/* 11. Status */}
+                            {/* 9. Actions */}
                             <td className="py-2.5 px-2 text-center align-top whitespace-nowrap">
-                              {isLocked ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  <Check className="w-3 h-3" />
-                                  <span>ยืนยันแล้ว</span>
-                                </span>
-                              ) : (formInputs[item.id]?.date && formInputs[item.id]?.qty) || hasSubItems ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  <span>ปรับแล้ว</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-dashed border-slate-300">
-                                  <Clock3 className="w-3 h-3 text-slate-400" />
-                                  <span>ยังไม่ปรับ</span>
-                                </span>
-                              )}
-                            </td>
-
-                            {/* 12. Actions */}
-                            <td className="py-2.5 px-2 text-right align-top whitespace-nowrap">
                               {!isLocked && (
                                 <button
                                   type="button"
@@ -734,7 +740,7 @@ export default function SupplierPortalPage() {
                           {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW */}
                           {hasSubItems && (
                             <tr className="bg-sky-50/40 border-y border-sky-200">
-                              <td colSpan={12} className="p-3">
+                              <td colSpan={9} className="p-3">
                                 <div className="flex justify-end">
                                   <div className="bg-white p-3.5 rounded-xl border border-sky-300 shadow-md space-y-3 max-w-2xl w-full">
                                     <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100">
