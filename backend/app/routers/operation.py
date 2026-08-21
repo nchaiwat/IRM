@@ -681,11 +681,23 @@ async def get_item_portal_link(
 
     header = (await db.execute(select(POHeader).where(POHeader.id == item.po_header_id))).scalar_one()
     
-    # 1. Generate unique 1-hour token strictly bound to this PO
+    # 1. Invalidate / Revoke previous tokens for this PO
     now_dt = datetime.now(timezone(timedelta(hours=7)))
     expires_at = now_dt + timedelta(hours=1)
-    token_str = f"tok_po_{secrets.token_hex(16)}"
+    
+    stmt_revoke = (
+        select(SupplierPortalToken)
+        .where(SupplierPortalToken.supplier_code == header.supplier_code)
+        .where(SupplierPortalToken.po_number == header.po_number)
+        .where(SupplierPortalToken.is_submitted == False)
+    )
+    old_tokens = (await db.execute(stmt_revoke)).scalars().all()
+    for old_tok in old_tokens:
+        old_tok.expires_at = now_dt - timedelta(seconds=1)
+        old_tok.is_submitted = True
+        db.add(old_tok)
 
+    token_str = f"tok_po_{secrets.token_hex(16)}"
     token_obj = SupplierPortalToken(
         token=token_str,
         supplier_code=header.supplier_code,

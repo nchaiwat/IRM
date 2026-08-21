@@ -39,32 +39,37 @@ def calculate_prd_expiry_date(now_dt: datetime) -> datetime:
 
 
 async def get_or_create_supplier_token(db: AsyncSession, supplier_code: str) -> SupplierPortalToken:
-    """Get active non-expired non-submitted token for all open POs of the supplier or create a new cryptographic token."""
+    """
+    Invalidate all previous active tokens for this supplier and create a fresh cryptographic token.
+    Enforces that opening an older email link will be rejected / expired immediately.
+    """
     now_dt = datetime.now(timezone.utc)
     target_expiry = calculate_prd_expiry_date(now_dt)
 
-    stmt = (
+    # 1. Invalidate / Revoke all old active tokens for this supplier
+    stmt_revoke = (
         select(SupplierPortalToken)
         .where(SupplierPortalToken.supplier_code == supplier_code)
-        .where(SupplierPortalToken.po_number.is_(None))
-        .where(SupplierPortalToken.expires_at > now_dt)
         .where(SupplierPortalToken.is_submitted == False)
-        .order_by(SupplierPortalToken.id.desc())
     )
-    token_obj = (await db.execute(stmt)).scalar_one_or_none()
+    old_tokens = (await db.execute(stmt_revoke)).scalars().all()
+    for old_tok in old_tokens:
+        old_tok.expires_at = now_dt - timedelta(seconds=1)
+        old_tok.is_submitted = True
+        db.add(old_tok)
 
-    if not token_obj:
-        raw_token = f"tok_{secrets.token_hex(20)}"
-        token_obj = SupplierPortalToken(
-            token=raw_token,
-            supplier_code=supplier_code,
-            po_number=None,
-            is_submitted=False,
-            expires_at=target_expiry,
-        )
-        db.add(token_obj)
-        await db.commit()
-        await db.refresh(token_obj)
+    # 2. Generate a brand new cryptographic token
+    raw_token = f"tok_{secrets.token_hex(20)}"
+    token_obj = SupplierPortalToken(
+        token=raw_token,
+        supplier_code=supplier_code,
+        po_number=None,
+        is_submitted=False,
+        expires_at=target_expiry,
+    )
+    db.add(token_obj)
+    await db.commit()
+    await db.refresh(token_obj)
 
     return token_obj
 
