@@ -693,15 +693,25 @@ async def get_item_portal_link(
         is_submitted=False,
         expires_at=expires_at,
     )
+    stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
+    base_setting = (await db.execute(stmt_base)).scalar_one_or_none()
+    base_url = (base_setting.value if base_setting and base_setting.value else (getattr(settings, "FRONTEND_URL", None) or getattr(settings, "APP_BASE_URL", None) or "https://irm.windowasia.com")).strip().rstrip("/")
+    if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    elif not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
     db.add(token_obj)
     await db.commit()
+
+    portal_url = f"{base_url}/supplier/portal/{token_obj.token}"
 
     return {
         "supplier_code": header.supplier_code,
         "supplier_name": header.supplier_name,
         "po_number": header.po_number,
         "token": token_obj.token,
-        "portal_url": f"http://localhost/supplier/portal/{token_obj.token}",
+        "portal_url": portal_url,
         "expires_at": token_obj.expires_at.isoformat(),
     }
 

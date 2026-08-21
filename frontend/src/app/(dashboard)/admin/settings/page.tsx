@@ -48,7 +48,7 @@ export default function SettingsPage() {
   const [loadingScript, setLoadingScript] = useState(false);
   const [activeGuideTab, setActiveGuideTab] = useState<'windows' | 'linux' | 'bat'>('windows');
 
-  const [currentOrigin, setCurrentOrigin] = useState('http://localhost');
+  const [currentOrigin, setCurrentOrigin] = useState('https://irm.windowasia.com');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
