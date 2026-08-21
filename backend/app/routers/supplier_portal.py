@@ -107,25 +107,34 @@ async def get_supplier_po_items(
 
     po_items = []
     for item, header in rows_fallback:
+        rem_qty = float(item.remaining_qty if item.remaining_qty is not None else item.quantity)
+        # Requirement: Default Qty must be strictly remaining_qty
+        est_qty_val = float(item.estimate_qty) if item.estimate_qty is not None else rem_qty
+        if not allow_over_delivery and est_qty_val > rem_qty:
+            est_qty_val = rem_qty
+
         po_items.append({
             "id": item.id,
             "po_number": header.po_number,
             "po_date": header.po_date,
+            "buyer_name": header.buyer_name or "-",
+            "item_group": item.item_group or "-",
             "item_code": item.item_code,
             "item_name": item.item_name,
-            "quantity": item.quantity,
+            "quantity": float(item.quantity or 0),
             "unit": item.unit,
-            "received_qty": item.received_qty or 0,
-            "remaining_qty": item.remaining_qty if item.remaining_qty is not None else item.quantity,
+            "due_date": item.due_date,
+            "received_qty": float(item.received_qty or 0),
+            "remaining_qty": rem_qty,
             "estimate_date": item.estimate_date,
-            "estimate_qty": item.estimate_qty if item.estimate_qty is not None else (item.remaining_qty or item.quantity),
+            "estimate_qty": est_qty_val,
             "status": item.status,
             "updated_by_name": item.updated_by_name,
             "updated_at": item.updated_at,
             "sub_items": [{
                 "id": sub.id,
                 "estimate_date": sub.estimate_date,
-                "quantity": sub.quantity,
+                "quantity": float(sub.quantity or 0),
                 "updated_by_name": sub.updated_by_name,
                 "updated_by_type": sub.updated_by_type,
                 "updated_at": sub.updated_at,

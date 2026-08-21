@@ -3,16 +3,34 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Building2, Calendar, CheckCircle2, Package, Send, AlertCircle, Lock, Clock, Trash2, Plus, Save, Sparkles, Check, ChevronRight } from 'lucide-react';
+import { 
+  Building2, 
+  Calendar, 
+  CheckCircle2, 
+  Package, 
+  Send, 
+  AlertCircle, 
+  Lock, 
+  Clock, 
+  Trash2, 
+  Plus, 
+  Save, 
+  Layers, 
+  Check, 
+  Clock3 
+} from 'lucide-react';
 
 interface SupplierItem {
   id: number;
   po_number: string;
   po_date: string;
+  buyer_name?: string;
+  item_group?: string;
   item_code: string;
   item_name: string;
   quantity: number;
   unit: string;
+  due_date?: string | null;
   received_qty: number;
   remaining_qty: number;
   estimate_date: string | null;
@@ -57,9 +75,10 @@ export default function SupplierPortalPage() {
     }
   }, [token]);
 
-  const formatDateThai = (isoStr: string | null) => {
+  const formatDateThai = (isoStr: string | null | undefined) => {
     if (!isoStr) return '';
     const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
@@ -99,10 +118,14 @@ export default function SupplierPortalPage() {
 
       const initialInputs: Record<number, { date: string; qty: number | ''; subItems: { estimate_date: string; quantity: number | '' }[] }> = {};
       res.data.items.forEach((item) => {
-        // DEFAULT QTY: STRICTLY USE remaining_qty (not total quantity)
-        const defaultQty = item.estimate_qty !== null && item.estimate_qty !== undefined
-          ? item.estimate_qty
-          : (item.remaining_qty !== undefined ? item.remaining_qty : item.quantity);
+        // REQUIREMENT: Default Qty must strictly be remaining_qty
+        const remQty = Number(item.remaining_qty !== undefined && item.remaining_qty !== null ? item.remaining_qty : item.quantity);
+        let defaultQty: number = remQty;
+        if (item.estimate_qty !== null && item.estimate_qty !== undefined) {
+          if (res.data.allow_over_delivery || Number(item.estimate_qty) <= remQty) {
+            defaultQty = Number(item.estimate_qty);
+          }
+        }
 
         initialInputs[item.id] = {
           date: item.estimate_date ? formatDateThai(item.estimate_date) : '',
@@ -110,7 +133,7 @@ export default function SupplierPortalPage() {
           subItems: item.sub_items && item.sub_items.length > 0
             ? item.sub_items.map((sub: any) => ({
                 estimate_date: formatDateThai(sub.estimate_date),
-                quantity: sub.quantity
+                quantity: Number(sub.quantity)
               }))
             : []
         };
@@ -120,39 +143,39 @@ export default function SupplierPortalPage() {
         setSubmittedSuccess(true);
       }
     } catch (err: any) {
-      console.error('Failed to load supplier portal:', err);
-      setError(err.response?.data?.detail || 'ลิงก์ไม่ถูกต้อง หรือหมดอายุแล้ว');
+      setError(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูลจากลิงก์ได้ กรุณาติดต่อฝ่ายจัดซื้อ');
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (itemId: number, field: 'date' | 'qty', val: string | number) => {
-    let finalVal = val;
-    if (field === 'date') {
-      finalVal = handleDateMask(val as string);
-    }
-    setFormInputs((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...prev[itemId],
-        [field]: finalVal,
-      },
-    }));
+    setFormInputs((prev) => {
+      const current = prev[itemId] || { date: '', qty: '', subItems: [] };
+      let finalVal = val;
+      if (field === 'date') {
+        finalVal = handleDateMask(val as string);
+      }
+      return {
+        ...prev,
+        [itemId]: {
+          ...current,
+          [field]: finalVal
+        }
+      };
+    });
   };
 
   const handleAddSubItem = (itemId: number) => {
     setFormInputs((prev) => {
       const current = prev[itemId] || { date: '', qty: '', subItems: [] };
       const currentSubs = current.subItems || [];
-      
-      // If converting from single round to split rounds for first time:
+      const itemObj = portalData?.items.find((i) => i.id === itemId);
+      const remQty = Number(itemObj?.remaining_qty ?? (typeof current.qty === 'number' ? current.qty : 0));
+
       if (currentSubs.length === 0) {
-        const itemObj = portalData?.items.find((i) => i.id === itemId);
-        const remQty = itemObj?.remaining_qty ?? (typeof current.qty === 'number' ? current.qty : 0);
         const half1 = Math.ceil(remQty / 2);
         const half2 = Math.max(0, remQty - half1);
-        
         return {
           ...prev,
           [itemId]: {
@@ -184,11 +207,12 @@ export default function SupplierPortalPage() {
       if (!current) return prev;
       const firstSub = current.subItems?.[0];
       const itemObj = portalData?.items.find((i) => i.id === itemId);
+      const remQty = Number(itemObj?.remaining_qty ?? current.qty);
       return {
         ...prev,
         [itemId]: {
           date: firstSub?.estimate_date || current.date || '',
-          qty: itemObj?.remaining_qty ?? current.qty,
+          qty: remQty,
           subItems: []
         }
       };
@@ -201,14 +225,14 @@ export default function SupplierPortalPage() {
       if (!current || !current.subItems) return prev;
       const updatedSubs = current.subItems.filter((_, idx) => idx !== subIndex);
       if (updatedSubs.length <= 1) {
-        // If 1 or 0 rounds left, revert back to single round
         const first = updatedSubs[0];
         const itemObj = portalData?.items.find((i) => i.id === itemId);
+        const remQty = Number(itemObj?.remaining_qty ?? current.qty);
         return {
           ...prev,
           [itemId]: {
             date: first?.estimate_date || current.date || '',
-            qty: first?.quantity !== undefined && first?.quantity !== '' ? first.quantity : (itemObj?.remaining_qty ?? current.qty),
+            qty: first?.quantity !== undefined && first?.quantity !== '' ? Number(first.quantity) : remQty,
             subItems: []
           }
         };
@@ -297,43 +321,46 @@ export default function SupplierPortalPage() {
         }
 
         if (!allowOver && totalQty > item.remaining_qty && !isDraft) {
-          setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): ยอดรวมส่ง (${totalQty.toLocaleString()} ${item.unit}) สูงกว่ายอดค้างส่ง (${item.remaining_qty.toLocaleString()} ${item.unit})`);
+          setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): ยอดรวมส่ง (${totalQty.toLocaleString()} ${item.unit}) สูงกว่ายอดคงเหลือ (${item.remaining_qty.toLocaleString()} ${item.unit})`);
           scrollToRow(item.id);
           return;
         }
 
         if (parsedSubs.length > 0) {
-          payloadItems.push({ item_id: item.id, sub_items: parsedSubs });
+          payloadItems.push({
+            item_id: item.id,
+            sub_items: parsedSubs,
+          });
         }
       } else {
-        const qVal = Number(input.qty);
+        const qVal = input.qty === '' ? null : Number(input.qty);
         if (!isDraft) {
           if (!input.date || input.date.length < 10) {
-            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): กรุณาระบุวันที่ส่งสินค้า (วว/ดด/ปปปป)`);
+            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): กรุณาระบุวันที่ส่งมอบสินค้าให้ถูกต้องครบถ้วน (วว/ดด/ปปปป)`);
             scrollToRow(item.id);
             return;
           }
-          const isoDate = parseDateInput(input.date);
-          if (!isoDate) {
-            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): รูปแบบวันที่ "${input.date}" ไม่ถูกต้อง`);
-            scrollToRow(item.id);
-            return;
-          }
-          if (isNaN(qVal) || qVal <= 0) {
+          if (qVal === null || isNaN(qVal) || qVal <= 0) {
             setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): กรุณาระบุจำนวนสินค้าที่ส่ง`);
             scrollToRow(item.id);
             return;
           }
           if (!allowOver && qVal > item.remaining_qty) {
-            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): จำนวนที่ส่ง (${qVal.toLocaleString()} ${item.unit}) สูงกว่ายอดค้างส่ง (${item.remaining_qty.toLocaleString()} ${item.unit})`);
+            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): จำนวนที่ส่ง (${qVal.toLocaleString()} ${item.unit}) สูงกว่ายอดคงเหลือ (${item.remaining_qty.toLocaleString()} ${item.unit})`);
+            scrollToRow(item.id);
+            return;
+          }
+
+          const isoDate = parseDateInput(input.date);
+          if (!isoDate) {
+            setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): วันที่ส่งมอบไม่ถูกต้อง (วว/ดด/ปปปป)`);
             scrollToRow(item.id);
             return;
           }
           payloadItems.push({ item_id: item.id, estimate_date: isoDate, estimate_qty: qVal });
         } else {
-          // In Draft mode, include if date is parsed
           const isoDate = parseDateInput(input.date);
-          if (isoDate && qVal > 0) {
+          if (isoDate && qVal && qVal > 0) {
             payloadItems.push({ item_id: item.id, estimate_date: isoDate, estimate_qty: qVal });
           }
         }
@@ -409,6 +436,7 @@ export default function SupplierPortalPage() {
             </div>
           </div>
 
+          {/* Supplier Name Pill - NO Supplier Code */}
           <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/60 px-4 py-2 rounded-xl text-xs shadow-inner">
             <Building2 className="w-4 h-4 text-sky-400 shrink-0" />
             <span className="font-semibold text-slate-100">{portalData?.supplier_name}</span>
@@ -431,7 +459,7 @@ export default function SupplierPortalPage() {
           )}
         </div>
 
-        {/* Success Modal / Banner */}
+        {/* Success Banner */}
         {submittedSuccess && (
           <div className="p-6 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-950 space-y-2 shadow-sm">
             <div className="flex items-center gap-2.5 font-bold text-base text-emerald-800">
@@ -452,49 +480,44 @@ export default function SupplierPortalPage() {
           </div>
         )}
 
-        {/* Error Alert */}
+        {/* Validation Error Banner */}
         {error && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-3 text-rose-800 text-xs font-semibold shadow-sm animate-shake">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-900 text-xs font-bold shadow-sm">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Table Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Package className="w-5 h-5 text-sky-600" />
-                <h2 className="font-bold text-slate-800 text-sm sm:text-base">
-                  {portalData?.is_single_po ? `รายการสำหรับ PO: ${portalData?.po_number}` : 'รายการ PO ที่รอระบุวันส่งมอบวัตถุดิบ'}
-                </h2>
-                {portalData?.is_single_po && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
-                    ⚡ ลิงก์ด่วนเฉพาะ PO นี้
-                  </span>
-                )}
+        {/* OPERATION-STYLED DATA TABLE */}
+        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-sky-600" />
+                <h2 className="font-bold text-slate-800 text-sm">รายการ PO ที่รอระบุวันส่งมอบวัตถุดิบ</h2>
               </div>
               <span className="text-xs text-slate-500">จำนวนทั้งหมด <strong>{portalData?.items.length}</strong> รายการ</span>
             </div>
 
             <div className="overflow-auto max-h-[calc(100vh-250px)] border-t border-slate-200 shadow-inner">
-              <table className="w-full text-left text-xs border-collapse min-w-[980px]">
+              <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
                 <thead className="bg-slate-900 text-slate-200 font-bold sticky top-0 z-20 shadow-md">
                   <tr>
-                    <th className="py-3 px-2 text-center w-10 whitespace-nowrap bg-slate-900">#</th>
-                    <th className="py-3 px-3 w-28 whitespace-nowrap bg-slate-900">PO</th>
-                    <th className="py-3 px-3 w-24 whitespace-nowrap bg-slate-900">PO Date</th>
-                    <th className="py-3 px-3 min-w-[200px] bg-slate-900">รหัสสินค้า & ชื่อสินค้า</th>
-                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap bg-slate-900">ยอดสั่งซื้อ</th>
-                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap bg-slate-900">รับแล้ว</th>
-                    <th className="py-3 px-3 text-right w-24 whitespace-nowrap text-sky-300 bg-slate-950">ยอดคงเหลือ</th>
-                    <th className="py-3 px-3 bg-sky-950 text-sky-300 w-44 whitespace-nowrap">ระบุวันส่งสินค้า *</th>
-                    <th className="py-3 px-3 text-right bg-sky-950 text-sky-300 w-36 whitespace-nowrap">จำนวนที่ส่ง (Qty) *</th>
-                    <th className="py-3 px-3 text-center w-28 whitespace-nowrap bg-slate-900">สถานะ</th>
+                    <th className="py-2.5 px-2 text-center w-10 border-b border-slate-800 bg-slate-950">#</th>
+                    <th className="py-2.5 px-3 w-32 border-b border-slate-800 bg-slate-900 whitespace-nowrap">PO No. / Date</th>
+                    <th className="py-2.5 px-2 text-center w-24 border-b border-slate-800 bg-slate-900 whitespace-nowrap">Group</th>
+                    <th className="py-2.5 px-3 border-b border-slate-800 bg-slate-900 min-w-[200px]">Item Code & Description</th>
+                    <th className="py-2.5 px-2 text-right border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">PO Qty / Unit</th>
+                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">Due To</th>
+                    <th className="py-2.5 px-3 text-right border-b border-slate-800 bg-slate-900 w-32 whitespace-nowrap">รับแล้ว / เหลือ</th>
+                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">Buyer</th>
+                    <th className="py-2.5 px-2 bg-sky-950 text-sky-300 border-b border-slate-800 w-32 text-center whitespace-nowrap">Est. Date</th>
+                    <th className="py-2.5 px-2 text-right bg-sky-950 text-sky-300 border-b border-slate-800 w-28 whitespace-nowrap">Est. Qty</th>
+                    <th className="py-2.5 px-2 text-center border-b border-slate-800 bg-slate-900 w-24 whitespace-nowrap">สถานะ</th>
+                    <th className="py-2.5 px-2 text-right border-b border-slate-800 bg-slate-900 w-16 whitespace-nowrap">การจัดการ</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {(() => {
                     let lastPo = '';
 
@@ -516,296 +539,347 @@ export default function SupplierPortalPage() {
                       const isSplitExceed = hasSubItems && totalSplitQty > item.remaining_qty;
 
                       return (
-                        <tr
-                          key={item.id}
-                          id={`row-${item.id}`}
-                          className={`border-b border-slate-100 transition-colors ${
-                            index % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'
-                          } ${isOverQty || isSplitOverLimit ? 'bg-rose-50/40' : ''}`}
-                        >
-                          <td className="py-2.5 px-2 text-center text-slate-400 font-mono text-[11px] align-top">{index + 1}</td>
-                          
-                          {/* PO Number */}
-                          <td className="py-2.5 px-3 font-mono font-bold text-slate-800 text-[11px] align-top">
-                            {isFirstInPo ? (
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/80 text-slate-700">
-                                {item.po_number}
+                        <React.Fragment key={item.id}>
+                          {/* MAIN ROW */}
+                          <tr
+                            id={`row-${item.id}`}
+                            className={`transition-colors border-l-4 ${
+                              hasSubItems ? 'border-l-sky-500 bg-[#f0f9ff]' : 'border-l-slate-200'
+                            } ${
+                              index % 2 === 0 ? 'bg-white hover:bg-slate-50/80' : 'bg-slate-50/40 hover:bg-slate-100/60'
+                            } ${isOverQty || isSplitOverLimit ? '!bg-rose-50/50' : ''}`}
+                          >
+                            {/* 1. # */}
+                            <td className="py-2.5 px-2 text-center text-slate-400 font-mono text-[11px] align-top">
+                              {index + 1}
+                            </td>
+
+                            {/* 2. PO No. / Date */}
+                            <td className="py-2.5 px-3 align-top whitespace-nowrap font-mono">
+                              {isFirstInPo ? (
+                                <div>
+                                  <span className="font-bold text-slate-800 text-xs">{item.po_number}</span>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">{formatDateThai(item.po_date)}</div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 pl-2 text-xs">↳</span>
+                              )}
+                            </td>
+
+                            {/* 3. Group */}
+                            <td className="py-2.5 px-2 text-center align-top whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-600">
+                                {item.item_group || 'HW'}
                               </span>
-                            ) : (
-                              <span className="text-slate-300 pl-3">↳</span>
-                            )}
-                          </td>
+                            </td>
 
-                          {/* PO Date */}
-                          <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap align-top">
-                            {isFirstInPo ? formatDateThai(item.po_date) : ''}
-                          </td>
+                            {/* 4. Item Code & Description */}
+                            <td className="py-2.5 px-3 align-top">
+                              <div className="font-mono font-bold text-slate-900 text-xs">{item.item_code}</div>
+                              <div className="text-slate-500 text-[11px] truncate max-w-xs">{item.item_name}</div>
+                            </td>
 
-                          {/* Item Code & Name */}
-                          <td className="py-2.5 px-3 align-top">
-                            <div className="font-mono font-bold text-slate-900 text-xs">{item.item_code}</div>
-                            <div className="text-slate-500 text-[11px] truncate max-w-xs">{item.item_name}</div>
-                          </td>
+                            {/* 5. PO Qty / Unit */}
+                            <td className="py-2.5 px-2 text-right font-mono font-medium text-slate-700 align-top whitespace-nowrap">
+                              <div>{item.quantity?.toLocaleString()}</div>
+                              <div className="text-[10px] text-slate-400">{item.unit}</div>
+                            </td>
 
-                          {/* Quantity */}
-                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-700 align-top">
-                            <div>{item.quantity?.toLocaleString()}</div>
-                            <div className="text-[10px] text-slate-400">{item.unit}</div>
-                          </td>
+                            {/* 6. Due To */}
+                            <td className="py-2.5 px-2 text-center font-mono text-slate-600 text-[11px] align-top whitespace-nowrap">
+                              {item.due_date ? formatDateThai(item.due_date) : '-'}
+                            </td>
 
-                          {/* Received Qty */}
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-500 align-top">
-                            <div>{item.received_qty?.toLocaleString() || 0}</div>
-                            <div className="text-[10px] text-slate-400">{item.unit}</div>
-                          </td>
-
-                          {/* Remaining Qty */}
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 bg-sky-50/40 align-top">
-                            <div>{item.remaining_qty?.toLocaleString()}</div>
-                            <div className="text-[10px] text-slate-400">{item.unit}</div>
-                          </td>
-
-                          {/* Split Rounds Card (If Split Active) OR Single Delivery Inputs */}
-                          {hasSubItems ? (
-                            <td colSpan={2} className="py-2 px-3 align-top">
-                              <div className="bg-white p-3 rounded-xl border border-sky-300 shadow-sm space-y-2.5 max-w-md w-full">
-                                <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-100">
-                                  <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
-                                    <span className="text-sky-600 font-black">📦 แตกส่ง {subItemsList.length} รอบ</span>
-                                  </span>
-                                  <div className="flex items-center gap-3 text-[11px]">
-                                    <span className="text-slate-500 font-medium">
-                                      ค้างรับ: <strong className="text-slate-800">{item.remaining_qty.toLocaleString()}</strong>
-                                    </span>
-                                    <span className="font-medium">
-                                      ยอดรวม: <strong className={isSplitOverLimit ? 'text-rose-600 font-black' : isSplitExceed && portalData?.allow_over_delivery ? 'text-amber-600 font-black' : totalSplitQty === item.remaining_qty ? 'text-emerald-600 font-black' : 'text-amber-600 font-black'}>
-                                        {totalSplitQty.toLocaleString()} {item.unit}
-                                      </strong>
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {isSplitOverLimit && (
-                                  <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-600 font-bold text-[10px] flex items-center justify-between">
-                                    <span>⚠️ ยอดส่งรวมเกินจำนวนค้างรับ</span>
-                                    <span>เกินไป +{(totalSplitQty - item.remaining_qty).toLocaleString()} {item.unit}</span>
-                                  </div>
-                                )}
-
-                                <div className="space-y-1.5">
-                                  {subItemsList.map((sub, sIdx) => {
-                                    const isRoundInvalid = isSplitOverLimit || Number(sub.quantity) < 0;
-                                    return (
-                                      <div key={sIdx} className="flex items-center justify-end gap-2 text-xs">
-                                        <span className="w-14 font-bold text-slate-600 text-right text-[11px]">รอบที่ {sIdx + 1}</span>
-                                        
-                                        {/* Date Input with showPicker trigger */}
-                                        <div className="relative flex items-center">
-                                          <input
-                                            type="text"
-                                            disabled={isLocked}
-                                            placeholder="วว/ดด/ปปปป"
-                                            value={sub.estimate_date}
-                                            onChange={(e) => handleSubItemChange(item.id, sIdx, 'estimate_date', e.target.value)}
-                                            maxLength={10}
-                                            className="w-32 pl-2.5 pr-8 py-1 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 outline-none"
-                                          />
-                                          <input
-                                            type="date"
-                                            tabIndex={-1}
-                                            disabled={isLocked}
-                                            className="sr-only"
-                                            onChange={(e) => {
-                                              if (e.target.value) {
-                                                const [y, m, d] = e.target.value.split('-');
-                                                handleSubItemChange(item.id, sIdx, 'estimate_date', `${d}/${m}/${y}`);
-                                              }
-                                            }}
-                                          />
-                                          <button
-                                            type="button"
-                                            disabled={isLocked}
-                                            onClick={(e) => {
-                                              const parent = e.currentTarget.parentElement;
-                                              const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
-                                              if (dateInput) {
-                                                if ('showPicker' in HTMLInputElement.prototype) {
-                                                  dateInput.showPicker();
-                                                } else {
-                                                  dateInput.focus();
-                                                }
-                                              }
-                                            }}
-                                            className="p-1 text-slate-400 hover:text-sky-600 absolute right-1.5 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer disabled:cursor-not-allowed"
-                                            title="คลิกเพื่อเปิดปฏิทิน"
-                                          >
-                                            <Calendar className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-
-                                        {/* Qty Input with dynamic red/white highlight */}
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          disabled={isLocked}
-                                          placeholder="จำนวน"
-                                          value={sub.quantity === '' ? '' : sub.quantity}
-                                          onChange={(e) => handleSubItemChange(item.id, sIdx, 'quantity', e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                          className={`w-24 px-2.5 py-1 rounded-lg border text-right text-xs font-mono font-bold transition outline-none ${
-                                            isRoundInvalid
-                                              ? 'border-rose-400 bg-rose-50 text-rose-700 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                              : 'border-slate-300 bg-white text-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
-                                          }`}
-                                        />
-
-                                        {/* Delete round button */}
-                                        {!isLocked && (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveSubItem(item.id, sIdx)}
-                                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                                            title="ลบรอบนี้"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                {!isLocked && (
-                                  <div className="pt-1.5 flex items-center justify-between border-t border-slate-100 text-xs">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddSubItem(item.id)}
-                                      className="text-[11px] text-sky-700 hover:text-sky-900 font-bold flex items-center gap-1 hover:underline"
-                                    >
-                                      <Plus className="w-3.5 h-3.5 text-sky-600" />
-                                      <span>+ เพิ่มรอบส่ง</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCancelSplit(item.id)}
-                                      className="text-[11px] text-slate-400 hover:text-slate-600"
-                                    >
-                                      ยกเลิกแตกส่ง
-                                    </button>
-                                  </div>
-                                )}
+                            {/* 7. รับแล้ว / เหลือ */}
+                            <td className="py-2.5 px-3 text-right font-mono align-top whitespace-nowrap">
+                              <div className="text-emerald-700 font-medium text-[11px]">
+                                รับแล้ว: {item.received_qty?.toLocaleString() || 0}
+                              </div>
+                              <div className="text-slate-900 font-bold text-xs mt-0.5">
+                                เหลือ: {item.remaining_qty?.toLocaleString()} {item.unit}
                               </div>
                             </td>
-                          ) : (
-                            <>
-                              {/* Single Delivery Date Input */}
-                              <td className="py-2.5 px-3 align-top">
-                                {isLocked ? (
-                                  <div className="font-mono text-slate-700 text-xs">
-                                    {formInputs[item.id]?.date || '-'}
-                                  </div>
-                                ) : (
-                                  <div className="relative flex items-center">
-                                    <input
-                                      type="text"
-                                      placeholder="วว/ดด/ปปปป"
-                                      value={formInputs[item.id]?.date || ''}
-                                      onChange={(e) => handleInputChange(item.id, 'date', e.target.value)}
-                                      maxLength={10}
-                                      className="w-full pl-2.5 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 transition"
-                                    />
-                                    <input
-                                      type="date"
-                                      tabIndex={-1}
-                                      className="sr-only"
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          const [y, m, d] = e.target.value.split('-');
-                                          handleInputChange(item.id, 'date', `${d}/${m}/${y}`);
-                                        }
-                                      }}
-                                    />
-                                    <button
-                                      type="button"
-                                      disabled={isLocked}
-                                      onClick={(e) => {
-                                        const parent = e.currentTarget.parentElement;
-                                        const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
-                                        if (dateInput) {
-                                          if ('showPicker' in HTMLInputElement.prototype) {
-                                            dateInput.showPicker();
-                                          } else {
-                                            dateInput.focus();
-                                          }
-                                        }
-                                      }}
-                                      className="p-1 text-slate-400 hover:text-sky-600 absolute right-1.5 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer"
-                                      title="คลิกเพื่อเปิดปฏิทิน"
-                                    >
-                                      <Calendar className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                                {!isLocked && (
-                                  <div className="mt-1 flex items-center gap-1.5 text-[10px]">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddSubItem(item.id)}
-                                      className="text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-0.5 hover:underline"
-                                    >
-                                      <span>↳ แตกส่งหลายงวด (Split)</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
 
-                              {/* Single Delivery Qty Input */}
-                              <td className="py-2.5 px-3 text-right align-top">
-                                {isLocked ? (
-                                  <div className="font-mono font-bold text-slate-800 text-xs">
-                                    {formInputs[item.id]?.qty?.toLocaleString() || '-'}
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={portalData.allow_over_delivery ? undefined : item.remaining_qty}
-                                      value={formInputs[item.id]?.qty ?? ''}
-                                      onChange={(e) => handleInputChange(item.id, 'qty', e.target.value === '' ? '' : parseFloat(e.target.value))}
-                                      className={`w-full px-2.5 py-1.5 rounded-lg border text-right text-xs font-mono font-bold focus:ring-1 transition ${
-                                        isOverQty
-                                          ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500 bg-rose-50'
-                                          : 'border-slate-300 text-slate-800 focus:border-sky-500 focus:ring-sky-500 bg-white'
-                                      }`}
-                                    />
-                                    {isOverQty && (
-                                      <div className="text-[10px] text-rose-600 mt-0.5 text-right font-medium">
-                                        ห้ามส่งเกินยอดคงเหลือ ({item.remaining_qty})
+                            {/* 8. Buyer */}
+                            <td className="py-2.5 px-2 text-center text-slate-600 text-xs align-top whitespace-nowrap">
+                              {item.buyer_name || '-'}
+                            </td>
+
+                            {/* 9. Est. Date */}
+                            <td className="py-2.5 px-2 align-top">
+                              {isLocked ? (
+                                <div className="font-mono text-slate-700 text-xs text-center">
+                                  {hasSubItems ? `แตกส่ง ${subItemsList.length} รอบ` : (formInputs[item.id]?.date || '-')}
+                                </div>
+                              ) : hasSubItems ? (
+                                <div className="text-sky-700 font-bold text-xs py-1 text-center">
+                                  แตกส่ง {subItemsList.length} รอบ
+                                </div>
+                              ) : (
+                                <div className="relative flex items-center justify-center">
+                                  <input
+                                    type="text"
+                                    placeholder="วว/ดด/ปปปป"
+                                    value={formInputs[item.id]?.date || ''}
+                                    onChange={(e) => handleInputChange(item.id, 'date', e.target.value)}
+                                    maxLength={10}
+                                    className="w-28 pl-2 pr-7 py-1 rounded-lg border border-slate-300 text-xs font-mono focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-white placeholder-slate-400 transition outline-none text-center"
+                                  />
+                                  <input
+                                    type="date"
+                                    tabIndex={-1}
+                                    className="sr-only"
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        const [y, m, d] = e.target.value.split('-');
+                                        handleInputChange(item.id, 'date', `${d}/${m}/${y}`);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isLocked}
+                                    onClick={(e) => {
+                                      const parent = e.currentTarget.parentElement;
+                                      const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
+                                      if (dateInput) {
+                                        if ('showPicker' in HTMLInputElement.prototype) {
+                                          dateInput.showPicker();
+                                        } else {
+                                          dateInput.focus();
+                                        }
+                                      }
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-sky-600 absolute right-1 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer"
+                                    title="คลิกเพื่อเปิดปฏิทิน"
+                                  >
+                                    <Calendar className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* 10. Est. Qty */}
+                            <td className="py-2.5 px-2 text-right align-top">
+                              {isLocked ? (
+                                <div className="font-mono font-bold text-slate-800 text-xs">
+                                  {hasSubItems ? totalSplitQty.toLocaleString() : (formInputs[item.id]?.qty?.toLocaleString() || '-')}
+                                </div>
+                              ) : hasSubItems ? (
+                                <div className="font-mono font-bold text-sky-800 text-xs py-1">
+                                  รวม: {totalSplitQty.toLocaleString()}
+                                </div>
+                              ) : (
+                                <div>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={portalData.allow_over_delivery ? undefined : item.remaining_qty}
+                                    value={formInputs[item.id]?.qty ?? ''}
+                                    onChange={(e) => handleInputChange(item.id, 'qty', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                    className={`w-24 px-2 py-1 rounded-lg border text-right text-xs font-mono font-bold focus:ring-1 transition outline-none ${
+                                      isOverQty
+                                        ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500 bg-rose-50'
+                                        : 'border-slate-300 text-slate-800 focus:border-sky-500 focus:ring-sky-500 bg-white'
+                                    }`}
+                                  />
+                                  {isOverQty && (
+                                    <div className="text-[10px] text-rose-600 mt-0.5 text-right font-medium">
+                                      ห้ามส่งเกินยอดคงเหลือ ({item.remaining_qty})
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* 11. Status */}
+                            <td className="py-2.5 px-2 text-center align-top whitespace-nowrap">
+                              {isLocked ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <Check className="w-3 h-3" />
+                                  <span>ยืนยันแล้ว</span>
+                                </span>
+                              ) : (formInputs[item.id]?.date && formInputs[item.id]?.qty) || hasSubItems ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>ปรับแล้ว</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-dashed border-slate-300">
+                                  <Clock3 className="w-3 h-3 text-slate-400" />
+                                  <span>ยังไม่ปรับ</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* 12. Actions */}
+                            <td className="py-2.5 px-2 text-right align-top whitespace-nowrap">
+                              {!isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddSubItem(item.id)}
+                                  className={`p-1.5 rounded-lg border transition shadow-2xs ${
+                                    hasSubItems
+                                      ? 'bg-sky-600 text-white border-sky-600'
+                                      : 'bg-white hover:bg-sky-50 text-sky-700 border-slate-200 hover:border-sky-300'
+                                  }`}
+                                  title="แตกส่งหลายรอบ (Split Rounds)"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW */}
+                          {hasSubItems && (
+                            <tr className="bg-sky-50/40 border-y border-sky-200">
+                              <td colSpan={12} className="p-3">
+                                <div className="flex justify-end">
+                                  <div className="bg-white p-3.5 rounded-xl border border-sky-300 shadow-md space-y-3 max-w-2xl w-full">
+                                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100">
+                                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                        <Layers className="w-4 h-4 text-sky-600" />
+                                        <span>{item.item_code} {item.item_name}</span>
+                                      </span>
+                                      <div className="text-right flex items-center gap-3">
+                                        <span className="text-slate-500 font-medium">
+                                          ค้างรับ: <strong className="text-slate-800">{item.remaining_qty.toLocaleString()} {item.unit}</strong>
+                                        </span>
+                                        <span className="font-medium">
+                                          ยอดรวม: <strong className={isSplitOverLimit ? 'text-red-600 font-black' : isSplitExceed && portalData?.allow_over_delivery ? 'text-amber-600 font-black' : totalSplitQty === item.remaining_qty ? 'text-emerald-600 font-black' : 'text-amber-600 font-black'}>
+                                            {totalSplitQty.toLocaleString()} {item.unit}
+                                          </strong>
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {isSplitOverLimit && (
+                                      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 font-bold text-xs flex items-center justify-between">
+                                        <span>⚠️ ยอดส่งรวมเกินจำนวนค้างรับ (Supplier ไม่อนุญาตให้ส่งเกิน)</span>
+                                        <span>เกินไป +{(totalSplitQty - item.remaining_qty).toLocaleString()} {item.unit}</span>
+                                      </div>
+                                    )}
+
+                                    {!isSplitOverLimit && isSplitExceed && portalData?.allow_over_delivery && (
+                                      <div className="p-2 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 font-bold text-xs flex items-center justify-between shadow-2xs">
+                                        <span>⚡ Supplier รายนี้ได้รับอนุญาตให้ส่งเกินยอดสั่งซื้อได้</span>
+                                        <span className="bg-amber-200/80 px-2 py-0.5 rounded text-amber-950">ส่งเกิน +{(totalSplitQty - item.remaining_qty).toLocaleString()} {item.unit}</span>
+                                      </div>
+                                    )}
+
+                                    <div className="space-y-2">
+                                      {subItemsList.map((sub, idx) => {
+                                        const isRoundInvalid = isSplitOverLimit || Number(sub.quantity) < 0;
+                                        return (
+                                          <div key={idx} className="flex items-center justify-end gap-2 text-xs">
+                                            <span className="w-16 font-bold text-slate-600 text-right">รอบที่ {idx + 1}</span>
+                                            
+                                            {/* Date Input with working showPicker */}
+                                            <div className="relative flex items-center">
+                                              <input
+                                                type="text"
+                                                disabled={isLocked}
+                                                placeholder="วัน/เดือน/ปี เช่น 27/08/2026"
+                                                value={sub.estimate_date}
+                                                onChange={(e) => handleSubItemChange(item.id, idx, 'estimate_date', e.target.value)}
+                                                maxLength={10}
+                                                className={`pl-3 pr-8 py-1.5 border rounded-lg text-xs outline-none w-36 font-semibold transition ${
+                                                  !sub.estimate_date || sub.estimate_date.length < 10
+                                                    ? 'bg-amber-50 border-amber-300 focus:border-amber-500'
+                                                    : 'bg-slate-50 border-slate-200 focus:border-sky-500'
+                                                }`}
+                                              />
+                                              <input
+                                                type="date"
+                                                tabIndex={-1}
+                                                disabled={isLocked}
+                                                className="sr-only"
+                                                onChange={(e) => {
+                                                  if (e.target.value) {
+                                                    const [y, m, d] = e.target.value.split('-');
+                                                    handleSubItemChange(item.id, idx, 'estimate_date', `${d}/${m}/${y}`);
+                                                  }
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                disabled={isLocked}
+                                                onClick={(e) => {
+                                                  const parent = e.currentTarget.parentElement;
+                                                  const dateInput = parent?.querySelector('input[type="date"]') as HTMLInputElement;
+                                                  if (dateInput) {
+                                                    if ('showPicker' in HTMLInputElement.prototype) {
+                                                      dateInput.showPicker();
+                                                    } else {
+                                                      dateInput.focus();
+                                                    }
+                                                  }
+                                                }}
+                                                className="p-1 text-slate-400 hover:text-sky-600 absolute right-1.5 top-1/2 -translate-y-1/2 transition z-20 cursor-pointer disabled:cursor-not-allowed"
+                                                title="คลิกเพื่อเปิดปฏิทิน"
+                                              >
+                                                <Calendar className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+
+                                            {/* Quantity Input */}
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              disabled={isLocked}
+                                              placeholder="จำนวน"
+                                              value={sub.quantity === '' ? '' : sub.quantity}
+                                              onChange={(e) => handleSubItemChange(item.id, idx, 'quantity', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                              className={`px-3 py-1.5 border rounded-lg text-xs outline-none w-28 font-bold text-right transition ${
+                                                isRoundInvalid
+                                                  ? 'border-red-400 bg-red-50 text-red-700'
+                                                  : 'border-slate-200 bg-slate-50 focus:border-sky-500'
+                                              }`}
+                                            />
+                                            <span className="w-8 text-[11px] text-slate-500 text-left">{item.unit}</span>
+
+                                            {/* Delete Round Button */}
+                                            {!isLocked && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveSubItem(item.id, idx)}
+                                                className="p-1 text-slate-400 hover:text-red-500 rounded transition"
+                                                title="ลบรอบนี้"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {!isLocked && (
+                                      <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddSubItem(item.id)}
+                                          className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                          <span>เพิ่มรอบส่ง</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCancelSplit(item.id)}
+                                          className="text-xs text-slate-400 hover:text-slate-600 font-medium"
+                                        >
+                                          ยกเลิก
+                                        </button>
                                       </div>
                                     )}
                                   </div>
-                                )}
+                                </div>
                               </td>
-                            </>
+                            </tr>
                           )}
-
-                          {/* Status */}
-                          <td className="py-2.5 px-3 text-center align-top">
-                            {isLocked ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                ยืนยันแล้ว
-                              </span>
-                            ) : (formInputs[item.id]?.date && formInputs[item.id]?.qty) || hasSubItems ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                                กรอกแล้ว
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                รอการตอบกลับ
-                              </span>
-                            )}
-                          </td>
-                        </tr>
+                        </React.Fragment>
                       );
                     });
                   })()}
@@ -827,7 +901,7 @@ export default function SupplierPortalPage() {
                   type="button"
                   disabled={submitting}
                   onClick={(e) => handleSubmit(e, true)}
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition border border-slate-200 disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition border border-slate-200 disabled:opacity-50 shadow-xs"
                 >
                   <Save className="w-4 h-4" />
                   <span>บันทึกชั่วคราว</span>
@@ -836,7 +910,7 @@ export default function SupplierPortalPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 sm:flex-none px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-sky-500/20 disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-lg shadow-sky-500/25 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
