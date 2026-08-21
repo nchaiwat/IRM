@@ -15,7 +15,8 @@ import {
   Plus, 
   Save, 
   Layers, 
-  Check 
+  Check,
+  Edit3
 } from 'lucide-react';
 
 interface SupplierItem {
@@ -58,6 +59,9 @@ export default function SupplierPortalPage() {
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [draftSavedMessage, setDraftSavedMessage] = useState<string | null>(null);
 
+  // Expanded Split Card State
+  const [expandedSplitRow, setExpandedSplitRow] = useState<number | null>(null);
+
   // Dual Synchronized Scrollbars
   const topScrollRef = useRef<HTMLDivElement>(null);
   const mainTableRef = useRef<HTMLDivElement>(null);
@@ -95,7 +99,7 @@ export default function SupplierPortalPage() {
       const scrollW = mainTableRef.current.scrollWidth;
       setTableScrollWidth(scrollW > 980 ? scrollW : 1050);
     }
-  }, [portalData, loading]);
+  }, [portalData, loading, expandedSplitRow]);
 
   const formatDateThai = (isoStr: string | null | undefined) => {
     if (!isoStr) return '';
@@ -188,27 +192,43 @@ export default function SupplierPortalPage() {
     });
   };
 
-  const handleAddSubItem = (itemId: number) => {
+  const handleToggleSplit = (itemId: number) => {
+    if (expandedSplitRow === itemId) {
+      setExpandedSplitRow(null);
+      return;
+    }
+
+    setExpandedSplitRow(itemId);
     setFormInputs((prev) => {
       const current = prev[itemId] || { date: '', qty: '', subItems: [] };
       const currentSubs = current.subItems || [];
       const itemObj = portalData?.items.find((i) => i.id === itemId);
       const remQty = Number(itemObj?.remaining_qty ?? (typeof current.qty === 'number' ? current.qty : 0));
 
+      // REQUIREMENT 1: DO NOT SPLIT NUMBERS!
+      // Round 1 keeps the full remaining qty (remQty) and existing date
+      // Round 2 starts with empty date ('') and 0 quantity
       if (currentSubs.length === 0) {
-        const half1 = Math.ceil(remQty / 2);
-        const half2 = Math.max(0, remQty - half1);
         return {
           ...prev,
           [itemId]: {
             ...current,
             subItems: [
-              { estimate_date: current.date || '', quantity: half1 },
-              { estimate_date: '', quantity: half2 }
+              { estimate_date: current.date || '', quantity: remQty },
+              { estimate_date: '', quantity: 0 }
             ]
           }
         };
       }
+
+      return prev;
+    });
+  };
+
+  const handleAddSubItem = (itemId: number) => {
+    setFormInputs((prev) => {
+      const current = prev[itemId] || { date: '', qty: '', subItems: [] };
+      const currentSubs = current.subItems || [];
 
       return {
         ...prev,
@@ -224,21 +244,75 @@ export default function SupplierPortalPage() {
   };
 
   const handleCancelSplit = (itemId: number) => {
+    setExpandedSplitRow(null);
     setFormInputs((prev) => {
       const current = prev[itemId];
       if (!current) return prev;
-      const firstSub = current.subItems?.[0];
       const itemObj = portalData?.items.find((i) => i.id === itemId);
       const remQty = Number(itemObj?.remaining_qty ?? current.qty);
+      const firstDate = current.subItems?.[0]?.estimate_date || current.date || '';
       return {
         ...prev,
         [itemId]: {
-          date: firstSub?.estimate_date || current.date || '',
+          date: firstDate,
           qty: remQty,
           subItems: []
         }
       };
     });
+  };
+
+  const handleSaveSplitCard = (itemId: number) => {
+    const item = portalData?.items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const current = formInputs[itemId];
+    const subs = current?.subItems || [];
+    if (subs.length === 0) {
+      setExpandedSplitRow(null);
+      return;
+    }
+
+    // 1. Validate each sub-item
+    let totalQty = 0;
+    for (let idx = 0; idx < subs.length; idx++) {
+      const sub = subs[idx];
+      if (!sub.estimate_date || sub.estimate_date.length < 10) {
+        setError(`❌ รอบที่ ${idx + 1}: กรุณาระบุวันที่ส่งสินค้าให้ครบถ้วน (วว/ดด/ปปปป)`);
+        return;
+      }
+      const isoDate = parseDateInput(sub.estimate_date);
+      if (!isoDate) {
+        setError(`❌ รอบที่ ${idx + 1}: รูปแบบวันที่ "${sub.estimate_date}" ไม่ถูกต้อง (วว/ดด/ปปปป)`);
+        return;
+      }
+      if (sub.quantity === '' || Number(sub.quantity) <= 0) {
+        setError(`❌ รอบที่ ${idx + 1}: กรุณาระบุจำนวนสินค้าที่ส่ง`);
+        return;
+      }
+
+      // REQUIREMENT 2: Sequential Date Validation (Round N+1 date must be strictly AFTER Round N date)
+      if (idx > 0) {
+        const prevSub = subs[idx - 1];
+        const prevIso = parseDateInput(prevSub.estimate_date);
+        if (prevIso && new Date(isoDate).getTime() <= new Date(prevIso).getTime()) {
+          setError(`⚠️ วันที่ส่งมอบรอบที่ ${idx + 1} (${sub.estimate_date}) ต้องอยู่หลังจากวันที่ของรอบที่ ${idx} (${prevSub.estimate_date})`);
+          return;
+        }
+      }
+
+      totalQty += Number(sub.quantity);
+    }
+
+    // 3. Sum quantity check
+    if (!portalData?.allow_over_delivery && totalQty > item.remaining_qty) {
+      setError(`⚠️ ยอดส่งรวมทุกรอบ (${totalQty.toLocaleString()} ${item.unit}) เกินกว่ายอดคงเหลือ (${item.remaining_qty.toLocaleString()} ${item.unit})`);
+      return;
+    }
+
+    // Clear error and collapse card (Done / Saved local draft)
+    setError(null);
+    setExpandedSplitRow(null);
   };
 
   const handleRemoveSubItem = (itemId: number, subIndex: number) => {
@@ -250,6 +324,7 @@ export default function SupplierPortalPage() {
         const first = updatedSubs[0];
         const itemObj = portalData?.items.find((i) => i.id === itemId);
         const remQty = Number(itemObj?.remaining_qty ?? current.qty);
+        setExpandedSplitRow(null);
         return {
           ...prev,
           [itemId]: {
@@ -324,11 +399,13 @@ export default function SupplierPortalPage() {
           if (!isDraft) {
             if (!sub.estimate_date || sub.estimate_date.length < 10) {
               setError(`❌ แถวที่ ${idx + 1} (${item.item_code}) รอบที่ ${sIdx + 1}: กรุณาระบุวันที่ส่งสินค้าให้ถูกต้องครบถ้วน (วว/ดด/ปปปป)`);
+              setExpandedSplitRow(item.id);
               scrollToRow(item.id);
               return;
             }
             if (sub.quantity === '' || Number(sub.quantity) <= 0) {
               setError(`❌ แถวที่ ${idx + 1} (${item.item_code}) รอบที่ ${sIdx + 1}: กรุณาระบุจำนวนสินค้าที่ส่ง`);
+              setExpandedSplitRow(item.id);
               scrollToRow(item.id);
               return;
             }
@@ -336,6 +413,19 @@ export default function SupplierPortalPage() {
 
           const isoDate = parseDateInput(sub.estimate_date);
           const qVal = Number(sub.quantity) || 0;
+
+          // REQUIREMENT 2: Sequential Date Validation during submit
+          if (!isDraft && sIdx > 0) {
+            const prevSub = input.subItems![sIdx - 1];
+            const prevIso = parseDateInput(prevSub.estimate_date);
+            if (prevIso && isoDate && new Date(isoDate).getTime() <= new Date(prevIso).getTime()) {
+              setError(`⚠️ แถวที่ ${idx + 1} (${item.item_code}): วันที่ส่งมอบรอบที่ ${sIdx + 1} (${sub.estimate_date}) ต้องอยู่หลังจากวันที่ของรอบที่ ${sIdx} (${prevSub.estimate_date})`);
+              setExpandedSplitRow(item.id);
+              scrollToRow(item.id);
+              return;
+            }
+          }
+
           if (isoDate && qVal > 0) {
             parsedSubs.push({ estimate_date: isoDate, quantity: qVal });
             totalQty += qVal;
@@ -344,6 +434,7 @@ export default function SupplierPortalPage() {
 
         if (!allowOver && totalQty > item.remaining_qty && !isDraft) {
           setError(`❌ แถวที่ ${idx + 1} (${item.item_code}): ยอดรวมส่ง (${totalQty.toLocaleString()} ${item.unit}) สูงกว่ายอดคงเหลือ (${item.remaining_qty.toLocaleString()} ${item.unit})`);
+          setExpandedSplitRow(item.id);
           scrollToRow(item.id);
           return;
         }
@@ -563,6 +654,7 @@ export default function SupplierPortalPage() {
 
                       const subItemsList = formInputs[item.id]?.subItems || [];
                       const hasSubItems = subItemsList.length > 0;
+                      const isCardOpen = expandedSplitRow === item.id;
                       const currentVal = formInputs[item.id]?.qty;
                       const isOverQty = !portalData.allow_over_delivery && typeof currentVal === 'number' && currentVal > item.remaining_qty;
 
@@ -638,7 +730,11 @@ export default function SupplierPortalPage() {
                                   {hasSubItems ? `แตกส่ง ${subItemsList.length} รอบ` : (formInputs[item.id]?.date || '-')}
                                 </div>
                               ) : hasSubItems ? (
-                                <div className="text-sky-700 font-bold text-xs py-1 text-center">
+                                <div 
+                                  onClick={() => !isLocked && handleToggleSplit(item.id)}
+                                  className="text-sky-700 hover:text-sky-900 font-bold text-xs py-1 text-center cursor-pointer hover:underline"
+                                  title="คลิกเพื่อแก้ไขรอบส่ง"
+                                >
                                   แตกส่ง {subItemsList.length} รอบ
                                 </div>
                               ) : (
@@ -692,7 +788,11 @@ export default function SupplierPortalPage() {
                                   {hasSubItems ? totalSplitQty.toLocaleString() : (formInputs[item.id]?.qty?.toLocaleString() || '-')}
                                 </div>
                               ) : hasSubItems ? (
-                                <div className="font-mono font-bold text-sky-800 text-xs py-1">
+                                <div 
+                                  onClick={() => !isLocked && handleToggleSplit(item.id)}
+                                  className="font-mono font-bold text-sky-800 text-xs py-1 cursor-pointer hover:underline"
+                                  title="คลิกเพื่อแก้ไขรอบส่ง"
+                                >
                                   รวม: {totalSplitQty.toLocaleString()}
                                 </div>
                               ) : (
@@ -723,22 +823,22 @@ export default function SupplierPortalPage() {
                               {!isLocked && (
                                 <button
                                   type="button"
-                                  onClick={() => handleAddSubItem(item.id)}
+                                  onClick={() => handleToggleSplit(item.id)}
                                   className={`p-1.5 rounded-lg border transition shadow-2xs ${
-                                    hasSubItems
+                                    isCardOpen || hasSubItems
                                       ? 'bg-sky-600 text-white border-sky-600'
                                       : 'bg-white hover:bg-sky-50 text-sky-700 border-slate-200 hover:border-sky-300'
                                   }`}
-                                  title="แตกส่งหลายรอบ (Split Rounds)"
+                                  title={hasSubItems ? 'แก้ไขการแตกส่ง (Split Rounds)' : 'แตกส่งหลายรอบ (Split Rounds)'}
                                 >
-                                  <Plus className="w-3.5 h-3.5" />
+                                  {hasSubItems ? <Edit3 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                                 </button>
                               )}
                             </td>
                           </tr>
 
-                          {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW */}
-                          {hasSubItems && (
+                          {/* EXACT OPERATION-STYLE SUB ITEM EXPANDED ROW WITH [บันทึก] AND [ยกเลิก] */}
+                          {(isCardOpen || (hasSubItems && isCardOpen)) && (
                             <tr className="bg-sky-50/40 border-y border-sky-200">
                               <td colSpan={9} className="p-3">
                                 <div className="flex justify-end">
@@ -861,23 +961,35 @@ export default function SupplierPortalPage() {
                                       })}
                                     </div>
 
+                                    {/* BOTTOM ACTIONS IN SPLIT CARD: [+ เพิ่มรอบส่ง], [ยกเลิก], [บันทึก] */}
                                     {!isLocked && (
                                       <div className="pt-2 flex items-center justify-between border-t border-slate-100">
                                         <button
                                           type="button"
                                           onClick={() => handleAddSubItem(item.id)}
-                                          className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1"
+                                          className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 hover:underline"
                                         >
                                           <Plus className="w-3.5 h-3.5" />
                                           <span>เพิ่มรอบส่ง</span>
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleCancelSplit(item.id)}
-                                          className="text-xs text-slate-400 hover:text-slate-600 font-medium"
-                                        >
-                                          ยกเลิก
-                                        </button>
+
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCancelSplit(item.id)}
+                                            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 font-medium transition cursor-pointer"
+                                          >
+                                            ยกเลิก
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveSplitCard(item.id)}
+                                            className="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>บันทึก</span>
+                                          </button>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
