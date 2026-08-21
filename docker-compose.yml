@@ -97,10 +97,14 @@ services:
       - "traefik.http.routers.irm.rule=Host(`irm.windowasia.com`)"
       - "traefik.http.routers.irm.entrypoints=websecure"
       - "traefik.http.routers.irm.tls=true"
+      - "traefik.http.routers.irm.tls.certresolver=letsencrypt"
       - "traefik.http.services.irm.loadbalancer.server.port=80"
       # HTTP Router (Auto fallback/redirect)
       - "traefik.http.routers.irm-http.rule=Host(`irm.windowasia.com`)"
       - "traefik.http.routers.irm-http.entrypoints=web"
+      - "traefik.http.routers.irm-http.middlewares=irm-redirect-https"
+      - "traefik.http.middlewares.irm-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.irm-redirect-https.redirectscheme.permanent=true"
     depends_on:
       - irm-frontend
       - irm-backend

@@ -95,14 +95,18 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-proxy"
-      # HTTPS Entrypoint
+      # HTTPS Entrypoint with Let's Encrypt Certificate
       - "traefik.http.routers.irm.rule=Host(`irm.windowasia.com`)"
       - "traefik.http.routers.irm.entrypoints=websecure"
       - "traefik.http.routers.irm.tls=true"
+      - "traefik.http.routers.irm.tls.certresolver=letsencrypt"
       - "traefik.http.services.irm.loadbalancer.server.port=80"
-      # HTTP Entrypoint
+      # HTTP Entrypoint (Auto Redirect to HTTPS)
       - "traefik.http.routers.irm-http.rule=Host(`irm.windowasia.com`)"
       - "traefik.http.routers.irm-http.entrypoints=web"
+      - "traefik.http.routers.irm-http.middlewares=irm-redirect-https"
+      - "traefik.http.middlewares.irm-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.irm-redirect-https.redirectscheme.permanent=true"
     depends_on:
       - irm-frontend
       - irm-backend
