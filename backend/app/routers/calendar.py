@@ -27,7 +27,7 @@ async def get_calendar_events(
         .join(POHeader, POItem.po_header_id == POHeader.id)
         .options(selectinload(POItem.sub_items))
         .where(POHeader.status == "O")
-        .where(POItem.status != "closed")
+        .where(POItem.status == "confirmed")
     )
     result = await db.execute(stmt)
     rows = result.all()
