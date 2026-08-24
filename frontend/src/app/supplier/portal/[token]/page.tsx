@@ -74,6 +74,13 @@ export default function SupplierPortalPage() {
     subItems?: { estimate_date: string; quantity: number | '' }[];
   }>>({});
 
+  // Snapshot of item state before opening split card for cancel/rollback support
+  const [splitSnapshots, setSplitSnapshots] = useState<Record<number, {
+    date: string;
+    qty: number | '';
+    subItems?: { estimate_date: string; quantity: number | '' }[];
+  }>>({});
+
   useEffect(() => {
     if (token) {
       fetchPortalData();
@@ -165,6 +172,7 @@ export default function SupplierPortalPage() {
         };
       });
       setFormInputs(initialInputs);
+      setSplitSnapshots(JSON.parse(JSON.stringify(initialInputs)));
       if (res.data.is_submitted) {
         setSubmittedSuccess(true);
       }
@@ -194,16 +202,23 @@ export default function SupplierPortalPage() {
 
   const handleToggleSplit = (itemId: number) => {
     if (expandedSplitRow === itemId) {
-      setExpandedSplitRow(null);
+      handleCancelSplit(itemId);
       return;
     }
 
+    // Capture snapshot of current state before opening editor for safe rollback on Cancel
+    const current = formInputs[itemId] || { date: '', qty: '', subItems: [] };
+    setSplitSnapshots((prev) => ({
+      ...prev,
+      [itemId]: JSON.parse(JSON.stringify(current))
+    }));
+
     setExpandedSplitRow(itemId);
     setFormInputs((prev) => {
-      const current = prev[itemId] || { date: '', qty: '', subItems: [] };
-      const currentSubs = current.subItems || [];
+      const curr = prev[itemId] || { date: '', qty: '', subItems: [] };
+      const currentSubs = curr.subItems || [];
       const itemObj = portalData?.items.find((i) => i.id === itemId);
-      const remQty = Number(itemObj?.remaining_qty ?? (typeof current.qty === 'number' ? current.qty : 0));
+      const remQty = Number(itemObj?.remaining_qty ?? (typeof curr.qty === 'number' ? curr.qty : 0));
 
       // REQUIREMENT 1: DO NOT SPLIT NUMBERS!
       // Round 1 keeps the full remaining qty (remQty) and existing date
@@ -212,9 +227,9 @@ export default function SupplierPortalPage() {
         return {
           ...prev,
           [itemId]: {
-            ...current,
+            ...curr,
             subItems: [
-              { estimate_date: current.date || '', quantity: remQty },
+              { estimate_date: curr.date || '', quantity: remQty },
               { estimate_date: '', quantity: 0 }
             ]
           }
@@ -244,21 +259,19 @@ export default function SupplierPortalPage() {
   };
 
   const handleCancelSplit = (itemId: number) => {
+    setError(null);
     setExpandedSplitRow(null);
+
+    // Restore from snapshot before this editing session started
     setFormInputs((prev) => {
-      const current = prev[itemId];
-      if (!current) return prev;
-      const itemObj = portalData?.items.find((i) => i.id === itemId);
-      const remQty = Number(itemObj?.remaining_qty ?? current.qty);
-      const firstDate = current.subItems?.[0]?.estimate_date || current.date || '';
-      return {
-        ...prev,
-        [itemId]: {
-          date: firstDate,
-          qty: remQty,
-          subItems: []
-        }
-      };
+      const snapshot = splitSnapshots[itemId];
+      if (snapshot) {
+        return {
+          ...prev,
+          [itemId]: JSON.parse(JSON.stringify(snapshot))
+        };
+      }
+      return prev;
     });
   };
 
@@ -309,6 +322,24 @@ export default function SupplierPortalPage() {
       setError(`⚠️ ยอดส่งรวมทุกรอบ (${totalQty.toLocaleString()} ${item.unit}) เกินกว่ายอดคงเหลือ (${item.remaining_qty.toLocaleString()} ${item.unit})`);
       return;
     }
+
+    const savedState = {
+      date: subs[0]?.estimate_date || current.date || '',
+      qty: totalQty,
+      subItems: subs
+    };
+
+    // Save state in formInputs
+    setFormInputs((prev) => ({
+      ...prev,
+      [itemId]: savedState
+    }));
+
+    // Update snapshot to the newly confirmed state
+    setSplitSnapshots((prev) => ({
+      ...prev,
+      [itemId]: JSON.parse(JSON.stringify(savedState))
+    }));
 
     // Clear error and collapse card (Done / Saved local draft)
     setError(null);
