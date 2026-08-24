@@ -571,6 +571,85 @@ async def accept_supplier_response(
     )
 
 
+@router.post("/{item_id}/confirm", response_model=POItemResponse)
+async def confirm_po_item(
+    item_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Directly confirm a PO item (e.g. from SAP or default Lead Time date).
+    Sets status = 'confirmed', updated_by_name = current_user.full_name, and creates audit log.
+    """
+    stmt = (
+        select(POItem)
+        .options(selectinload(POItem.sub_items), selectinload(POItem.audit_logs))
+        .where(POItem.id == item_id)
+    )
+    result = await db.execute(stmt)
+    item = result.scalar_one_or_none()
+
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PO Item not found")
+
+    item.status = "confirmed"
+    item.is_new = False
+    item.locked_by = None
+    item.lock_expires_at = None
+    item.updated_by_name = current_user.full_name
+    item.updated_by_type = "user"
+
+    audit_log = POItemAuditLog(
+        po_item_id=item.id,
+        action="confirm_item",
+        changes_detail=f"ยืนยันวันส่งมอบโดย {current_user.full_name}",
+        changed_by_name=current_user.full_name,
+        changed_by_type="user",
+    )
+    db.add(audit_log)
+
+    await db.commit()
+
+    stmt_reload = (
+        select(POItem)
+        .options(selectinload(POItem.sub_items), selectinload(POItem.audit_logs))
+        .where(POItem.id == item.id)
+    )
+    item = (await db.execute(stmt_reload)).scalar_one()
+    header = (await db.execute(select(POHeader).where(POHeader.id == item.po_header_id))).scalar_one()
+
+    return POItemResponse(
+        id=item.id,
+        po_header_id=header.id,
+        line_num=item.line_num or 0,
+        po_number=header.po_number,
+        po_date=header.po_date,
+        supplier_code=header.supplier_code,
+        supplier_name=header.supplier_name,
+        buyer_name=header.buyer_name,
+        item_code=item.item_code,
+        item_name=item.item_name,
+        quantity=item.quantity,
+        unit=item.unit,
+        received_qty=item.received_qty,
+        remaining_qty=item.remaining_qty,
+        due_date=item.due_date,
+        item_group=item.item_group or "RM-กระจก",
+        estimate_date=item.estimate_date,
+        estimate_qty=item.estimate_qty,
+        status=item.status,
+        is_new=item.is_new,
+        closed_at=item.closed_at,
+        locked_by=item.locked_by,
+        lock_expires_at=item.lock_expires_at,
+        updated_by_name=item.updated_by_name,
+        updated_by_type=item.updated_by_type,
+        updated_at=item.updated_at,
+        sub_items=item.sub_items,
+        audit_logs=item.audit_logs,
+    )
+
+
 @router.post("/items/{item_id}/unlock", response_model=POItemResponse)
 async def unlock_single_item(
     item_id: int,

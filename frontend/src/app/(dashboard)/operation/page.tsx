@@ -195,9 +195,7 @@ export default function OperationPage() {
     return (
       item.status === 'confirmed' ||
       item.status === 'supplier_responded' ||
-      item.status === 'estimate' ||
-      (item.sub_items && item.sub_items.length > 0) ||
-      item.estimate_date !== null ||
+      (item.sub_items && item.sub_items.length > 0 && item.status === 'confirmed') ||
       (item.updated_by_name !== null && item.updated_by_name !== '')
     );
   };
@@ -532,6 +530,15 @@ export default function OperationPage() {
     }
   };
 
+  const handleConfirmItem = async (itemId: number) => {
+    try {
+      await api.post(`/api/operation/${itemId}/confirm`);
+      fetchItems();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการยืนยันรายการ');
+    }
+  };
+
   // Tab Filtering & Search
   const filteredItems = items.filter((i) => {
     const matchesSearch =
@@ -570,6 +577,14 @@ export default function OperationPage() {
   const getStatusBadge = (item: POItemResponse) => {
     const isLocked = isSupplierLocked(item);
 
+    if (item.status === 'confirmed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap shadow-2xs">
+          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+          <span>ยืนยันแล้ว</span>
+        </span>
+      );
+    }
     if (item.status === 'supplier_responded') {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-white shadow-sm animate-pulse whitespace-nowrap">
@@ -590,18 +605,10 @@ export default function OperationPage() {
         </span>
       );
     }
-    if (isRecordModified(item)) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap shadow-2xs">
-          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-          <span>ปรับแล้ว</span>
-        </span>
-      );
-    }
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-500 border border-dashed border-slate-300 whitespace-nowrap">
         <Clock3 className="w-2.5 h-2.5 text-slate-400" />
-        <span>ยังไม่ปรับ</span>
+        <span>รอ PU ยืนยัน</span>
       </span>
     );
   };
@@ -1009,17 +1016,26 @@ export default function OperationPage() {
                     {/* 14. Actions */}
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                        {/* 1. Accept Button */}
-                        {item.status === 'supplier_responded' && (
+                        {/* 1. Accept / Confirm Button */}
+                        {item.status === 'supplier_responded' ? (
                           <button
                             onClick={() => handleAcceptSupplier(item.id)}
-                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-sm"
-                            title="ยืนยันรับทราบข้อมูล Supplier"
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition cursor-pointer"
+                            title="ยืนยันรับทราบข้อมูล Supplier (Accept)"
                           >
                             <Check className="w-3 h-3" />
                             <span>Accept</span>
                           </button>
-                        )}
+                        ) : item.status !== 'confirmed' ? (
+                          <button
+                            onClick={() => handleConfirmItem(item.id)}
+                            className="px-2 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition cursor-pointer"
+                            title="กดยืนยันวันส่งมอบนี้เพื่อนำไปแสดงใน Calendar (Confirm)"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>ยืนยัน</span>
+                          </button>
+                        ) : null}
 
                         {/* 2. Unlock Button (Only shown when item was sent to Supplier and is currently locked) */}
                         {locked && (
