@@ -1016,26 +1016,35 @@ export default function OperationPage() {
                     {/* 14. Actions */}
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                        {/* 1. Accept / Confirm Button */}
-                        {item.status === 'supplier_responded' ? (
+                        {/* 1. Accept / Confirm Button (Compact Icon Button: Active vs Disabled State) */}
+                        {item.status === 'confirmed' ? (
                           <button
+                            type="button"
+                            disabled
+                            className="p-1 rounded bg-emerald-50 text-emerald-600 border border-emerald-300 cursor-not-allowed opacity-80 transition flex items-center justify-center"
+                            title="ยืนยันวันส่งมอบแล้ว (Confirmed - แสดงบน Calendar)"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </button>
+                        ) : item.status === 'supplier_responded' ? (
+                          <button
+                            type="button"
                             onClick={() => handleAcceptSupplier(item.id)}
-                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition cursor-pointer"
-                            title="ยืนยันรับทราบข้อมูล Supplier (Accept)"
+                            className="p-1 rounded bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 shadow-2xs transition cursor-pointer flex items-center justify-center animate-pulse"
+                            title="คลิกเพื่อยืนยันรอบส่งของ Supplier (Accept & Confirm)"
                           >
-                            <Check className="w-3 h-3" />
-                            <span>Accept</span>
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           </button>
-                        ) : item.status !== 'confirmed' ? (
+                        ) : (
                           <button
+                            type="button"
                             onClick={() => handleConfirmItem(item.id)}
-                            className="px-2 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5 shadow-sm transition cursor-pointer"
-                            title="กดยืนยันวันส่งมอบนี้เพื่อนำไปแสดงใน Calendar (Confirm)"
+                            className="p-1 rounded bg-sky-50 hover:bg-sky-600 text-sky-600 hover:text-white border border-sky-300 shadow-2xs transition cursor-pointer flex items-center justify-center"
+                            title="คลิกเพื่อยืนยันวันส่งมอบนี้ลงปฏิทิน (Confirm)"
                           >
-                            <Check className="w-3 h-3" />
-                            <span>ยืนยัน</span>
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           </button>
-                        ) : null}
+                        )}
 
                         {/* 2. Unlock Button (Only shown when item was sent to Supplier and is currently locked) */}
                         {locked && (
