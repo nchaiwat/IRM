@@ -18,7 +18,7 @@ class POHeader(Base):
     supplier_code: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     supplier_name: Mapped[str] = mapped_column(String(150), nullable=False)
     buyer_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="O")  # O = Open, C = Closed
+    status: Mapped[str] = mapped_column(String(20), default="O", index=True)  # O = Open, C = Closed
 
     items = relationship("POItem", back_populates="header", cascade="all, delete-orphan", lazy="selectin")
 
@@ -27,7 +27,7 @@ class POItem(Base):
     __tablename__ = "po_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    po_header_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_headers.id", ondelete="CASCADE"), nullable=False)
+    po_header_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_headers.id", ondelete="CASCADE"), index=True, nullable=False)
     line_num: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
     item_code: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     item_name: Mapped[str] = mapped_column(String(250), nullable=False)
@@ -43,8 +43,8 @@ class POItem(Base):
     estimate_qty: Mapped[float | None] = mapped_column(Float, nullable=True)
     
     # Status: 'pending', 'estimate', 'supplier_responded', 'confirmed', 'delay', 'closed'
-    status: Mapped[str] = mapped_column(String(30), default="pending")
-    is_new: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    is_new: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Ownership Lock & Conflict Management ('user' | 'supplier' | None)

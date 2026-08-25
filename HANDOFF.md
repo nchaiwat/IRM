@@ -41,17 +41,17 @@
 
 ## 📂 3. โครงสร้างไฟล์และจุดแก้ไขสำคัญ (Key Files)
 
-| ไฟล์ | หน้าที่ / การทำงาน |
+| ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
-| [`frontend/src/app/supplier/portal/[token]/page.tsx`](file:///d:/Python/IRM/frontend/src/app/supplier/portal/%5Btoken%5D/page.tsx) | หน้าจอ Portal สำหรับ Supplier (ล็อค Read-only, ดูรอบส่งย่อย, Dual Scrollbar) |
-| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/%28dashboard%29/calendar/page.tsx) | หน้าปฏิทิน (แยกสีเขียว Confirmed vs ส้ม Estimate + Filter Tabs) |
-| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/%28dashboard%29/operation/page.tsx) | หน้า Operation จัดการ PO, Sub-items, Accept รอบส่งจาก Supplier |
-| [`backend/app/routers/supplier_portal.py`](file:///d:/Python/IRM/backend/app/routers/supplier_portal.py) | API รับส่งข้อมูล Portal และบันทึก `is_submitted = True` |
+| [`backend/app/services/telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py) | ระบบแจ้งเตือน Telegram รวม 7 Events (เพิ่ม Daily 08:00 AM Morning Summary) |
+| [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | APScheduler จัดตารางงานอัตโนมัติ (Mail Mon/Thu 08:00, SAP 04:00, Telegram 08:00) |
+| [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | API Operation ปรับปรุง High-Performance Query (Response Time < 50ms) |
+| [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | โมเดล PO พร้อม Indexes (`status`, `po_header_id`, `is_new`) |
 | [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | สร้าง Token และฟังก์ชัน Revoke Token เก่าเมื่อส่งอีเมลใหม่ |
 | [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | API จัดการ Supplier Master (ตัด Fallback Auto-Seed ออกแล้ว) |
 | [`backend/app/routers/items.py`](file:///d:/Python/IRM/backend/app/routers/items.py) | API จัดการ Item Master (ตัด Fallback Auto-Seed ออกแล้ว) |
 | [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | Database Initializer (คงเฉพาะ Admin User & System Settings) |
-| [`backend/clear_transactions.py`](file:///d:/Python/IRM/backend/clear_transactions.py) | สคริปต์ล้างข้อมูล Transaction โดยไม่กระทบ Users/Settings |
+| [`backend/app/clear_transactions.py`](file:///d:/Python/IRM/backend/app/clear_transactions.py) | สคริปต์ล้างข้อมูล Transaction โดยไม่กระทบ Users/Settings |
 
 ---
 

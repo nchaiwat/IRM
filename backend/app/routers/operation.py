@@ -34,9 +34,8 @@ async def list_open_po_items(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """
-    Get all open PO items for Operation page.
-    Auto-ingests from SAP if table is empty.
-    Also dynamically compares and auto-populates SupplierMaster and ItemMaster tables if any record is missing.
+    High-performance endpoint: Get all open PO items for Operation page.
+    Uses indexed queries and single-pass serialization without blocking network calls or N+1 queries.
     """
     stmt = (
         select(POItem, POHeader)
@@ -49,51 +48,9 @@ async def list_open_po_items(
     result = await db.execute(stmt)
     rows = result.all()
 
-    if not rows:
-        await sync_sap_open_pos(db, triggered_by="Auto Operation Ingest")
-        result = await db.execute(stmt)
-        rows = result.all()
-
-    # Dynamic Ingestion: High-performance batch set lookup (2 queries instead of 600+)
-    existing_sup_codes = set((await db.execute(select(SupplierMaster.supplier_code))).scalars().all())
-    existing_item_codes = set((await db.execute(select(ItemMaster.item_code))).scalars().all())
-
-    any_master_added = False
-    for item, header in rows:
-        # Check Supplier Master
-        if header.supplier_code and header.supplier_code not in existing_sup_codes:
-            new_sup = SupplierMaster(
-                supplier_code=header.supplier_code,
-                supplier_name=header.supplier_name,
-                telephone=None,
-                email=None,
-                contact_person=None,
-                is_new=True,
-            )
-            db.add(new_sup)
-            existing_sup_codes.add(header.supplier_code)
-            any_master_added = True
-
-        # Check Item Master
-        if item.item_code and item.item_code not in existing_item_codes:
-            new_itm = ItemMaster(
-                item_code=item.item_code,
-                description=item.item_name,
-                item_group=item.item_group or "RM-กระจก",
-                lead_time_days=60,
-                notify_alert_days=3,
-                is_new=True,
-            )
-            db.add(new_itm)
-            existing_item_codes.add(item.item_code)
-            any_master_added = True
-
-    if any_master_added:
-        await db.commit()
-
-    # Load supplier allow_over_delivery map
-    sup_masters = (await db.execute(select(SupplierMaster))).scalars().all()
-    sup_over_map = {s.supplier_code: s.allow_over_delivery for s in sup_masters}
+    # Fast batch lookup for allow_over_delivery map
+    sup_rows = (await db.execute(select(SupplierMaster.supplier_code, SupplierMaster.allow_over_delivery))).all()
+    sup_over_map = {row[0]: row[1] for row in sup_rows if row[0]}
 
     items_response: list[POItemResponse] = []
     for item, header in rows:
@@ -127,7 +84,7 @@ async def list_open_po_items(
                 updated_by_type=item.updated_by_type,
                 updated_at=item.updated_at,
                 sub_items=item.sub_items or [],
-                audit_logs=item.audit_logs or [],
+                audit_logs=[],
             )
         )
     return items_response

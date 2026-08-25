@@ -235,3 +235,71 @@ async def send_telegram_buyer_unlock(
     )
     full_msg = f"{format_telegram_header(topic)}\n\n{body}"
     await send_telegram_message(db, full_msg, category="system_audit")
+
+
+# ----------------------------------------------------
+# 7. Daily 08:00 AM Morning Summary Briefing
+# ----------------------------------------------------
+async def send_telegram_morning_summary(db: AsyncSession) -> dict:
+    """
+    Daily Morning Briefing at 08:00 AM:
+    - รายการเพิ่มใหม่กี่ Item จากกี่ PO
+    - รายการที่ปิดยอดแล้วกี่ Item จากกี่ PO
+    - รายการรอยืนยันกี่ Item จากกี่ PO
+    """
+    from sqlalchemy import func, distinct, select
+    from app.models.po import POHeader, POItem
+
+    # 1. New Items: is_new == True, Open POs, not closed
+    stmt_new = (
+        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O")
+        .where(POItem.status != "closed")
+        .where(POItem.is_new == True)
+    )
+    res_new = (await db.execute(stmt_new)).first()
+    new_items_count = res_new[0] or 0 if res_new else 0
+    new_pos_count = res_new[1] or 0 if res_new else 0
+
+    # 2. Closed Items
+    stmt_closed = (
+        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POItem.status == "closed")
+    )
+    res_closed = (await db.execute(stmt_closed)).first()
+    closed_items_count = res_closed[0] or 0 if res_closed else 0
+    closed_pos_count = res_closed[1] or 0 if res_closed else 0
+
+    # 3. Pending/Awaiting Confirmation Items: status not in ('confirmed', 'closed')
+    stmt_pending = (
+        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O")
+        .where(POItem.status != "confirmed")
+        .where(POItem.status != "closed")
+    )
+    res_pending = (await db.execute(stmt_pending)).first()
+    pending_items_count = res_pending[0] or 0 if res_pending else 0
+    pending_pos_count = res_pending[1] or 0 if res_pending else 0
+
+    topic = "🌅 <b>สรุปสถานะรายการประจำวัน (Daily 08:00 AM Morning Summary)</b>"
+    body = (
+        f"• 🆕 <b>มี Item เพิ่มใหม่:</b> {new_items_count:,} รายการ ({new_pos_count:,} ใบสั่งซื้อ PO)\n"
+        f"• 📥 <b>มี Item ที่ปิดแล้ว:</b> {closed_items_count:,} รายการ ({closed_pos_count:,} ใบสั่งซื้อ PO)\n"
+        f"• ⏳ <b>มี Item รอยืนยัน:</b> {pending_items_count:,} รายการ ({pending_pos_count:,} ใบสั่งซื้อ PO)\n\n"
+        "• 💻 <b>คำแนะนำ:</b> ฝ่ายจัดซื้อสามารถเข้าตรวจสอบและกดยืนยันรอบส่งได้ที่เมนู <b>Operation</b>"
+    )
+    full_msg = f"{format_telegram_header(topic)}\n\n{body}"
+    res = await send_telegram_message(db, full_msg, category="morning_summary")
+    return {
+        "success": res,
+        "new_items": new_items_count,
+        "new_pos": new_pos_count,
+        "closed_items": closed_items_count,
+        "closed_pos": closed_pos_count,
+        "pending_items": pending_items_count,
+        "pending_pos": pending_pos_count,
+    }
+

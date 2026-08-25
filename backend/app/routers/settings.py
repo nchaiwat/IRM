@@ -223,6 +223,26 @@ async def test_telegram_group(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to send Telegram group message: {str(e)}")
 
 
+@router.post("/test-telegram-morning-summary")
+async def test_telegram_morning_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Manually test triggering the Daily 08:00 AM Morning Summary Telegram message."""
+    from app.services.telegram_service import send_telegram_morning_summary
+    try:
+        res = await send_telegram_morning_summary(db)
+        return {
+            "message": "ส่งข้อความสรุปสถานะประจำวัน (Morning Summary) ไปยังกลุ่ม Telegram สำเร็จแล้ว!",
+            "data": res
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"เกิดข้อผิดพลาดในการส่งข้อความสรุปสถานะ: {str(e)}"
+        )
+
+
 @router.post("/test-sap-connection")
 async def test_sap_connection(
     db: Annotated[AsyncSession, Depends(get_db)],

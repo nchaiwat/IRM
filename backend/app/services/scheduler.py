@@ -68,6 +68,18 @@ async def job_sync_sap_daily():
         logger.error(f"❌ [Scheduler] Error during SAP Daily Sync: {e}")
 
 
+async def job_daily_morning_telegram_summary():
+    """Daily Morning Briefing to Telegram at 08:00 AM"""
+    logger.info("⏰ [Scheduler] Executing Daily Telegram Morning Summary (08:00 AM)...")
+    try:
+        async with AsyncSessionLocal() as session:
+            from app.services.telegram_service import send_telegram_morning_summary
+            res = await send_telegram_morning_summary(session)
+            logger.info(f"✅ [Scheduler] Daily Telegram Morning Summary Sent: {res}")
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Error during Daily Telegram Morning Summary: {e}")
+
+
 def start_scheduler():
     """Start APScheduler with defined cron jobs."""
     if scheduler.running:
@@ -100,8 +112,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 4: Daily 08:00 AM Telegram Morning Briefing
+    scheduler.add_job(
+        job_daily_morning_telegram_summary,
+        trigger=CronTrigger(hour=8, minute=0, timezone="Asia/Bangkok"),
+        id="telegram_morning_summary_daily_0800",
+        name="Daily 08:00 AM Telegram Morning Summary Briefing",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon 08:00, Thu 08:00, and Daily 04:00 jobs.")
+    logger.info("🚀 [Scheduler] APScheduler started with Mon 08:00, Thu 08:00, Daily 04:00 SAP Sync, and Daily 08:00 Telegram Summary.")
 
 
 def stop_scheduler():
