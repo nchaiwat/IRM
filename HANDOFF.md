@@ -30,12 +30,17 @@
 - **รายการที่ยังไม่ Accept:** ข้อมูลใหม่จาก SAP (`pending`) หรือข้อมูลที่ Supplier เพิ่งส่งมา (`supplier_responded`) จะ **ไม่ถูกนำมาแสดงบน Calendar เด็ดขาด** จนกว่าจัดซื้อจะกด Accept
 - **ความแม่นยำ 100%:** ปฏิทินแสดงเฉพาะวันส่งมอบจริงที่แน่นอน (Exact Date) สำหรับฝ่ายคลังสินค้าและฝ่ายวางแผนการผลิต
 
-### 4) 🧹 Database Clean State (No Mock Seeds)
-- ตัดชุดคำสั่ง Auto-Seed ข้อมูลจำลอง (Mock Item 34 รายการ, Mock Supplier 8 รายชื่อ, Mock PO) ออกจาก:
-  - `backend/app/init_db.py`
-  - `backend/app/routers/suppliers.py`
-  - `backend/app/routers/items.py`
-- เพิ่มสคริปต์ `backend/clear_transactions.py` และคำสั่ง TRUNCATE ที่ปลอดภัย (คง Users, Roles, Settings ไว้ 100%)
+### 5) 📊 Master Export/Import XLSX & Batch Accept
+- **เปลี่ยนจาก CSV เป็น `.xlsx` (Excel Native):** ทั้งหน้า **Supplier Master** และ **Item Master** รองรับภาษาไทย 100% ไม่มีปัญหาเรื่องฟอนต์หรือ BOM
+- **Supplier Master Excel:** สามารถ Export ออกมาแก้ `Email`, `เบอร์โทร`, `ผู้ติดต่อ`, `Allow Over Delivery (ใช่/ไม่ใช่)`, และ `Accept (Accept / รอ Accept)` แล้ว Import กลับเข้าไปเพื่ออัปเดตและปลดสถานะ NEW ได้ทันที
+- **Item Master Excel:** สามารถ Export ออกมาแก้ `Lead Time`, `Notify Alert`, `กลุ่มสินค้า`, `Description`, และ `Accept (Accept / รอ Accept)` แล้ว Import กลับเข้าไปเพื่ออัปเดตและปลดสถานะ NEW ได้ทันที
+
+### 6) 🌅 Daily 08:00 AM Telegram Morning Briefing
+- **เวลาส่ง:** ทุกวัน เวลา **08:00 น.** (Asia/Bangkok)
+- **หัวข้อที่แจ้งเตือนใน Group:**
+  - 📦 **Item Master เพิ่มใหม่ (รอ Accept):** X รายการ
+  - 🏢 **Supplier Master เพิ่มใหม่ (รอ Accept):** X รายชื่อ
+  - 🚚 **Item ใกล้ถึงกำหนดส่งมอบ (ภายใน 7 วัน):** X รายการ (จาก Y ใบสั่งซื้อ PO)
 
 ---
 

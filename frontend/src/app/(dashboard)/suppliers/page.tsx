@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import { SupplierMaster } from '@/types';
-import { Factory, Search, Mail, Send, Copy, Edit, Check, AlertCircle, Download, Upload, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Factory, Search, Mail, Send, Copy, Edit, Check, AlertCircle, Download, Upload, ShieldCheck, ShieldAlert, FileSpreadsheet } from 'lucide-react';
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<SupplierMaster[]>([]);
@@ -212,35 +213,31 @@ export default function SuppliersPage() {
     }
   };
 
-  // CSV Export
-  const handleExportCSV = () => {
-    const BOM = '\uFEFF';
-    const headers = ['Supplier Code', 'Supplier Name', 'Email', 'Telephone', 'Contact Person', 'Allow Over Delivery'];
-    const rows = filtered.map((s) => [
-      s.supplier_code,
-      s.supplier_name,
-      isEmailValid(s.email) ? s.email! : '',
-      s.telephone || '',
-      s.contact_person || '',
-      s.allow_over_delivery ? 'TRUE' : 'FALSE',
-    ]);
+  // XLSX Export
+  const handleExportXLSX = () => {
+    const excelData = filtered.map((s) => ({
+      'Supplier Code': s.supplier_code,
+      'Supplier Name': s.supplier_name,
+      'Email': isEmailValid(s.email) ? s.email! : '',
+      'Allow Over Delivery': s.allow_over_delivery ? 'ใช่' : 'ไม่ใช่',
+      'Accept': s.is_new ? 'รอ Accept' : 'Accept',
+    }));
 
-    let csvContent = BOM + headers.join(',') + '\n';
-    rows.forEach((r) => {
-      const formattedCols = r.map((val, colIdx) => {
-        const cleanVal = (val || '').toString().replace(/"/g, '""');
-        if ((colIdx === 0 || colIdx === 3 || colIdx === 4) && cleanVal) {
-          return `="${cleanVal}"`;
-        }
-        return `"${cleanVal}"`;
-      });
-      csvContent += formattedCols.join(',') + '\n';
-    });
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
+    // Set Column Widths for clean viewing in Excel
+    worksheet['!cols'] = [
+      { wch: 15 }, // Supplier Code
+      { wch: 40 }, // Supplier Name
+      { wch: 32 }, // Email
+      { wch: 18 }, // Telephone
+      { wch: 20 }, // Contact Person
+      { wch: 22 }, // Allow Over Delivery
+      { wch: 16 }, // Accept
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'SupplierMaster');
 
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -248,114 +245,94 @@ export default function SuppliersPage() {
     const dd = String(now.getDate()).padStart(2, '0');
     const hh = String(now.getHours()).padStart(2, '0');
     const min = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    link.setAttribute('download', `IRM_Supplier_Master_Export_${yyyy}${mm}${dd}_${hh}${min}${ss}.csv`);
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    XLSX.writeFile(workbook, `IRM_Supplier_Master_${yyyy}${mm}${dd}_${hh}${min}.xlsx`);
   };
 
-  // CSV Import
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // XLSX Import
+  const handleImportXLSX = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-      const lines = text.split(/\r\n|\n/);
-      if (lines.length < 2) {
-        alert('ไฟล์ CSV ไม่มีข้อมูล');
-        return;
-      }
-
-      const parseLine = (line: string) => {
-        const result: string[] = [];
-        let cur = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const c = line[i];
-          if (c === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-              cur += '"';
-              i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
-          } else if (c === ',' && !inQuotes) {
-            result.push(cur.trim());
-            cur = '';
-          } else {
-            cur += c;
-          }
-        }
-        result.push(cur.trim());
-        return result;
-      };
-
-      const rawHeaders = parseLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
-      
-      const codeIdx = rawHeaders.findIndex((h) => h.includes('code') || h.includes('รหัส'));
-      const emailIdx = rawHeaders.findIndex((h) => h.includes('email') || h.includes('อีเมล'));
-      const telIdx = rawHeaders.findIndex((h) => h.includes('tel') || h.includes('phone') || h.includes('เบอร์') || h.includes('โทร'));
-      const contactIdx = rawHeaders.findIndex((h) => h.includes('contact') || h.includes('ผู้ติดต่อ') || h.includes('ชื่อผู้'));
-      const overIdx = rawHeaders.findIndex((h) => h.includes('over') || h.includes('ส่งเกิน'));
-
-      if (codeIdx === -1) {
-        alert('ไฟล์ CSV ต้องมีคอลัมน์ "Supplier Code" หรือ "รหัส"');
+      if (rows.length === 0) {
+        alert('ไฟล์ Excel ไม่มีข้อมูล');
         return;
       }
 
       const bulkPayload: any[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const vals = parseLine(lines[i]).map((v) => v.replace(/^"|"$/g, '').trim());
-        let code = vals[codeIdx];
-        if (!code) continue;
-        if (code.startsWith('=')) {
-          code = code.replace(/^=/, '').replace(/^"/, '').replace(/"$/, '').trim();
+      for (const row of rows) {
+        // Find keys dynamically
+        const keys = Object.keys(row);
+        const codeKey = keys.find(k => k.toLowerCase().includes('code') || k.toLowerCase().includes('รหัส'));
+        const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('ชื่อ'));
+        const emailKey = keys.find(k => k.toLowerCase().includes('email') || k.toLowerCase().includes('อีเมล'));
+        const telKey = keys.find(k => k.toLowerCase().includes('tel') || k.toLowerCase().includes('phone') || k.toLowerCase().includes('เบอร์') || k.toLowerCase().includes('โทร'));
+        const contactKey = keys.find(k => k.toLowerCase().includes('contact') || k.toLowerCase().includes('ผู้ติดต่อ'));
+        const overKey = keys.find(k => k.toLowerCase().includes('over') || k.toLowerCase().includes('ส่งเกิน'));
+        const acceptKey = keys.find(k => k.toLowerCase().includes('accept') || k.toLowerCase().includes('ยอมรับ') || k.toLowerCase().includes('สถานะ') || k.toLowerCase().includes('status'));
+
+        if (!codeKey || !row[codeKey]) continue;
+
+        const codeVal = String(row[codeKey]).trim();
+        if (!codeVal) continue;
+
+        let emailVal = emailKey && row[emailKey] ? String(row[emailKey]).trim() : undefined;
+        let telVal = telKey && row[telKey] ? String(row[telKey]).trim() : undefined;
+        let contactVal = contactKey && row[contactKey] ? String(row[contactKey]).trim() : undefined;
+        let nameVal = nameKey && row[nameKey] ? String(row[nameKey]).trim() : undefined;
+
+        // Parse Over Delivery
+        let overVal: boolean | undefined = undefined;
+        if (overKey && row[overKey] !== '') {
+          const rawOver = String(row[overKey]).trim().toLowerCase();
+          overVal = rawOver === 'ใช่' || rawOver === 'อนุญาต' || rawOver === 'true' || rawOver === '1' || rawOver === 'yes' || rawOver === 'y';
         }
 
-        let emailVal = emailIdx !== -1 ? vals[emailIdx] : undefined;
-        let telVal = telIdx !== -1 ? vals[telIdx] : undefined;
-        let contactVal = contactIdx !== -1 ? vals[contactIdx] : undefined;
-        let overVal = overIdx !== -1 ? (vals[overIdx].toUpperCase() === 'TRUE' || vals[overIdx] === '1') : undefined;
-
-        if (telVal && telVal.startsWith('=')) {
-          telVal = telVal.replace(/^=/, '').replace(/^"/, '').replace(/"$/, '').trim();
-        }
-        if (contactVal && contactVal.startsWith('=')) {
-          contactVal = contactVal.replace(/^=/, '').replace(/^"/, '').replace(/"$/, '').trim();
+        // Parse Accept Status
+        let acceptVal: boolean | undefined = undefined;
+        if (acceptKey && row[acceptKey] !== '') {
+          const rawAccept = String(row[acceptKey]).trim().toLowerCase();
+          if (rawAccept === 'accept' || rawAccept === 'ยอมรับ' || rawAccept === 'ยอมรับแล้ว' || rawAccept === 'true' || rawAccept === '1' || rawAccept === 'yes' || rawAccept === 'y' || rawAccept === 'ยืนยัน') {
+            acceptVal = true;
+          } else if (rawAccept.includes('รอ') || rawAccept === 'false' || rawAccept === '0' || rawAccept === 'no' || rawAccept === 'n') {
+            acceptVal = false;
+          }
         }
 
         bulkPayload.push({
-          supplier_code: code,
-          email: emailVal !== undefined && isEmailValid(emailVal) ? emailVal : (emailVal === '' ? null : undefined),
-          telephone: telVal !== undefined ? telVal : undefined,
-          contact_person: contactVal !== undefined ? contactVal : undefined,
+          supplier_code: codeVal,
+          supplier_name: nameVal,
+          email: emailVal !== undefined ? (isEmailValid(emailVal) ? emailVal : null) : undefined,
+          telephone: telVal,
+          contact_person: contactVal,
           allow_over_delivery: overVal,
+          accept: acceptVal,
         });
       }
 
       if (bulkPayload.length === 0) {
-        alert('ไม่พบข้อมูล Supplier ที่จะนำเข้า');
+        alert('ไม่พบข้อมูล Supplier ที่ถูกต้องในไฟล์ Excel (ต้องมีคอลัมน์ Supplier Code)');
         return;
       }
 
-      try {
-        const res = await api.put<{ message: string; updated_count: number }>('/api/suppliers/bulk-update', bulkPayload);
-        alert(res.data.message || `นำเข้าและอัปเดตข้อมูลสำเร็จ ${res.data.updated_count} รายการ`);
-        fetchSuppliers();
-      } catch (err: any) {
-        alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ CSV');
-      } finally {
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsText(file);
+      const res = await api.put<{ message: string; updated_count: number }>('/api/suppliers/bulk-update', {
+        suppliers: bulkPayload,
+      });
+      alert(res.data.message || `นำเข้าและอัปเดตข้อมูลสำเร็จ ${res.data.updated_count} รายการ`);
+      fetchSuppliers();
+    } catch (err: any) {
+      console.error('Import Error:', err);
+      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ Excel');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const filtered = suppliers.filter(
@@ -405,22 +382,22 @@ export default function SuppliersPage() {
           </button>
 
           <button
-            onClick={handleExportCSV}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm flex items-center gap-1.5 transition"
-            title="Export ข้อมูลเป็นไฟล์ CSV (เปิดกับ Excel)"
+            onClick={handleExportXLSX}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+            title="Export ข้อมูลเป็นไฟล์ Excel (XLSX)"
           >
-            <Download className="w-4 h-4 text-slate-500" />
-            <span>Export CSV</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Export XLSX</span>
           </button>
 
-          <label className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition">
+          <label className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition">
             <Upload className="w-4 h-4" />
-            <span>Import CSV</span>
+            <span>Import XLSX</span>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportXLSX}
               className="hidden"
             />
           </label>

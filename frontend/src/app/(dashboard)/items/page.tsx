@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import { ItemMaster } from '@/types';
-import { Package, Search, Edit, Check, Download, Upload, Filter } from 'lucide-react';
+import { Package, Search, Edit, Check, Download, Upload, Filter, FileSpreadsheet } from 'lucide-react';
 
 export default function ItemsPage() {
   const [items, setItems] = useState<ItemMaster[]>([]);
@@ -60,27 +61,31 @@ export default function ItemsPage() {
     }
   };
 
-  // CSV Export
-  const handleExportCSV = () => {
-    const BOM = '\uFEFF';
-    const headers = ['Item Code', 'Group', 'Description', 'Lead Time (Days)', 'Notify Alert (Days)'];
-    const rows = filtered.map((item) => [
-      item.item_code,
-      item.item_group || 'HW',
-      item.description,
-      item.lead_time_days || 60,
-      item.notify_alert_days || 3,
-    ]);
+  // XLSX Export
+  const handleExportXLSX = () => {
+    const excelData = filtered.map((item) => ({
+      'Item Code': item.item_code,
+      'Group': item.item_group || 'HW',
+      'Description': item.description || '',
+      'Lead Time (Days)': item.lead_time_days || 60,
+      'Notify Alert (Days)': item.notify_alert_days || 3,
+      'Accept': item.is_new ? 'รอ Accept' : 'Accept',
+    }));
 
-    let csvContent = BOM + headers.join(',') + '\n';
-    rows.forEach((r) => {
-      csvContent += r.map((val) => `"${(val || '').toString().replace(/"/g, '""')}"`).join(',') + '\n';
-    });
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
+    // Set Column Widths for clean viewing in Excel
+    worksheet['!cols'] = [
+      { wch: 22 }, // Item Code
+      { wch: 18 }, // Group
+      { wch: 45 }, // Description
+      { wch: 18 }, // Lead Time (Days)
+      { wch: 20 }, // Notify Alert (Days)
+      { wch: 16 }, // Accept
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'ItemMaster');
 
     const now = new Date();
     const yyyy = now.getFullYear();
@@ -88,104 +93,94 @@ export default function ItemsPage() {
     const dd = String(now.getDate()).padStart(2, '0');
     const hh = String(now.getHours()).padStart(2, '0');
     const min = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    link.setAttribute('download', `IRM_Item_Master_Export_${yyyy}${mm}${dd}_${hh}${min}${ss}.csv`);
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    XLSX.writeFile(workbook, `IRM_Item_Master_${yyyy}${mm}${dd}_${hh}${min}.xlsx`);
   };
 
-  // CSV Import
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // XLSX Import
+  const handleImportXLSX = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-      const lines = text.split(/\r\n|\n/);
-      if (lines.length < 2) {
-        alert('ไฟล์ CSV ไม่มีข้อมูล');
-        return;
-      }
-
-      const parseLine = (line: string) => {
-        const result: string[] = [];
-        let cur = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const c = line[i];
-          if (c === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-              cur += '"';
-              i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
-          } else if (c === ',' && !inQuotes) {
-            result.push(cur.trim());
-            cur = '';
-          } else {
-            cur += c;
-          }
-        }
-        result.push(cur.trim());
-        return result;
-      };
-
-      const rawHeaders = parseLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim().toLowerCase());
-      
-      const codeIdx = rawHeaders.findIndex((h) => h.includes('code') || h.includes('รหัส'));
-      const descIdx = rawHeaders.findIndex((h) => h.includes('desc') || h.includes('ชื่อ'));
-      const groupIdx = rawHeaders.findIndex((h) => h.includes('group') || h.includes('กลุ่ม'));
-      const ltIdx = rawHeaders.findIndex((h) => h.includes('lead') || h.includes('เวลา'));
-      const alertIdx = rawHeaders.findIndex((h) => h.includes('notify') || h.includes('alert') || h.includes('เตือน'));
-
-      if (codeIdx === -1) {
-        alert('ไฟล์ CSV ต้องมีคอลัมน์ "Item Code"');
+      if (rows.length === 0) {
+        alert('ไฟล์ Excel ไม่มีข้อมูล');
         return;
       }
 
       const bulkPayload: any[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const vals = parseLine(lines[i]).map((v) => v.replace(/^"|"$/g, '').trim());
-        const code = vals[codeIdx];
-        if (!code) continue;
+      for (const row of rows) {
+        const keys = Object.keys(row);
+        const codeKey = keys.find(k => k.toLowerCase().includes('code') || k.toLowerCase().includes('รหัส'));
+        const descKey = keys.find(k => k.toLowerCase().includes('desc') || k.toLowerCase().includes('ชื่อ') || k.toLowerCase().includes('ราย'));
+        const groupKey = keys.find(k => k.toLowerCase().includes('group') || k.toLowerCase().includes('กลุ่ม'));
+        const ltKey = keys.find(k => k.toLowerCase().includes('lead') || k.toLowerCase().includes('เวลา'));
+        const alertKey = keys.find(k => k.toLowerCase().includes('notify') || k.toLowerCase().includes('alert') || k.toLowerCase().includes('เตือน'));
+        const acceptKey = keys.find(k => k.toLowerCase().includes('accept') || k.toLowerCase().includes('ยอมรับ') || k.toLowerCase().includes('สถานะ') || k.toLowerCase().includes('status'));
 
-        const ltDays = ltIdx !== -1 && vals[ltIdx] ? parseInt(vals[ltIdx], 10) : undefined;
-        const naDays = alertIdx !== -1 && vals[alertIdx] ? parseInt(vals[alertIdx], 10) : undefined;
-        const groupVal = groupIdx !== -1 && vals[groupIdx] ? vals[groupIdx] : undefined;
-        const descVal = descIdx !== -1 && vals[descIdx] ? vals[descIdx] : undefined;
+        if (!codeKey || !row[codeKey]) continue;
+
+        const codeVal = String(row[codeKey]).trim();
+        if (!codeVal) continue;
+
+        const descVal = descKey && row[descKey] ? String(row[descKey]).trim() : undefined;
+        const groupVal = groupKey && row[groupKey] ? String(row[groupKey]).trim() : undefined;
+
+        let ltDays: number | undefined = undefined;
+        if (ltKey && row[ltKey] !== '') {
+          const parsed = parseInt(String(row[ltKey]), 10);
+          if (!isNaN(parsed) && parsed >= 0) ltDays = parsed;
+        }
+
+        let naDays: number | undefined = undefined;
+        if (alertKey && row[alertKey] !== '') {
+          const parsed = parseInt(String(row[alertKey]), 10);
+          if (!isNaN(parsed) && parsed >= 0) naDays = parsed;
+        }
+
+        // Parse Accept Status
+        let acceptVal: boolean | undefined = undefined;
+        if (acceptKey && row[acceptKey] !== '') {
+          const rawAccept = String(row[acceptKey]).trim().toLowerCase();
+          if (rawAccept === 'accept' || rawAccept === 'ยอมรับ' || rawAccept === 'ยอมรับแล้ว' || rawAccept === 'true' || rawAccept === '1' || rawAccept === 'yes' || rawAccept === 'y' || rawAccept === 'ยืนยัน') {
+            acceptVal = true;
+          } else if (rawAccept.includes('รอ') || rawAccept === 'false' || rawAccept === '0' || rawAccept === 'no' || rawAccept === 'n') {
+            acceptVal = false;
+          }
+        }
 
         bulkPayload.push({
-          item_code: code,
+          item_code: codeVal,
           description: descVal,
           item_group: groupVal,
-          lead_time_days: isNaN(ltDays as any) ? undefined : ltDays,
-          notify_alert_days: isNaN(naDays as any) ? undefined : naDays,
+          lead_time_days: ltDays,
+          notify_alert_days: naDays,
+          accept: acceptVal,
         });
       }
 
       if (bulkPayload.length === 0) {
-        alert('ไม่พบข้อมูลที่จะนำเข้า');
+        alert('ไม่พบข้อมูล Item Master ที่ถูกต้องในไฟล์ Excel (ต้องมีคอลัมน์ Item Code)');
         return;
       }
 
-      try {
-        const res = await api.put<{ message: string; updated_count: number }>('/api/items/bulk-update', bulkPayload);
-        alert(res.data.message || `นำเข้าและอัปเดตข้อมูลสำเร็จ ${res.data.updated_count} รายการ`);
-        fetchItems();
-      } catch (err: any) {
-        alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ CSV');
-      } finally {
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsText(file);
+      const res = await api.put<{ message: string; updated_count: number }>('/api/items/bulk-update', {
+        items: bulkPayload,
+      });
+      alert(res.data.message || `นำเข้าและอัปเดตข้อมูลสำเร็จ ${res.data.updated_count} รายการ`);
+      fetchItems();
+    } catch (err: any) {
+      console.error('Import Error:', err);
+      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ Excel');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const fetchItems = async () => {
@@ -321,22 +316,22 @@ export default function ItemsPage() {
         {/* Export & Import Buttons */}
         <div className="flex items-center gap-2.5">
           <button
-            onClick={handleExportCSV}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm flex items-center gap-1.5 transition"
-            title="Export ข้อมูลเป็นไฟล์ CSV (เปิดกับ Excel)"
+            onClick={handleExportXLSX}
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+            title="Export ข้อมูลเป็นไฟล์ Excel (XLSX)"
           >
-            <Download className="w-4 h-4 text-slate-500" />
-            <span>Export CSV</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Export XLSX</span>
           </button>
 
-          <label className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition">
+          <label className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition">
             <Upload className="w-4 h-4" />
-            <span>Import CSV</span>
+            <span>Import XLSX</span>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportXLSX}
               className="hidden"
             />
           </label>

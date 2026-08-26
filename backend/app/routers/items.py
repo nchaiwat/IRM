@@ -107,18 +107,21 @@ class ItemBulkItem(BaseModel):
     item_group: str | None = None
     lead_time_days: int | None = None
     notify_alert_days: int | None = None
+    is_new: bool | None = None
+    accept: bool | None = None
 
 class ItemBulkUpdateRequest(BaseModel):
     items: list[ItemBulkItem]
 
 
 @router.post("/bulk-update")
+@router.put("/bulk-update")
 async def bulk_update_items(
     data: ItemBulkUpdateRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Bulk update item master records by item_code."""
+    """Bulk update item master records by item_code from Excel Import."""
     updated_count = 0
     for item in data.items:
         if not item.item_code:
@@ -134,8 +137,12 @@ async def bulk_update_items(
                 itm.lead_time_days = item.lead_time_days
             if item.notify_alert_days is not None:
                 itm.notify_alert_days = item.notify_alert_days
+            if item.accept is True or item.is_new is False:
+                itm.is_new = False
+            elif item.is_new is True:
+                itm.is_new = True
             updated_count += 1
 
     await db.commit()
-    return {"message": f"อัปเดตข้อมูล Item Master สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
+    return {"message": f"นำเข้าและอัปเดตข้อมูล Item Master สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
 

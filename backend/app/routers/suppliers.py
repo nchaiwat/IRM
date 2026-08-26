@@ -255,18 +255,21 @@ class SupplierBulkItem(BaseModel):
     telephone: str | None = None
     contact_person: str | None = None
     allow_over_delivery: bool | None = None
+    is_new: bool | None = None
+    accept: bool | None = None
 
 class SupplierBulkUpdateRequest(BaseModel):
     suppliers: list[SupplierBulkItem]
 
 
 @router.post("/bulk-update")
+@router.put("/bulk-update")
 async def bulk_update_suppliers(
     data: SupplierBulkUpdateRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Bulk update supplier master records by supplier_code."""
+    """Bulk update supplier master records by supplier_code from Excel Import."""
     updated_count = 0
     for item in data.suppliers:
         if not item.supplier_code:
@@ -278,18 +281,24 @@ async def bulk_update_suppliers(
                 sup.supplier_name = item.supplier_name.strip()
             if item.email is not None:
                 cleaned_email = item.email.strip()
-                if not cleaned_email or cleaned_email in ["-", "--", "none", "null", "N/A", "n/a"] or "@" not in cleaned_email:
+                if not cleaned_email or cleaned_email in ["-", "--", "none", "null", "N/A", "n/a", "undefined"] or "@" not in cleaned_email:
                     sup.email = None
                 else:
                     sup.email = cleaned_email
             if item.telephone is not None:
-                sup.telephone = item.telephone.strip() or None
+                cleaned_tel = item.telephone.strip()
+                sup.telephone = None if cleaned_tel in ["-", "--", "none", "null", "N/A", "n/a"] else (cleaned_tel or None)
             if item.contact_person is not None:
-                sup.contact_person = item.contact_person.strip() or None
+                cleaned_cp = item.contact_person.strip()
+                sup.contact_person = None if cleaned_cp in ["-", "--", "none", "null", "N/A", "n/a"] else (cleaned_cp or None)
             if item.allow_over_delivery is not None:
                 sup.allow_over_delivery = item.allow_over_delivery
+            if item.accept is True or item.is_new is False:
+                sup.is_new = False
+            elif item.is_new is True:
+                sup.is_new = True
             updated_count += 1
 
     await db.commit()
-    return {"message": f"อัปเดตข้อมูล Supplier สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
+    return {"message": f"นำเข้าและอัปเดตข้อมูล Supplier สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
 

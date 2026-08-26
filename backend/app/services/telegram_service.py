@@ -243,63 +243,59 @@ async def send_telegram_buyer_unlock(
 async def send_telegram_morning_summary(db: AsyncSession) -> dict:
     """
     Daily Morning Briefing at 08:00 AM:
-    - รายการเพิ่มใหม่กี่ Item จากกี่ PO
-    - รายการที่ปิดยอดแล้วกี่ Item จากกี่ PO
-    - รายการรอยืนยันกี่ Item จากกี่ PO
+    1. มี Item Master เพิ่มกี่ Item (ItemMaster.is_new == True)
+    2. มี Supplier Master เพิ่มกี่ Item (SupplierMaster.is_new == True)
+    3. มี Item ที่ใกล้ Delivery ภายใน 7 วันกี่ Item
     """
-    from sqlalchemy import func, distinct, select
-    from app.models.po import POHeader, POItem
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import func, distinct, select, or_, and_
+    from app.models.po import POHeader, POItem, SubItem
+    from app.models.master import ItemMaster, SupplierMaster
 
-    # 1. New Items: is_new == True, Open POs, not closed
-    stmt_new = (
-        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
+    # 1. New Item Master Count (รอ Accept)
+    stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
+    new_item_master_count = (await db.execute(stmt_new_items)).scalar_one() or 0
+
+    # 2. New Supplier Master Count (รอ Accept)
+    stmt_new_sups = select(func.count(SupplierMaster.id)).where(SupplierMaster.is_new == True)
+    new_sup_master_count = (await db.execute(stmt_new_sups)).scalar_one() or 0
+
+    # 3. Items with upcoming delivery within next 7 days
+    now_dt = datetime.now(timezone.utc)
+    start_today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_7days = start_today + timedelta(days=7, hours=23, minutes=59, seconds=59)
+
+    stmt_upcoming_items = (
+        select(func.count(distinct(POItem.id)), func.count(distinct(POHeader.po_number)))
         .join(POHeader, POItem.po_header_id == POHeader.id)
         .where(POHeader.status == "O")
         .where(POItem.status != "closed")
-        .where(POItem.is_new == True)
+        .where(
+            or_(
+                and_(POItem.estimate_date >= start_today, POItem.estimate_date <= end_7days),
+                and_(POItem.estimate_date.is_(None), POItem.due_date >= start_today, POItem.due_date <= end_7days),
+            )
+        )
     )
-    res_new = (await db.execute(stmt_new)).first()
-    new_items_count = res_new[0] or 0 if res_new else 0
-    new_pos_count = res_new[1] or 0 if res_new else 0
+    res_upcoming = (await db.execute(stmt_upcoming_items)).first()
+    upcoming_items_count = res_upcoming[0] or 0 if res_upcoming else 0
+    upcoming_pos_count = res_upcoming[1] or 0 if res_upcoming else 0
 
-    # 2. Closed Items
-    stmt_closed = (
-        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POItem.status == "closed")
-    )
-    res_closed = (await db.execute(stmt_closed)).first()
-    closed_items_count = res_closed[0] or 0 if res_closed else 0
-    closed_pos_count = res_closed[1] or 0 if res_closed else 0
-
-    # 3. Pending/Awaiting Confirmation Items: status not in ('confirmed', 'closed')
-    stmt_pending = (
-        select(func.count(POItem.id), func.count(distinct(POHeader.po_number)))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O")
-        .where(POItem.status != "confirmed")
-        .where(POItem.status != "closed")
-    )
-    res_pending = (await db.execute(stmt_pending)).first()
-    pending_items_count = res_pending[0] or 0 if res_pending else 0
-    pending_pos_count = res_pending[1] or 0 if res_pending else 0
-
-    topic = "🌅 <b>สรุปสถานะรายการประจำวัน (Daily 08:00 AM Morning Summary)</b>"
+    topic = "🌅 <b>สรุปสถานะประจำวัน (Daily 08:00 AM Morning Summary)</b>"
     body = (
-        f"• 🆕 <b>มี Item เพิ่มใหม่:</b> {new_items_count:,} รายการ ({new_pos_count:,} ใบสั่งซื้อ PO)\n"
-        f"• 📥 <b>มี Item ที่ปิดแล้ว:</b> {closed_items_count:,} รายการ ({closed_pos_count:,} ใบสั่งซื้อ PO)\n"
-        f"• ⏳ <b>มี Item รอยืนยัน:</b> {pending_items_count:,} รายการ ({pending_pos_count:,} ใบสั่งซื้อ PO)\n\n"
-        "• 💻 <b>คำแนะนำ:</b> ฝ่ายจัดซื้อสามารถเข้าตรวจสอบและกดยืนยันรอบส่งได้ที่เมนู <b>Operation</b>"
+        f"• 📦 <b>Item Master เพิ่มใหม่:</b> {new_item_master_count:,} รายการ\n"
+        f"• 🏢 <b>Supplier Master เพิ่มใหม่:</b> {new_sup_master_count:,} รายชื่อ\n"
+        f"• 🚚 <b>Item ใกล้ถึงกำหนดส่งมอบ (ภายใน 7 วัน):</b> {upcoming_items_count:,} รายการ ({upcoming_pos_count:,} ใบสั่งซื้อ PO)\n\n"
+        "• 💻 <b>คำแนะนำ:</b> ผู้ดูแลระบบและฝ่ายจัดซื้อสามารถเข้าตรวจสอบ/กดยอมรับ Master และดูปฏิทินรอบส่งได้ที่ระบบ IRM"
     )
     full_msg = f"{format_telegram_header(topic)}\n\n{body}"
     res = await send_telegram_message(db, full_msg, category="morning_summary")
     return {
         "success": res,
-        "new_items": new_items_count,
-        "new_pos": new_pos_count,
-        "closed_items": closed_items_count,
-        "closed_pos": closed_pos_count,
-        "pending_items": pending_items_count,
-        "pending_pos": pending_pos_count,
+        "new_item_masters": new_item_master_count,
+        "new_supplier_masters": new_sup_master_count,
+        "upcoming_delivery_items_7days": upcoming_items_count,
+        "upcoming_delivery_pos_7days": upcoming_pos_count,
     }
+
 
