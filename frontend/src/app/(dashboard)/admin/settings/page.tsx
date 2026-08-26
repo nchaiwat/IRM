@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [testingSap, setTestingSap] = useState(false);
   const [syncingSap, setSyncingSap] = useState(false);
   const [testEmailRecipient, setTestEmailRecipient] = useState('');
+  const [puTestEmailRecipient, setPuTestEmailRecipient] = useState('');
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPuRemind, setTestingPuRemind] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -156,19 +157,25 @@ export default function SettingsPage() {
   };
 
   const handleTestPuRemindEmail = async () => {
-    if (!testEmailRecipient) {
-      setMessage({ type: 'error', text: 'กรุณาระบุอีเมลผู้รับทดสอบก่อน' });
+    const emailToSend = puTestEmailRecipient.trim() || testEmailRecipient.trim();
+    if (!emailToSend) {
+      alert('⚠️ กรุณาระบุอีเมลผู้รับทดสอบสรุปงานในช่อง "อีเมลผู้รับทดสอบสรุปงาน" ก่อนกดส่ง');
+      setMessage({ type: 'error', text: 'กรุณาระบุอีเมลผู้รับทดสอบสรุปงานก่อนกดส่ง' });
       return;
     }
     setTestingPuRemind(true);
     setMessage(null);
     try {
       const res = await api.post<{ message: string; unconfirmed_items: number; today_deliveries: number }>('/api/settings/test-pu-remind-email', {
-        recipient_email: testEmailRecipient,
+        recipient_email: emailToSend,
       });
-      setMessage({ type: 'success', text: `${res.data.message} (ยังไม่ Confirm: ${res.data.unconfirmed_items} รายการ, ส่งวันนี้: ${res.data.today_deliveries} รายการ)` });
+      const successText = `${res.data.message} (ยังไม่ Confirm: ${res.data.unconfirmed_items} รายการ, ส่งวันนี้: ${res.data.today_deliveries} รายการ)`;
+      setMessage({ type: 'success', text: successText });
+      alert(`✅ ${successText}`);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'เกิดข้อผิดพลาดในการทดสอบส่งอีเมลสรุปงานจัดซื้อ' });
+      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการทดสอบส่งอีเมลสรุปงานจัดซื้อ';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
     } finally {
       setTestingPuRemind(false);
     }
@@ -576,7 +583,7 @@ export default function SettingsPage() {
 
           {/* Sub-Card: PU Reminder Email with Excel Attachment */}
           <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-4 mt-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-sky-100">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-sky-100">
               <div>
                 <h4 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
                   <Mail className="w-4 h-4 text-sky-600" />
@@ -587,19 +594,29 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleTestPuRemindEmail}
-                disabled={testingPuRemind || !testEmailRecipient}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-sm transition disabled:opacity-50 shrink-0"
-              >
-                {testingPuRemind ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )}
-                <span>ทดสอบส่งอีเมลสรุปงานพร้อม Excel</span>
-              </button>
+              {/* Dedicated Test Email Input & Consistent Button */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <input
+                  type="email"
+                  placeholder="อีเมลผู้รับทดสอบสรุปงาน"
+                  value={puTestEmailRecipient}
+                  onChange={(e) => setPuTestEmailRecipient(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-sky-500 w-48 font-semibold text-slate-800 shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestPuRemindEmail}
+                  disabled={testingPuRemind}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs rounded-lg transition disabled:opacity-50 shadow-2xs"
+                >
+                  {testingPuRemind ? (
+                    <div className="w-3.5 h-3.5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Mail className="w-3.5 h-3.5" />
+                  )}
+                  <span>ทดสอบส่งอีเมลสรุปงาน</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
