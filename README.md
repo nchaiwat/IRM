@@ -133,14 +133,34 @@ docker-compose up -d --build
   ```
 - เพิ่ม Emoji หลากหลายและชัดเจนในทุก Bullet Point เพื่อความสบายตาและอ่านข้อมูลได้รวดเร็วทันที
 
-### 7. มาตรฐานชื่อไฟล์ Export CSV
-- ทุกไฟล์ที่ถูก Export ออกมาจากระบบจะใช้รูปแบบชื่อเดียวกัน: `IRM_<ModuleName>_YYYYMMDD_HHMMSS.csv`
-- เช่น `IRM_Item_Master_Export_20260819_172811.csv`, `IRM_Supplier_Master_Export_20260819_172811.csv`
+### 7. ระบบส่งออก/นำเข้าข้อมูล Master แบบ Excel Native (.XLSX)
+- **รองรับภาษาไทยสมบูรณ์แบบ:** เปลี่ยนระบบ Import/Export ของ **Supplier Master** และ **Item Master** จาก CSV เป็นไฟล์ **`.xlsx` (Excel Native)**
+- **Supplier Master:** รองรับการแก้ไข `Email`, `Allow Over Delivery (ใช่/ไม่ใช่)`, และ `Accept (Accept/รอ Accept)` จากใน Excel แล้ว Import เข้ามาเพื่ออัปเดตข้อมูลและปลดสถานะ NEW ทันที
+- **Item Master:** รองรับการแก้ไข `Lead Time`, `Notify Alert`, `Description`, `Group`, และ `Accept (Accept/รอ Accept)` จากใน Excel แล้ว Import เข้ามาเพื่ออัปเดตและปลดสถานะ NEW ทันที
 
-### 8. ประวัติการแก้ไข (Audit Trail Sorted Newest First)
+### 8. ปฏิทินรอบการส่งมอบวัตถุดิบ (Calendar Visual Status & Buyer Ownership)
+- **แยกสีสถานะชัดเจน:**
+  - 🟢 **สีเขียว (`Confirmed`):** รายการที่ฝ่ายจัดซื้อกด Accept/Confirm แล้ว (Exact Confirmed Delivery)
+  - 🟠 **สีส้ม (`Estimate`):** รายการที่มีกำหนดส่งแล้วแต่อยู่ในสถานะรอการตรวจสอบยืนยัน
+- **แสดงชื่อผู้รับผิดชอบ:** แสดงชื่อผู้รับผิดชอบ PO (Buyer Name เช่น `ภิญญาดา`, `พัชชา`) บนการ์ดในแต่ละวันโดยตรง เพื่อให้ฝ่ายคลังสินค้าและฝ่ายผลิตติดต่อสอบถามได้สะดวกรวดเร็ว
+
+### 9. ช่องทางเชื่อมต่อ API สำหรับระบบ QMS (QMS Integration API Channel)
+- **Endpoint:** `GET /api/external/qms/inbound-deliveries`
+- **Security:** ป้องกันด้วย Secret Key Authentication ผ่าน Header `X-API-Key: irm_qms_secure_key_2026`
+- **Data Scope:** คืนเฉพาะข้อมูลที่ `Confirmed` แล้วเท่านั้น พร้อมรองรับรายการแตกส่งหลายรอบ (Split Sub-Items)
+- **Audit & Logging:** บันทึก IP, วันเวลา, และจำนวน Record ที่ดึงออกไปลงใน Transaction Logs หมวด `qms_integration` เสมอ
+- **Documentation:** ดูรายละเอียดการเชื่อมต่อและตัวอย่างโค้ดได้ที่ [QMS_API_INTEGRATION_GUIDE.md](file:///d:/Python/IRM/QMS_API_INTEGRATION_GUIDE.md)
+
+### 10. สรุปรายงานยามเช้าผ่าน Telegram (Daily 08:00 AM Morning Briefing)
+- แจ้งเตือนสรุปสถานะทุกเช้าเวลา **08:00 น.** (Asia/Bangkok):
+  - 📦 Item Master ที่เพิ่มใหม่ (รอ Accept)
+  - 🏢 Supplier Master ที่เพิ่มใหม่ (รอ Accept)
+  - 🚚 รายการวัตถุดิบที่ใกล้ถึงกำหนดส่งมอบ (ภายใน 7 วันข้างหน้า)
+
+### 11. ประวัติการแก้ไข (Audit Trail Sorted Newest First)
 - หน้าต่าง Audit Trail (ไอคอนนาฬิกา 🕘) เรียงลำดับเหตุการณ์ **ล่าสุดขึ้นมาอยู่บนสุดเสมอ** พร้อมป้ายแท็กไฮไลต์ **`ล่าสุด`**
 
-### 9. การป้องกันข้อมูลและอีเมล (Data Integrity & Safe Sync)
+### 12. การป้องกันข้อมูลและอีเมล (Data Integrity & Safe Sync)
 - **Safe Sync:** การ Sync ข้อมูลจาก SAP จะไม่เขียนทับ Email หรือ Group ที่ผู้ใช้แก้ไขในระบบ IRM
 - **Auto-Sanitization:** ล้างตัวอักษรภาษาไทยที่พิมพ์ผิดพลาดในช่อง Email อัตโนมัติ (เช่น `ืn.chaiwat@gmail.com` ➔ `n.chaiwat@gmail.com`)
 - **UTF-8 Email Standard:** ใช้โมดูล `email.message.EmailMessage` เพื่อการเข้ารหัส UTF-8 ภาษาไทยสมบูรณ์แบบ 100%
