@@ -4,11 +4,13 @@ Ownership Locking, and Batch Delivery.
 """
 
 import asyncio
+import io
 import logging
 import smtplib
 from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from email.utils import formataddr
 import secrets
 
@@ -19,8 +21,33 @@ from app.models.master import SupplierMaster
 from app.models.po import POHeader, POItem, POItemAuditLog
 from app.models.supplier_token import SupplierPortalToken
 from app.models.system_setting import SystemSetting
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+def _send_smtp_sync(
+    smtp_host: str,
+    smtp_port: int,
+    smtp_user: str,
+    smtp_pass: str,
+    use_tls: bool,
+    msg,
+    recipients: list[str],
+):
+    """Synchronous SMTP worker called via asyncio.to_thread."""
+    if smtp_port == 465:
+        server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=20.0)
+    else:
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=20.0)
+        if use_tls:
+            server.starttls()
+
+    if smtp_pass:
+        server.login(smtp_user, smtp_pass)
+
+    server.sendmail(smtp_user, recipients, msg.as_string())
+    server.quit()
 
 
 def calculate_prd_expiry_date(now_dt: datetime) -> datetime:

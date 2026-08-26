@@ -195,6 +195,9 @@ async def test_pu_remind_email(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
         if res.get("status") == "skipped":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
+        if res.get("status") != "success" or res.get("sent_count", 0) == 0:
+            err_details = "; ".join(res.get("errors", [])) or "ไม่สามารถส่งอีเมลได้ (โปรดตรวจสอบการตั้งค่า SMTP)"
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"การส่งอีเมลล้มเหลว: {err_details}")
 
         stats = res.get("stats", {})
         return {
