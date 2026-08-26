@@ -52,53 +52,6 @@ async def create_item(
     return item
 
 
-@router.put("/{item_id}", response_model=ItemMasterResponse)
-async def update_item(
-    item_id: int,
-    data: ItemMasterUpdate,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-):
-    """Update item master (Lead Time, Notify Alert Days, Description, Item Group, is_new)."""
-    stmt = select(ItemMaster).where(ItemMaster.id == item_id)
-    item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-
-    if data.description is not None:
-        item.description = data.description
-    if data.lead_time_days is not None:
-        item.lead_time_days = data.lead_time_days
-    if data.notify_alert_days is not None:
-        item.notify_alert_days = data.notify_alert_days
-    if data.item_group is not None:
-        item.item_group = data.item_group
-    if data.is_new is not None:
-        item.is_new = data.is_new
-
-    await db.commit()
-    await db.refresh(item)
-    return item
-
-
-@router.post("/{item_id}/accept", response_model=ItemMasterResponse)
-async def accept_new_item(
-    item_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-):
-    """Accept a new Item Master record, clearing the 'is_new' badge."""
-    stmt = select(ItemMaster).where(ItemMaster.id == item_id)
-    item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-
-    item.is_new = False
-    await db.commit()
-    await db.refresh(item)
-    return item
-
-
 from pydantic import BaseModel
 from typing import Any
 
@@ -177,4 +130,52 @@ async def bulk_update_items(
 
     await db.commit()
     return {"message": f"นำเข้าและอัปเดตข้อมูล Item Master สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
+
+
+@router.put("/{item_id}", response_model=ItemMasterResponse)
+async def update_item(
+    item_id: int,
+    data: ItemMasterUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Update item master (Lead Time, Notify Alert Days, Description, Item Group, is_new)."""
+    stmt = select(ItemMaster).where(ItemMaster.id == item_id)
+    item = (await db.execute(stmt)).scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    if data.description is not None:
+        item.description = data.description
+    if data.lead_time_days is not None:
+        item.lead_time_days = data.lead_time_days
+    if data.notify_alert_days is not None:
+        item.notify_alert_days = data.notify_alert_days
+    if data.item_group is not None:
+        item.item_group = data.item_group
+    if data.is_new is not None:
+        item.is_new = data.is_new
+
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.post("/{item_id}/accept", response_model=ItemMasterResponse)
+async def accept_new_item(
+    item_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Accept a new Item Master record, clearing the 'is_new' badge."""
+    stmt = select(ItemMaster).where(ItemMaster.id == item_id)
+    item = (await db.execute(stmt)).scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    item.is_new = False
+    await db.commit()
+    await db.refresh(item)
+    return item
+
 
