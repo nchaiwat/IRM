@@ -38,18 +38,28 @@
 * **Header Counters:** แสดงตัวเลขสรุปแยก Confirmed และ Estimate แบบ Real-time
 
 ### 5) 📧 Daily PU Reminder Email with 2-Sheet Excel Attachment
-* **การตั้งค่า:** มีสวิตช์เปิด/ปิดฟังก์ชัน (`pu_remind_mail_enabled`) และตั้งเวลาส่งประจำวัน (`pu_remind_mail_time`) ในหน้า Settings
-* **สรุปสถิติในเนื้อหาอีเมล:**
+* **การตั้งค่า (Settings):** มีสวิตช์เปิด/ปิดฟังก์ชัน (`pu_remind_mail_enabled`) และตั้งเวลาส่งประจำวัน (`pu_remind_mail_time`) ในหน้า Settings
+* **สรุปสถิติในเนื้อหาอีเมล (Subject & Body):**
+  * หัวข้อ: `IRM System — สรุปรายการติดตามการรับวัตถุดิบและของส่งวันนี้ (DD/MM/YYYY)`
   * ⚠️ รายการที่ยังไม่ Confirm Delivery Date: X ใบสั่งซื้อ (Y รายการ)
   * 🚚 รายการที่มีกำหนดส่งมอบภายในวันนี้: A ใบสั่งซื้อ (B รายการ)
-* **ไฟล์แนบ Excel 2 Sheet (`.xlsx`):**
-  * **Sheet 1 (`รอ Confirm วันส่งมอบ`):** รายการที่ยังไม่ได้รับ Accept/Confirm
-  * **Sheet 2 (`กำหนดส่งมอบวันนี้`):** รายการที่นัดส่งมอบตรงกับวันปัจจุบัน
-* **ปุ่มทดสอบ:** มีปุ่มกดทดสอบส่งอีเมลสรุปงานจัดซื้อพร้อมสร้างไฟล์แนบจริงในหน้า Admin Settings
+* **ไฟล์แนบ Excel 2 Sheet (`.xlsx` สร้างด้วย OpenPyXL):**
+  * **Sheet 1 (`รอ Confirm วันส่งมอบ`):** รายการ PO/Item ที่ยังไม่ได้รับ Accept/Confirm (Format และคอลัมน์เดียวกับหน้า Operation)
+  * **Sheet 2 (`กำหนดส่งมอบวันนี้`):** รายการ PO/Item ที่นัดส่งมอบตรงกับวันปัจจุบัน (Format และคอลัมน์เดียวกับหน้า Operation)
+* **กล่องทดสอบและ UI Consistency:**
+  * มีช่องระบุ **`[อีเมลผู้รับทดสอบสรุปงาน]`** ไว้ข้างปุ่มโดยเฉพาะ
+  * ปุ่ม **`ทดสอบส่งอีเมลสรุปงาน`** ได้รับการปรับแต่งสไตล์ให้เป็น **Consistency เดียวกันกับปุ่มทดสอบ Telegram และ SMTP** (`bg-sky-50 text-sky-700 border-sky-200`)
+  * มีระบบ **Instant Feedback & Validation**: หากยังไม่ได้ใส่อีเมลจะมี Alert เตือน และหากส่งสำเร็จจะมี Alert สรุปยอดทันที
+* **Technical & SMTP Architecture:**
+  * ใช้ `MIMEApplication` แนบไฟล์ `.xlsx` (OpenXML Format)
+  * ใช้ `_send_smtp_sync` ส่งผ่านพอร์ต 587 (STARTTLS) หรือ 465 (SSL)
+  * มี APScheduler minute-checker ตรวจสอบเวลาตาม `SystemSetting` แบบ Real-time โดยไม่ต้อง Restart Server
+  * มีระบบ Strict Error Handling ไม่กลืน Exception และส่งข้อความเตือนไปยังผู้ใช้ทันทีหากส่งไม่สำเร็จ
 
 ### 6) 👤 User Management User ID Format (`Firstname.L`)
-* กำหนดมาตรฐาน User ID เป็น `ชื่อ.นามสกุลตัวแรก` เช่น `Chaiwat.N`
+* กำหนดมาตรฐาน User ID เป็น `ชื่อ.นามสกุลตัวแรก` เช่น `Chaiwat.N`, `Patcha.S`, `Pinyada.S` (ยกเว้น `admin`)
 * ปรับปรุง User เดิมในฐานข้อมูล: `patcha` ➔ `Patcha.S`, `pinyada` ➔ `Pinyada.S`
+* มี Helper text และ Placeholder แสดงรูปแบบที่ถูกต้องใน Modal สร้างผู้ใช้งานใหม่
 
 ### 7) 🔗 QMS Integration API Channel
 * สร้าง Endpoint: `GET /api/external/qms/inbound-deliveries`
