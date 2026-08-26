@@ -100,15 +100,16 @@ async def accept_new_item(
 
 
 from pydantic import BaseModel
+from typing import Any
 
 class ItemBulkItem(BaseModel):
     item_code: str
     description: str | None = None
     item_group: str | None = None
-    lead_time_days: int | None = None
-    notify_alert_days: int | None = None
-    is_new: bool | None = None
-    accept: bool | None = None
+    lead_time_days: Any = None
+    notify_alert_days: Any = None
+    is_new: Any = None
+    accept: Any = None
 
 class ItemBulkUpdateRequest(BaseModel):
     items: list[ItemBulkItem]
@@ -117,13 +118,15 @@ class ItemBulkUpdateRequest(BaseModel):
 @router.post("/bulk-update")
 @router.put("/bulk-update")
 async def bulk_update_items(
-    data: ItemBulkUpdateRequest,
+    data: ItemBulkUpdateRequest | list[ItemBulkItem],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Bulk update item master records by item_code from Excel Import."""
+    items_to_process = data.items if isinstance(data, ItemBulkUpdateRequest) else data
     updated_count = 0
-    for item in data.items:
+
+    for item in items_to_process:
         if not item.item_code:
             continue
         stmt = select(ItemMaster).where(ItemMaster.item_code == item.item_code.strip())
@@ -133,14 +136,43 @@ async def bulk_update_items(
                 itm.description = item.description.strip()
             if item.item_group:
                 itm.item_group = item.item_group.strip()
+
             if item.lead_time_days is not None:
-                itm.lead_time_days = item.lead_time_days
+                try:
+                    parsed_lt = int(str(item.lead_time_days).strip())
+                    if parsed_lt >= 0:
+                        itm.lead_time_days = parsed_lt
+                except (ValueError, TypeError):
+                    pass
+
             if item.notify_alert_days is not None:
-                itm.notify_alert_days = item.notify_alert_days
-            if item.accept is True or item.is_new is False:
+                try:
+                    parsed_na = int(str(item.notify_alert_days).strip())
+                    if parsed_na >= 0:
+                        itm.notify_alert_days = parsed_na
+                except (ValueError, TypeError):
+                    pass
+
+            # Parse Accept & is_new
+            accept_flag = None
+            if item.accept is not None:
+                raw_acc = str(item.accept).strip().lower()
+                if raw_acc in ["true", "1", "yes", "y", "accept", "ยอมรับ", "ยอมรับแล้ว", "ยืนยัน"]:
+                    accept_flag = True
+                elif "รอ" in raw_acc or raw_acc in ["false", "0", "no", "n"]:
+                    accept_flag = False
+            elif item.is_new is not None:
+                raw_new = str(item.is_new).strip().lower()
+                if raw_new in ["false", "0", "no", "n"]:
+                    accept_flag = True
+                elif raw_new in ["true", "1", "yes", "y"]:
+                    accept_flag = False
+
+            if accept_flag is True:
                 itm.is_new = False
-            elif item.is_new is True:
+            elif accept_flag is False:
                 itm.is_new = True
+
             updated_count += 1
 
     await db.commit()

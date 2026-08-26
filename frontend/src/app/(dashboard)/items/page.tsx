@@ -177,7 +177,19 @@ export default function ItemsPage() {
       fetchItems();
     } catch (err: any) {
       console.error('Import Error:', err);
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ Excel');
+      let errMsg = 'เกิดข้อผิดพลาดในการนำเข้าไฟล์ Excel';
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errMsg = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          errMsg = err.response.data.detail.map((d: any) => `${d.loc ? d.loc.join('.') + ': ' : ''}${d.msg || JSON.stringify(d)}`).join('\n');
+        } else {
+          errMsg = JSON.stringify(err.response.data.detail);
+        }
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      alert(errMsg);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }

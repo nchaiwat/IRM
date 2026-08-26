@@ -246,7 +246,8 @@ async def broadcast_portal_emails(
         )
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Any
 
 class SupplierBulkItem(BaseModel):
     supplier_code: str
@@ -254,9 +255,9 @@ class SupplierBulkItem(BaseModel):
     email: str | None = None
     telephone: str | None = None
     contact_person: str | None = None
-    allow_over_delivery: bool | None = None
-    is_new: bool | None = None
-    accept: bool | None = None
+    allow_over_delivery: Any = None
+    is_new: Any = None
+    accept: Any = None
 
 class SupplierBulkUpdateRequest(BaseModel):
     suppliers: list[SupplierBulkItem]
@@ -265,13 +266,15 @@ class SupplierBulkUpdateRequest(BaseModel):
 @router.post("/bulk-update")
 @router.put("/bulk-update")
 async def bulk_update_suppliers(
-    data: SupplierBulkUpdateRequest,
+    data: SupplierBulkUpdateRequest | list[SupplierBulkItem],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Bulk update supplier master records by supplier_code from Excel Import."""
+    items_to_process = data.suppliers if isinstance(data, SupplierBulkUpdateRequest) else data
     updated_count = 0
-    for item in data.suppliers:
+
+    for item in items_to_process:
         if not item.supplier_code:
             continue
         stmt = select(SupplierMaster).where(SupplierMaster.supplier_code == item.supplier_code.strip())
@@ -279,24 +282,51 @@ async def bulk_update_suppliers(
         if sup:
             if item.supplier_name:
                 sup.supplier_name = item.supplier_name.strip()
+
             if item.email is not None:
-                cleaned_email = item.email.strip()
-                if not cleaned_email or cleaned_email in ["-", "--", "none", "null", "N/A", "n/a", "undefined"] or "@" not in cleaned_email:
+                cleaned_email = str(item.email).strip()
+                if not cleaned_email or cleaned_email.lower() in ["-", "--", "none", "null", "n/a", "undefined", "nan"] or "@" not in cleaned_email:
                     sup.email = None
                 else:
                     sup.email = cleaned_email
+
             if item.telephone is not None:
-                cleaned_tel = item.telephone.strip()
-                sup.telephone = None if cleaned_tel in ["-", "--", "none", "null", "N/A", "n/a"] else (cleaned_tel or None)
+                cleaned_tel = str(item.telephone).strip()
+                sup.telephone = None if cleaned_tel.lower() in ["-", "--", "none", "null", "n/a", "undefined", "nan", ""] else cleaned_tel
+
             if item.contact_person is not None:
-                cleaned_cp = item.contact_person.strip()
-                sup.contact_person = None if cleaned_cp in ["-", "--", "none", "null", "N/A", "n/a"] else (cleaned_cp or None)
+                cleaned_cp = str(item.contact_person).strip()
+                sup.contact_person = None if cleaned_cp.lower() in ["-", "--", "none", "null", "n/a", "undefined", "nan", ""] else cleaned_cp
+
             if item.allow_over_delivery is not None:
-                sup.allow_over_delivery = item.allow_over_delivery
-            if item.accept is True or item.is_new is False:
+                raw_over = str(item.allow_over_delivery).strip().lower()
+                if raw_over in ["true", "1", "yes", "y", "ใช่", "อนุญาต"]:
+                    sup.allow_over_delivery = True
+                elif raw_over in ["false", "0", "no", "n", "ไม่ใช่", "ไม่อนุญาต"]:
+                    sup.allow_over_delivery = False
+                elif isinstance(item.allow_over_delivery, bool):
+                    sup.allow_over_delivery = item.allow_over_delivery
+
+            # Parse Accept & is_new
+            accept_flag = None
+            if item.accept is not None:
+                raw_acc = str(item.accept).strip().lower()
+                if raw_acc in ["true", "1", "yes", "y", "accept", "ยอมรับ", "ยอมรับแล้ว", "ยืนยัน"]:
+                    accept_flag = True
+                elif "รอ" in raw_acc or raw_acc in ["false", "0", "no", "n"]:
+                    accept_flag = False
+            elif item.is_new is not None:
+                raw_new = str(item.is_new).strip().lower()
+                if raw_new in ["false", "0", "no", "n"]:
+                    accept_flag = True
+                elif raw_new in ["true", "1", "yes", "y"]:
+                    accept_flag = False
+
+            if accept_flag is True:
                 sup.is_new = False
-            elif item.is_new is True:
+            elif accept_flag is False:
                 sup.is_new = True
+
             updated_count += 1
 
     await db.commit()
