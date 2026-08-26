@@ -22,10 +22,12 @@ interface CalendarEvent {
   item_name?: string;
   supplier_code?: string;
   supplier_name?: string;
+  buyer_name?: string;
   date: string; // YYYY-MM-DD
   quantity: number;
   unit: string;
-  status: string;
+  status: string; // 'confirmed' | 'estimate'
+  is_confirmed?: boolean;
   po_number: string;
   updated_by: string;
 }
@@ -73,7 +75,16 @@ export default function CalendarPage() {
 
   // Group events by date string (YYYY-MM-DD)
   const eventsByDate: Record<string, CalendarEvent[]> = {};
+  let confirmedCount = 0;
+  let estimateCount = 0;
+
   events.forEach((ev) => {
+    if (ev.status === 'confirmed' || ev.is_confirmed) {
+      confirmedCount++;
+    } else {
+      estimateCount++;
+    }
+
     if (ev.date) {
       const dStr = ev.date;
       if (!eventsByDate[dStr]) eventsByDate[dStr] = [];
@@ -98,11 +109,9 @@ export default function CalendarPage() {
 
   // Construct Calendar Grid Cells
   const gridCells = [];
-  // Empty cells before 1st of month
   for (let i = 0; i < firstDayOfMonth; i++) {
     gridCells.push(null);
   }
-  // Days 1..daysInMonth
   for (let day = 1; day <= daysInMonth; day++) {
     const formattedDay = day < 10 ? `0${day}` : `${day}`;
     const formattedMonth = month + 1 < 10 ? `0${month + 1}` : `${month + 1}`;
@@ -117,10 +126,10 @@ export default function CalendarPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2.5">
             <CalendarIcon className="w-7 h-7 text-sky-600" />
-            <span>Calendar (ปฏิทินรอบการส่งวัตถุดิบ)</span>
+            <span>Calendar (ปฏิทินรอบการส่งมอบวัตถุดิบ)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            แสดงกำหนดการส่งของจาก Supplier ในแต่ละวัน (คลิกที่วันเพื่อดูรายละเอียด)
+            แสดงกำหนดส่งมอบวัตถุดิบและจำนวน (Qty) แยกตามสถานะ ยืนยันแล้ว (สีเขียว 🟢) และ ประมาณการ (สีส้ม 🟠)
           </p>
         </div>
 
@@ -149,19 +158,27 @@ export default function CalendarPage() {
       {/* Status Bar & Confirmation Notice */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold shadow-2xs">
+          {/* Confirmed Pill (Green) */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold shadow-2xs">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-2xs"></span>
-            <span>🟢 ยืนยันแล้ว (Confirmed - Exact Date): {events.length} รายการ</span>
+            <span>🟢 ยืนยันแล้ว (Confirmed): {confirmedCount.toLocaleString()} รายการ</span>
           </div>
+
+          {/* Estimate Pill (Orange) */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 font-bold shadow-2xs">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-2xs"></span>
+            <span>🟠 ประมาณการ (Estimate): {estimateCount.toLocaleString()} รายการ</span>
+          </div>
+
           <span className="text-slate-400 hidden sm:inline">|</span>
           <span className="text-slate-500 text-xs font-medium">
-            ปฏิทินจะแสดง<strong>เฉพาะรายการที่ฝ่ายจัดซื้อกด Accept / Confirm</strong> แล้วเท่านั้น
+            รวมทั้งหมด <strong className="text-slate-800">{events.length.toLocaleString()}</strong> รายการ
           </span>
         </div>
 
-        <div className="flex items-center gap-2 font-semibold text-emerald-700 bg-emerald-50/60 px-3 py-1.5 rounded-xl border border-emerald-100">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>100% Exact Delivery Dates</span>
+        <div className="flex items-center gap-2 font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <Truck className="w-4 h-4 text-sky-600 shrink-0" />
+          <span>คลิกที่วันเพื่อดูรายละเอียดและผู้รับผิดชอบ</span>
         </div>
       </div>
 
@@ -182,7 +199,7 @@ export default function CalendarPage() {
         <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 bg-slate-50/50">
           {gridCells.map((cell, index) => {
             if (!cell) {
-              return <div key={`empty-${index}`} className="min-h-[115px] bg-slate-100/40"></div>;
+              return <div key={`empty-${index}`} className="min-h-[125px] bg-slate-100/40"></div>;
             }
 
             const { day, dateStr, dayEvents } = cell;
@@ -192,7 +209,7 @@ export default function CalendarPage() {
               <div
                 key={dateStr}
                 onClick={() => handleDateClick(dateStr, dayEvents)}
-                className={`min-h-[115px] p-2 flex flex-col justify-between transition-all ${
+                className={`min-h-[125px] p-2 flex flex-col justify-between transition-all ${
                   hasEvents
                     ? 'bg-white hover:bg-sky-50/60 cursor-pointer shadow-sm'
                     : 'bg-white/80'
@@ -217,35 +234,40 @@ export default function CalendarPage() {
                 {/* Event Badges inside Date Cell */}
                 <div className="space-y-1.5 my-1">
                   {dayEvents.slice(0, 2).map((ev) => {
-                    const isConfirmed = ev.status === 'confirmed';
-                    const isResponded = ev.status === 'supplier_responded';
+                    const isConfirmed = ev.status === 'confirmed' || ev.is_confirmed;
                     const itemCode = ev.item_code || ev.title.split(' - ')[0];
                     const supName = ev.supplier_name || ev.title.split(' - ')[1] || '';
+                    const buyerName = ev.buyer_name && ev.buyer_name !== '-' ? ev.buyer_name : '';
 
                     return (
                       <div
                         key={ev.id}
-                        className={`p-1.5 rounded-lg text-[10px] border shadow-2xs ${
+                        className={`p-1.5 rounded-lg text-[10px] border shadow-2xs transition ${
                           isConfirmed
-                            ? 'bg-emerald-50/90 text-emerald-950 border-emerald-200'
-                            : isResponded
-                            ? 'bg-amber-50/90 text-amber-950 border-amber-300'
-                            : 'bg-slate-100/90 text-slate-900 border-slate-200'
+                            ? 'bg-emerald-50/95 text-emerald-950 border-emerald-300 hover:border-emerald-400'
+                            : 'bg-amber-50/95 text-amber-950 border-amber-300 hover:border-amber-400'
                         }`}
                       >
-                        {/* TOP ROW: Item Code (Left) + Qty & Unit (Right) */}
+                        {/* LINE 1: Item Code (Left) + Qty & Unit (Right) */}
                         <div className="flex items-center justify-between gap-1 leading-tight">
                           <span className="font-extrabold text-[10px] truncate text-slate-900" title={itemCode}>
                             {itemCode}
                           </span>
-                          <span className="font-black text-[10px] text-sky-700 shrink-0 whitespace-nowrap">
+                          <span className={`font-black text-[10px] shrink-0 whitespace-nowrap ${isConfirmed ? 'text-emerald-700' : 'text-amber-800'}`}>
                             {ev.quantity.toLocaleString()} {ev.unit}
                           </span>
                         </div>
 
-                        {/* BOTTOM ROW: Supplier Name (Left) */}
-                        <div className="text-[9px] text-slate-500 truncate text-left leading-tight mt-0.5" title={supName}>
-                          {supName}
+                        {/* LINE 2: Supplier Name (Left) + Buyer Name (Right) */}
+                        <div className="flex items-center justify-between gap-1 text-[9px] leading-tight mt-0.5">
+                          <span className="text-slate-500 truncate text-left" title={supName}>
+                            {supName}
+                          </span>
+                          {buyerName && (
+                            <span className="font-bold text-slate-700 shrink-0 bg-white/80 px-1 py-0.2 rounded border border-slate-200" title={`ผู้ดูแล: ${buyerName}`}>
+                              {buyerName}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -283,8 +305,10 @@ export default function CalendarPage() {
 
             <div className="space-y-3">
               {selectedDateEvents.events.map((ev) => {
+                const isConfirmed = ev.status === 'confirmed' || ev.is_confirmed;
                 const itemCode = ev.item_code || ev.title.split(' - ')[0];
                 const supName = ev.supplier_name || ev.title.split(' - ')[1] || '';
+                const buyerName = ev.buyer_name && ev.buyer_name !== '-' ? ev.buyer_name : '-';
 
                 return (
                   <div key={ev.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
@@ -294,28 +318,37 @@ export default function CalendarPage() {
                         PO: {ev.po_number}
                       </span>
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                        ev.status === 'confirmed'
+                        isConfirmed
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-amber-50 text-amber-800 border-amber-200'
                       }`}>
-                        {ev.status === 'confirmed' ? 'Confirmed' : 'Estimate'}
+                        {isConfirmed ? '🟢 Confirmed (ยืนยันแล้ว)' : '🟠 Estimate (ประมาณการ)'}
                       </span>
                     </div>
 
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-slate-900 text-xs">{itemCode}</span>
-                        <span className="font-black text-sky-700">{ev.quantity.toLocaleString()} {ev.unit}</span>
+                        <span className={`font-black text-sm ${isConfirmed ? 'text-emerald-700' : 'text-amber-800'}`}>
+                          {ev.quantity.toLocaleString()} {ev.unit}
+                        </span>
                       </div>
                       {ev.item_name && <div className="text-[11px] text-slate-500">{ev.item_name}</div>}
-                      <div className="text-[11px] text-slate-600 flex items-center gap-1 pt-1 border-t border-slate-100 mt-1">
-                        <Building2 className="w-3 h-3 text-slate-400" />
-                        <span className="font-semibold">{supName}</span>
+                      
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px]">
+                        <div className="flex items-center gap-1 text-slate-600">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-semibold">{supName}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-700 font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                          <span>{buyerName}</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                       <span>ผู้ปรับปรุงล่าสุด: <strong className="text-slate-700">{ev.updated_by}</strong></span>
+                      <span>กำหนดส่ง: <strong>{new Date(ev.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
                     </div>
                   </div>
                 );

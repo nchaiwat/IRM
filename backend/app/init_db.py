@@ -217,6 +217,7 @@ async def seed_data():
                 ("telegram_api_url", "https://api.telegram.org", "Telegram API Base URL", "telegram", "string"),
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
+                ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:
