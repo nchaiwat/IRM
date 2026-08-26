@@ -63,6 +63,7 @@ async def get_supplier_po_items(
             .join(POHeader, POItem.po_header_id == POHeader.id)
             .where(POHeader.status == "O")
             .where(POHeader.supplier_code == token)
+            .order_by(POHeader.po_number.desc(), POItem.id.asc())
         )
         rows_fallback = (await db.execute(stmt_fallback)).all()
         if not rows_fallback:
@@ -96,7 +97,7 @@ async def get_supplier_po_items(
         if token_obj.po_number:
             stmt_pos = stmt_pos.where(POHeader.po_number == token_obj.po_number)
 
-        stmt_pos = stmt_pos.order_by(POHeader.po_number.desc())
+        stmt_pos = stmt_pos.order_by(POHeader.po_number.desc(), POItem.id.asc())
         rows_fallback = (await db.execute(stmt_pos)).all()
         supplier_name = rows_fallback[0][1].supplier_name if rows_fallback else supplier_code
 
