@@ -46,12 +46,25 @@
   .order_by(POHeader.po_number.desc(), POItem.id.asc())
   ```
 
-### 4. ปฏิทินรอบส่งมอบ (Calendar Visual Standards)
+### 4. ปฏิทินรอบส่งมอบ (Calendar Visual Standards & Interactive Filters)
 * แสดงทั้งรายการที่ **🟢 ยืนยันแล้ว (`Confirmed`)** และ **🟠 ประมาณการ (`Estimate`)**
+* มีปุ่มตัวกรองมุมมอง 3 โหมด: **แสดงทั้งหมด**, **เฉพาะยืนยันแล้ว**, **เฉพาะประมาณการ**
 * แสดง **Delivery Date** และ **Qty** ชัดเจนบนการ์ด
 * แสดง **ชื่อผู้รับผิดชอบ (Buyer Name)** เช่น `ภิญญาดา`, `พัชชา` บนการ์ดและ Modal โดย **ไม่ต้องมีคำว่า Buyer นำหน้า**
 
-### 5. QMS Integration API Channel
+### 5. ระบบส่งอีเมลสรุปงานให้ฝ่ายจัดซื้อพร้อมแนบ Excel 2 Sheet (Daily PU Reminder Email)
+* **การตั้งค่าใน Setting:** สามารถเปิด/ปิด (`pu_remind_mail_enabled`) และกำหนดเวลาส่งประจำวัน (`pu_remind_mail_time` เช่น `08:30`)
+* **เนื้อหาอีเมล:** สรุปจำนวน PO/Item ที่ยังไม่ Confirm และจำนวนของที่มีกำหนดส่งมอบภายในวันนี้
+* **ไฟล์แนบ Excel (2 Sheet):**
+  * **Sheet 1 (`รอ Confirm วันส่งมอบ`):** รายการที่ยังไม่ได้รับการ Accept/Confirm
+  * **Sheet 2 (`กำหนดส่งมอบวันนี้`):** รายการที่มีกำหนดส่งมอบตรงกับวันปัจจุบัน
+* **การทดสอบ:** มีปุ่มทดสอบส่งอีเมลพร้อมสร้างไฟล์แนบจริงในหน้า Admin Settings
+
+### 6. รูปแบบ User ID ใน User Management (`Firstname.L`)
+* กำหนดมาตรฐาน User ID เป็น **`ชื่อ.นามสกุลตัวแรก`** (เช่น `Chaiwat.N`, `Patcha.S`, `Pinyada.S`) ยกเว้น `admin`
+* มีคำแนะนำและตัวอย่าง Format ใน Modal สร้างผู้ใช้งานใหม่
+
+### 7. QMS Integration API Channel
 * **Endpoint:** `GET /api/external/qms/inbound-deliveries`
 * **Authentication:** ส่งผ่าน Header `X-API-Key: irm_qms_secure_key_2026`
 * **Data Scope:** คืนเฉพาะข้อมูลที่ **Confirmed** แล้วเท่านั้น

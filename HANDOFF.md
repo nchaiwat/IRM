@@ -27,16 +27,31 @@
 ### 3) 📋 Sequence Synchronization ระหว่าง Portal กับ Operation
 * ปรับแต่ง Query ใน `supplier_portal.py` ให้เรียงลำดับรายการสินค้าในแต่ละ PO ตรงกันกับหน้า `operation.py` แบบ 100% บรรทัดต่อบรรทัด (`order_by(POHeader.po_number.desc(), POItem.id.asc())`) เพื่อให้จัดซื้อและคู่ค้าตรวจสอบข้อมูลตรงกันขณะโทรคุย
 
-### 4) 📅 Calendar Redesign (Confirmed / Estimate Status & Buyer Name)
+### 4) 📅 Calendar Redesign & Interactive Filters
 * **การแยกสีสถานะ:**
   * 🟢 **สีเขียว (`Confirmed`):** สำหรับรายการที่ฝ่ายจัดซื้อกด Accept/Confirm แล้ว
   * 🟠 **สีส้ม (`Estimate`):** สำหรับรายการที่มีกำหนดส่งแล้วแต่อยู่ในสถานะประมาณการ
+* **ตัวกรองมุมมอง (Interactive Filters):** ปุ่มกดสลับมุมมอง **แสดงทั้งหมด**, **เฉพาะยืนยันแล้ว**, **เฉพาะประมาณการ**
 * **ข้อมูลบนการ์ดปฏิทิน:**
   * บรรทัดที่ 1: `Item Code` (ซ้าย) + `Qty & Unit` (ขวา)
   * บรรทัดที่ 2: `Supplier Name` (ซ้าย) + `ชื่อผู้รับผิดชอบ` (ขวา - เช่น `ภิญญาดา`, `พัชชา` โดยไม่มีคำว่า Buyer นำหน้า)
 * **Header Counters:** แสดงตัวเลขสรุปแยก Confirmed และ Estimate แบบ Real-time
 
-### 5) 🔗 QMS Integration API Channel
+### 5) 📧 Daily PU Reminder Email with 2-Sheet Excel Attachment
+* **การตั้งค่า:** มีสวิตช์เปิด/ปิดฟังก์ชัน (`pu_remind_mail_enabled`) และตั้งเวลาส่งประจำวัน (`pu_remind_mail_time`) ในหน้า Settings
+* **สรุปสถิติในเนื้อหาอีเมล:**
+  * ⚠️ รายการที่ยังไม่ Confirm Delivery Date: X ใบสั่งซื้อ (Y รายการ)
+  * 🚚 รายการที่มีกำหนดส่งมอบภายในวันนี้: A ใบสั่งซื้อ (B รายการ)
+* **ไฟล์แนบ Excel 2 Sheet (`.xlsx`):**
+  * **Sheet 1 (`รอ Confirm วันส่งมอบ`):** รายการที่ยังไม่ได้รับ Accept/Confirm
+  * **Sheet 2 (`กำหนดส่งมอบวันนี้`):** รายการที่นัดส่งมอบตรงกับวันปัจจุบัน
+* **ปุ่มทดสอบ:** มีปุ่มกดทดสอบส่งอีเมลสรุปงานจัดซื้อพร้อมสร้างไฟล์แนบจริงในหน้า Admin Settings
+
+### 6) 👤 User Management User ID Format (`Firstname.L`)
+* กำหนดมาตรฐาน User ID เป็น `ชื่อ.นามสกุลตัวแรก` เช่น `Chaiwat.N`
+* ปรับปรุง User เดิมในฐานข้อมูล: `patcha` ➔ `Patcha.S`, `pinyada` ➔ `Pinyada.S`
+
+### 7) 🔗 QMS Integration API Channel
 * สร้าง Endpoint: `GET /api/external/qms/inbound-deliveries`
 * รองรับ Query Parameters: `date_from`, `date_to`, `po_number`, `item_code`
 * ส่งข้อมูลเฉพาะรายการที่ **Confirmed** แล้วเท่านั้น พร้อมรองรับรายการแตกส่งหลายรอบ (Split Rounds)

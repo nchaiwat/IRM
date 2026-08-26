@@ -177,6 +177,40 @@ async def test_email_sending(
         )
 
 
+@router.post("/test-pu-remind-email")
+async def test_pu_remind_email(
+    data: TestEmailRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Manually test triggering the Daily PU Reminder Email with 2-Sheet Excel attachment."""
+    from app.services.email_service import send_pu_daily_reminder_email
+    try:
+        res = await send_pu_daily_reminder_email(
+            db=db,
+            recipient_email=data.recipient_email,
+            triggered_by=f"manual_test_by_{current_user.username}",
+        )
+        if res.get("status") == "error":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
+        if res.get("status") == "skipped":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
+
+        stats = res.get("stats", {})
+        return {
+            "message": f"ส่งอีเมลสรุปงานพร้อมไฟล์แนบ Excel ไปยัง {data.recipient_email} สำเร็จเรียบร้อยแล้ว!",
+            "unconfirmed_items": stats.get("unconfirmed_item_count", 0),
+            "today_deliveries": stats.get("today_delivery_item_count", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"เกิดข้อผิดพลาดในการส่งอีเมลสรุปงาน: {str(e)}"
+        )
+
+
 
 @router.post("/test-telegram-group")
 async def test_telegram_group(

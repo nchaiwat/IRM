@@ -44,6 +44,10 @@ async def run_ddl_migrations(conn):
         # sub_items table — ensure nullable fields are correct
         "ALTER TABLE sub_items ALTER COLUMN updated_by_name DROP NOT NULL;",
         "ALTER TABLE sub_items ALTER COLUMN updated_by_type DROP NOT NULL;",
+
+        # Update username format to Firstname.L
+        "UPDATE users SET username = 'Patcha.S' WHERE lower(username) = 'patcha';",
+        "UPDATE users SET username = 'Pinyada.S' WHERE lower(username) = 'pinyada';",
     ]
 
     for sql in migrations:
@@ -94,8 +98,8 @@ async def seed_data():
             admin_hash = hash_password("irm@2026")
             users_to_seed = [
                 ("admin", "System Administrator", "admin@company.com", "Admin"),
-                ("patcha", "พัชชา สุขสวัสดิ์", "patcha@company.com", "PU User"),
-                ("pinyada", "ภิญญดา สุขสวัสดิ์", "pinyada@company.com", "PU User"),
+                ("Patcha.S", "พัชชา สุขสวัสดิ์", "patcha@company.com", "PU User"),
+                ("Pinyada.S", "ภิญญาดา สุขสวัสดิ์", "pinyada@company.com", "PU User"),
             ]
 
             for uname, fname, email, gname in users_to_seed:
@@ -218,6 +222,8 @@ async def seed_data():
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
+                ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
+                ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:

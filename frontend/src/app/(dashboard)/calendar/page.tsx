@@ -37,6 +37,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateEvents, setSelectedDateEvents] = useState<{ date: string; events: CalendarEvent[] } | null>(null);
+  const [filterMode, setFilterMode] = useState<'all' | 'confirmed' | 'estimate'>('all');
 
   useEffect(() => {
     fetchEvents();
@@ -73,17 +74,22 @@ export default function CalendarPage() {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
 
-  // Group events by date string (YYYY-MM-DD)
+  // Group events by date string (YYYY-MM-DD) with active filter
   const eventsByDate: Record<string, CalendarEvent[]> = {};
   let confirmedCount = 0;
   let estimateCount = 0;
 
   events.forEach((ev) => {
-    if (ev.status === 'confirmed' || ev.is_confirmed) {
+    const isConf = ev.status === 'confirmed' || ev.is_confirmed;
+    if (isConf) {
       confirmedCount++;
     } else {
       estimateCount++;
     }
+
+    // Apply Filter Mode
+    if (filterMode === 'confirmed' && !isConf) return;
+    if (filterMode === 'estimate' && isConf) return;
 
     if (ev.date) {
       const dStr = ev.date;
@@ -129,7 +135,7 @@ export default function CalendarPage() {
             <span>Calendar (ปฏิทินรอบการส่งมอบวัตถุดิบ)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            แสดงกำหนดส่งมอบวัตถุดิบและจำนวน (Qty) แยกตามสถานะ ยืนยันแล้ว (สีเขียว 🟢) และ ประมาณการ (สีส้ม 🟠)
+            แสดงกำหนดส่งมอบวัตถุดิบและจำนวน (Qty) สามารถเลือกตัวกรองดูเฉพาะ ยืนยันแล้ว (สีเขียว 🟢) หรือ ประมาณการ (สีส้ม 🟠) ได้
           </p>
         </div>
 
@@ -155,25 +161,52 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Status Bar & Confirmation Notice */}
+      {/* Interactive Filter Status Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-slate-600 font-bold mr-1">มุมมองตัวกรอง:</span>
+
+          {/* All Filter Pill */}
+          <button
+            type="button"
+            onClick={() => setFilterMode('all')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+              filterMode === 'all'
+                ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            <span>แสดงทั้งหมด ({events.length.toLocaleString()})</span>
+          </button>
+
           {/* Confirmed Pill (Green) */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold shadow-2xs">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-2xs"></span>
-            <span>🟢 ยืนยันแล้ว (Confirmed): {confirmedCount.toLocaleString()} รายการ</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setFilterMode('confirmed')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+              filterMode === 'confirmed'
+                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+            }`}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${filterMode === 'confirmed' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+            <span>🟢 ยืนยันแล้ว ({confirmedCount.toLocaleString()})</span>
+          </button>
 
           {/* Estimate Pill (Orange) */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 font-bold shadow-2xs">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-2xs"></span>
-            <span>🟠 ประมาณการ (Estimate): {estimateCount.toLocaleString()} รายการ</span>
-          </div>
-
-          <span className="text-slate-400 hidden sm:inline">|</span>
-          <span className="text-slate-500 text-xs font-medium">
-            รวมทั้งหมด <strong className="text-slate-800">{events.length.toLocaleString()}</strong> รายการ
-          </span>
+          <button
+            type="button"
+            onClick={() => setFilterMode('estimate')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+              filterMode === 'estimate'
+                ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
+            }`}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${filterMode === 'estimate' ? 'bg-white' : 'bg-amber-500'}`}></span>
+            <span>🟠 ประมาณการ ({estimateCount.toLocaleString()})</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">

@@ -308,13 +308,17 @@ export default function UsersPage() {
             <h3 className="text-lg font-bold text-slate-900">เพิ่มผู้ใช้งานใหม่</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Username *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Username *</label>
+                  <span className="text-[10px] text-sky-600 font-medium">รูปแบบ: ชื่อ.นามสกุลตัวแรก (เช่น Chaiwat.N)</span>
+                </div>
                 <input
                   type="text"
                   required
+                  placeholder="เช่น Chaiwat.N, Patcha.S, Pinyada.S"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
                 />
               </div>
 

@@ -80,6 +80,32 @@ async def job_daily_morning_telegram_summary():
         logger.error(f"❌ [Scheduler] Error during Daily Telegram Morning Summary: {e}")
 
 
+async def job_daily_pu_remind_email():
+    """Checks every minute if current time matches pu_remind_mail_time and dispatches PU remind email."""
+    try:
+        from zoneinfo import ZoneInfo
+        now_bkk = datetime.now(ZoneInfo("Asia/Bangkok"))
+        current_hm = now_bkk.strftime("%H:%M")
+
+        async with AsyncSessionLocal() as session:
+            from app.models.system_setting import SystemSetting
+            from sqlalchemy import select
+            stmt = select(SystemSetting).where(SystemSetting.key.in_(["pu_remind_mail_enabled", "pu_remind_mail_time"]))
+            rows = (await session.execute(stmt)).scalars().all()
+            s_map = {s.key: s.value for s in rows}
+
+            is_enabled = s_map.get("pu_remind_mail_enabled", "false").strip().lower() in ("true", "1", "yes")
+            target_time = s_map.get("pu_remind_mail_time", "08:30").strip()
+
+            if is_enabled and current_hm == target_time:
+                logger.info(f"⏰ [Scheduler] Triggering Daily PU Reminder Email at {current_hm}...")
+                from app.services.email_service import send_pu_daily_reminder_email
+                res = await send_pu_daily_reminder_email(session, triggered_by="scheduler")
+                logger.info(f"✅ [Scheduler] Daily PU Reminder Email Dispatched: {res}")
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Error checking/dispatching PU Reminder Email: {e}")
+
+
 def start_scheduler():
     """Start APScheduler with defined cron jobs."""
     if scheduler.running:
@@ -121,8 +147,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 5: Daily PU Reminder Email with Excel (Minute-Checker)
+    scheduler.add_job(
+        job_daily_pu_remind_email,
+        trigger=CronTrigger(second=0, timezone="Asia/Bangkok"),
+        id="pu_remind_email_minute_checker",
+        name="Daily PU Reminder Email Dispatcher",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon 08:00, Thu 08:00, Daily 04:00 SAP Sync, and Daily 08:00 Telegram Summary.")
+    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 04:00 SAP Sync, Daily 08:00 Telegram Summary, and PU Reminder Dispatcher.")
 
 
 def stop_scheduler():
@@ -130,3 +165,4 @@ def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("🛑 [Scheduler] APScheduler stopped.")
+
