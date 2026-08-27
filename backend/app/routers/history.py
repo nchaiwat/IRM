@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.po import POHeader, POItem
 from app.models.user import User
 from app.schemas.po import POItemResponse
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/history", tags=["History"])
 @router.get("", response_model=list[POItemResponse])
 async def list_history_items(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/history", "view"))],
 ):
     """Get all closed PO items (Status 'closed' or POHeader status 'C')."""
     from sqlalchemy import or_

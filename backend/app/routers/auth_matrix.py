@@ -35,7 +35,12 @@ async def get_matrix_grid(
     groups_stmt = select(Group).where(Group.is_active == True).order_by(Group.id.asc())
     groups = (await db.execute(groups_stmt)).scalars().all()
 
-    menus_stmt = select(Menu).where(Menu.is_active == True).order_by(Menu.sort_order.asc())
+    # Query actionable menus with path, ordered logically: Top-level first, then Admin sub-menus
+    menus_stmt = (
+        select(Menu)
+        .where(Menu.is_active == True, Menu.path.is_not(None))
+        .order_by(Menu.parent_id.asc().nullsfirst(), Menu.sort_order.asc(), Menu.id.asc())
+    )
     menus = (await db.execute(menus_stmt)).scalars().all()
 
     matrix_stmt = select(AuthMatrix)

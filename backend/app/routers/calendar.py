@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.po import POHeader, POItem, SubItem
 from app.models.user import User
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/calendar", tags=["Calendar"])
 @router.get("")
 async def get_calendar_events(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/calendar", "view"))],
 ):
     """Get all delivery events for Calendar view (Support Main Items, Sub-Items, Confirmed & Estimate status, with Buyer Name)."""
     stmt = (

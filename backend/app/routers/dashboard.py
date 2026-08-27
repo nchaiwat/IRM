@@ -18,7 +18,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.po import POHeader, POItem, SubItem, POItemAuditLog
 from app.models.master import SupplierMaster, ItemMaster
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard Analytics"])
 
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["Dashboard Analytics"])
 @router.get("/analytics")
 async def get_dashboard_analytics(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("/dashboard", "view")),
 ) -> Dict[str, Any]:
     now_dt = datetime.now(timezone(timedelta(hours=7)))
     today_date = now_dt.date()

@@ -131,10 +131,17 @@ async def get_me(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Get current user details along with permission list for sidebar & route protection."""
-    all_menus_stmt = select(Menu).where(Menu.is_active == True).order_by(Menu.sort_order.asc())
+    all_menus_stmt = (
+        select(Menu)
+        .where(Menu.is_active == True, Menu.path.is_not(None))
+        .order_by(Menu.parent_id.asc().nullsfirst(), Menu.sort_order.asc(), Menu.id.asc())
+    )
     all_menus = (await db.execute(all_menus_stmt)).scalars().all()
 
-    is_admin_group = bool(current_user.group and current_user.group.name.lower() == "admin")
+    is_admin_group = bool(
+        (current_user.username and current_user.username.lower() == "admin")
+        or (current_user.group and current_user.group.name.lower() == "admin")
+    )
 
     matrix_map = {}
     if current_user.group_id:
@@ -142,6 +149,7 @@ async def get_me(
         matrix_rows = (await db.execute(stmt)).scalars().all()
         matrix_map = {row.menu_id: row for row in matrix_rows}
 
+    permissions: list[PermissionItem] = []
     for menu in all_menus:
         entry = matrix_map.get(menu.id)
         permissions.append(

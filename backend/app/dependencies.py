@@ -54,8 +54,10 @@ def require_permission(menu_path: str, action: str = "view"):
         current_user: Annotated[User, Depends(get_current_user)],
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> User:
-        # Admin bypass if user belongs to 'Admin' group
-        if current_user.group and current_user.group.name.lower() == "admin":
+        # Admin bypass if user is 'admin' or belongs to 'Admin' group
+        if (current_user.username and current_user.username.lower() == "admin") or (
+            current_user.group and current_user.group.name.lower() == "admin"
+        ):
             return current_user
 
         if not current_user.group_id:

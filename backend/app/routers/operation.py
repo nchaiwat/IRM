@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.po import POHeader, POItem, POItemAuditLog, SubItem
 from app.models.master import ItemMaster, SupplierMaster
 from app.models.user import User
@@ -31,7 +31,7 @@ class SubItemUpdateInput(BaseModel):
 @router.get("", response_model=list[POItemResponse])
 async def list_open_po_items(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/operation", "view"))],
 ):
     """
     High-performance endpoint: Get all open PO items for Operation page.

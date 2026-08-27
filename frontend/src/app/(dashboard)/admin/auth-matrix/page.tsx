@@ -143,14 +143,18 @@ export default function AuthMatrixPage() {
                 กลุ่มผู้ใช้งาน (Group)
               </th>
               {samplePermissions.map((m) => (
-                <th key={m.menu_id} className="py-4 px-4 text-center border-r border-slate-800 min-w-[140px]">
-                  <div className="flex flex-col items-center gap-1">
-                    {m.parent_id && (
-                      <span className="text-[10px] text-sky-400 flex items-center gap-1">
-                        <CornerDownRight className="w-3 h-3" /> Sub-menu Admin
+                <th key={m.menu_id} className="py-4 px-4 text-center border-r border-slate-800 min-w-[145px]">
+                  <div className="flex flex-col items-center gap-1.5">
+                    {m.parent_id ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-sky-400 border border-sky-400/30 flex items-center gap-1 font-normal">
+                        <CornerDownRight className="w-2.5 h-2.5" /> Sub-menu Admin
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-normal">
+                        เมนูหลัก (Main)
                       </span>
                     )}
-                    <span className="font-semibold">{m.menu_name}</span>
+                    <span className="font-bold text-slate-100 text-xs">{m.menu_name}</span>
                   </div>
                 </th>
               ))}
