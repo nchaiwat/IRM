@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import {
   Calendar as CalendarIcon,
@@ -74,35 +74,55 @@ export default function CalendarPage() {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
 
-  // Group events by date string (YYYY-MM-DD) with active filter
-  const eventsByDate: Record<string, CalendarEvent[]> = {};
-  let confirmedCount = 0;
-  let estimateCount = 0;
+  // Group events by date string (YYYY-MM-DD) with active filter (Memoized)
+  const { eventsByDate, confirmedCount, estimateCount } = useMemo(() => {
+    const byDate: Record<string, CalendarEvent[]> = {};
+    let conf = 0;
+    let est = 0;
 
-  events.forEach((ev) => {
-    const isConf = ev.status === 'confirmed' || ev.is_confirmed;
-    if (isConf) {
-      confirmedCount++;
-    } else {
-      estimateCount++;
+    for (let i = 0; i < events.length; i++) {
+      const ev = events[i];
+      const isConf = ev.status === 'confirmed' || ev.is_confirmed;
+      if (isConf) {
+        conf++;
+      } else {
+        est++;
+      }
+
+      // Apply Filter Mode
+      if (filterMode === 'confirmed' && !isConf) continue;
+      if (filterMode === 'estimate' && isConf) continue;
+
+      if (ev.date) {
+        const dStr = ev.date;
+        if (!byDate[dStr]) byDate[dStr] = [];
+        byDate[dStr].push(ev);
+      }
     }
 
-    // Apply Filter Mode
-    if (filterMode === 'confirmed' && !isConf) return;
-    if (filterMode === 'estimate' && isConf) return;
-
-    if (ev.date) {
-      const dStr = ev.date;
-      if (!eventsByDate[dStr]) eventsByDate[dStr] = [];
-      eventsByDate[dStr].push(ev);
-    }
-  });
+    return { eventsByDate: byDate, confirmedCount: conf, estimateCount: est };
+  }, [events, filterMode]);
 
   const handleDateClick = (dateStr: string, dayEvents: CalendarEvent[]) => {
     if (dayEvents.length > 0) {
       setSelectedDateEvents({ date: dateStr, events: dayEvents });
     }
   };
+
+  // Construct Calendar Grid Cells (Memoized)
+  const gridCells = useMemo(() => {
+    const cells = [];
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      cells.push(null);
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const formattedDay = day < 10 ? `0${day}` : `${day}`;
+      const formattedMonth = month + 1 < 10 ? `0${month + 1}` : `${month + 1}`;
+      const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
+      cells.push({ day, dateStr, dayEvents: eventsByDate[dateStr] || [] });
+    }
+    return cells;
+  }, [firstDayOfMonth, daysInMonth, year, month, eventsByDate]);
 
   if (loading) {
     return (
@@ -111,18 +131,6 @@ export default function CalendarPage() {
         <span>กำลังโหลดปฏิทินส่งสินค้า...</span>
       </div>
     );
-  }
-
-  // Construct Calendar Grid Cells
-  const gridCells = [];
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    gridCells.push(null);
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    const formattedDay = day < 10 ? `0${day}` : `${day}`;
-    const formattedMonth = month + 1 < 10 ? `0${month + 1}` : `${month + 1}`;
-    const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
-    gridCells.push({ day, dateStr, dayEvents: eventsByDate[dateStr] || [] });
   }
 
   return (

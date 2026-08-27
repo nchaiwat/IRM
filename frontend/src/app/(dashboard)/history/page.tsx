@@ -1,18 +1,48 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { POItemResponse } from '@/types';
-import { ScrollText, CheckCircle2, Search, History as HistoryIcon, Calendar, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import {
+  ScrollText,
+  CheckCircle2,
+  Search,
+  History as HistoryIcon,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 export default function HistoryPage() {
   const [items, setItems] = useState<POItemResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showHistoryModal, setShowHistoryModal] = useState<POItemResponse | null>(null);
+  const [modalAuditLogs, setModalAuditLogs] = useState<any[]>([]);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+
   const topScrollRef = useRef<HTMLDivElement>(null);
   const mainTableRef = useRef<HTMLDivElement>(null);
   const [tableScrollWidth, setTableScrollWidth] = useState<number>(1150);
+
+  // Debounce search term by 200ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   const handleTopScroll = () => {
     if (topScrollRef.current && mainTableRef.current) {
@@ -57,13 +87,43 @@ export default function HistoryPage() {
     return `${day}/${month}/${year}`;
   };
 
-  const filtered = items.filter(
-    (i) =>
-      i.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.supplier_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleOpenAuditModal = async (item: POItemResponse) => {
+    setShowHistoryModal(item);
+    setLoadingAuditLogs(true);
+    setModalAuditLogs([]);
+    try {
+      const res = await api.get<any[]>(`/api/history/items/${item.id}/audit-logs`);
+      setModalAuditLogs(res.data);
+    } catch (err) {
+      console.error('Failed to load history audit logs:', err);
+    } finally {
+      setLoadingAuditLogs(false);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    if (!searchLower) return items;
+    return items.filter(
+      (i) =>
+        i.po_number.toLowerCase().includes(searchLower) ||
+        i.item_code.toLowerCase().includes(searchLower) ||
+        i.item_name.toLowerCase().includes(searchLower) ||
+        i.supplier_name.toLowerCase().includes(searchLower) ||
+        i.supplier_code.toLowerCase().includes(searchLower)
+    );
+  }, [items, debouncedSearch]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === 0) return 1;
+    return Math.ceil(filtered.length / pageSize) || 1;
+  }, [filtered.length, pageSize]);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === 0) return filtered;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filtered.slice(startIndex, startIndex + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   if (loading) {
     return (
@@ -129,13 +189,14 @@ export default function HistoryPage() {
               let lastSup = '';
               let lastGroup = '';
 
-              return filtered.map((item, idx) => {
+              return paginatedItems.map((item, idx) => {
                 const estQty = item.estimate_qty || 0;
                 const actualQty = item.received_qty || item.quantity;
                 const variance = actualQty - estQty;
                 const isFirstInPo = item.po_number !== lastPo;
                 const isFirstInSup = isFirstInPo || item.supplier_code !== lastSup;
                 const isFirstInGroup = isFirstInPo || (item.item_group || '') !== lastGroup;
+                const displayIndex = (pageSize === 0 ? 0 : (currentPage - 1) * pageSize) + idx + 1;
 
                 if (isFirstInPo) {
                   lastPo = item.po_number;
@@ -149,7 +210,7 @@ export default function HistoryPage() {
                 return (
                   <tr key={item.id} className={`hover:bg-slate-50/80 transition ${isFirstInPo && idx > 0 ? '!border-t-4 !border-t-slate-400/90 shadow-[0_-3px_6px_rgba(0,0,0,0.06)]' : ''}`}>
                     {/* 1. # */}
-                    <td className="py-2.5 px-2 text-center font-bold text-slate-400 align-top">{idx + 1}</td>
+                    <td className="py-2.5 px-2 text-center font-bold text-slate-400 align-top">{displayIndex}</td>
 
                     {/* 2. PO No. / Date */}
                     <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap align-top">
@@ -250,7 +311,7 @@ export default function HistoryPage() {
                     {/* 11. Actions */}
                     <td className="py-2.5 px-3 text-center align-top">
                       <button
-                        onClick={() => setShowHistoryModal(item)}
+                        onClick={() => handleOpenAuditModal(item)}
                         className="p-1 rounded text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
                         title="ดู Audit Trail ประวัติการเปลี่ยนแปลง"
                       >
@@ -265,6 +326,74 @@ export default function HistoryPage() {
         </table>
       </div>
 
+      {/* PAGINATION CONTROLS */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-slate-500 font-medium flex-wrap">
+          <span>แสดง</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 transition cursor-pointer"
+          >
+            <option value={50}>50 รายการ / หน้า</option>
+            <option value={100}>100 รายการ / หน้า</option>
+            <option value={200}>200 รายการ / หน้า</option>
+            <option value={0}>แสดงทั้งหมด ({filtered.length.toLocaleString()})</option>
+          </select>
+          <span>
+            (รายการที่ {filtered.length === 0 ? 0 : (currentPage - 1) * (pageSize || filtered.length) + 1} - {pageSize === 0 ? filtered.length : Math.min(currentPage * pageSize, filtered.length)} จากทั้งหมด <strong className="text-slate-800 font-bold">{filtered.length.toLocaleString()}</strong> รายการ)
+          </span>
+        </div>
+
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>ย้อนกลับ</span>
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, idx) => {
+                let pageNum = idx + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pageNum = currentPage - 2 + idx;
+                  if (pageNum > totalPages) pageNum = totalPages - (4 - idx);
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
+                      currentPage === pageNum
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <span>ถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* HISTORY AUDIT MODAL */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -275,32 +404,37 @@ export default function HistoryPage() {
             </h2>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
-              {showHistoryModal.audit_logs && showHistoryModal.audit_logs.length > 0 ? (
-                [...showHistoryModal.audit_logs]
-                  .sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime())
-                  .map((log, idx) => (
-                    <div
-                      key={log.id}
-                      className={`p-3 rounded-xl border transition ${
-                        idx === 0
-                          ? 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
-                          : 'bg-slate-50 border-slate-100'
-                      } space-y-1`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-800">{log.changed_by_name} ({log.changed_by_type})</span>
-                          {idx === 0 && (
-                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-indigo-600 text-white shadow-2xs">
-                              ล่าสุด
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-medium">{new Date(log.changed_at).toLocaleString('th-TH')}</span>
+              {loadingAuditLogs ? (
+                <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
+                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>กำลังโหลดประวัติ...</span>
+                </div>
+              ) : modalAuditLogs.length > 0 ? (
+                modalAuditLogs.map((log, idx) => (
+                  <div
+                    key={log.id}
+                    className={`p-3 rounded-xl border transition ${
+                      idx === 0
+                        ? 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
+                        : 'bg-slate-50 border-slate-100'
+                    } space-y-1`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-800">{log.changed_by_name} ({log.changed_by_type})</span>
+                        {idx === 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-indigo-600 text-white shadow-2xs">
+                            ล่าสุด
+                          </span>
+                        )}
                       </div>
-                      <div className="text-slate-600 text-[11px] leading-relaxed">{log.changes_detail}</div>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {log.changed_at ? new Date(log.changed_at).toLocaleString('th-TH') : '-'}
+                      </span>
                     </div>
-                  ))
+                    <div className="text-slate-600 text-[11px] leading-relaxed">{log.changes_detail}</div>
+                  </div>
+                ))
               ) : (
                 <div className="text-center py-8 text-slate-400">ยังไม่มีประวัติการแก้ไข</div>
               )}

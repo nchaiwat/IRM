@@ -1,17 +1,50 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import { SupplierMaster } from '@/types';
-import { Factory, Search, Mail, Send, Copy, Edit, Check, AlertCircle, Download, Upload, ShieldCheck, ShieldAlert, FileSpreadsheet } from 'lucide-react';
+import {
+  Factory,
+  Search,
+  Mail,
+  Send,
+  Copy,
+  Edit,
+  Check,
+  AlertCircle,
+  Download,
+  Upload,
+  ShieldCheck,
+  ShieldAlert,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<SupplierMaster[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+
+  // Debounce search term by 200ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   // Inline Email Editing State
   const [editingEmailId, setEditingEmailId] = useState<number | null>(null);
@@ -194,8 +227,6 @@ export default function SuppliersPage() {
     }
   };
 
-  const [broadcasting, setBroadcasting] = useState(false);
-
   const handleBroadcastEmails = async () => {
     if (!confirm('คุณต้องการส่ง Email แจ้งลิงก์ Portal ไปยัง Supplier ทุกรายที่มีอีเมลใช่หรือไม่? (ระบบจะส่งเป็นชุดๆ ละ 20 รายการเพื่อความปลอดภัย)')) {
       return;
@@ -347,12 +378,29 @@ export default function SuppliersPage() {
     }
   };
 
-  const filtered = suppliers.filter(
-    (s) =>
-      s.supplier_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.supplier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.email && s.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filtered = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    if (!searchLower) return suppliers;
+    return suppliers.filter(
+      (s) =>
+        s.supplier_code.toLowerCase().includes(searchLower) ||
+        s.supplier_name.toLowerCase().includes(searchLower) ||
+        (s.email && s.email.toLowerCase().includes(searchLower)) ||
+        (s.contact_person && s.contact_person.toLowerCase().includes(searchLower)) ||
+        (s.telephone && s.telephone.toLowerCase().includes(searchLower))
+    );
+  }, [suppliers, debouncedSearch]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === 0) return 1;
+    return Math.ceil(filtered.length / pageSize) || 1;
+  }, [filtered.length, pageSize]);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === 0) return filtered;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filtered.slice(startIndex, startIndex + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   if (loading) {
     return (
@@ -464,191 +512,252 @@ export default function SuppliersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((s, index) => (
-              <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                {/* Running No. */}
-                <td className="py-2 px-2 text-center font-bold text-slate-400">{index + 1}</td>
-                <td className="py-2 px-2.5 font-bold text-slate-900 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <span>{s.supplier_code}</span>
-                    {s.is_new && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white shadow-2xs">
-                        NEW
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-2 px-3 text-slate-800 font-semibold">{s.supplier_name}</td>
+            {paginatedItems.map((s, index) => {
+              const displayIndex = (pageSize === 0 ? 0 : (currentPage - 1) * pageSize) + index + 1;
 
-                {/* Email Column (With Inline Edit) */}
-                <td className="py-2 px-2.5 whitespace-nowrap">
-                  {editingEmailId === s.id ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="email"
-                        value={editingEmailVal}
-                        onChange={(e) => setEditingEmailVal(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveInlineEmail(s.id);
-                          if (e.key === 'Escape') setEditingEmailId(null);
-                        }}
-                        placeholder="email@supplier.com"
-                        className="px-2 py-0.5 bg-white border border-sky-400 rounded-lg text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-sky-200 w-44"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => handleSaveInlineEmail(s.id)}
-                        className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs"
-                        title="บันทึก Email"
-                      >
-                        <Check className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : isEmailValid(s.email) ? (
-                    <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => { setEditingEmailId(s.id); setEditingEmailVal(s.email!); }}>
-                      <span className="text-sky-600 font-medium flex items-center gap-1 group-hover:underline">
-                        <Mail className="w-3 h-3 text-sky-500" />
-                        {s.email}
-                      </span>
-                      <Edit className="w-3 h-3 text-slate-300 group-hover:text-sky-500 transition" />
-                      {savedEmailIndicator[s.id] && (
-                        <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 animate-fade-in flex items-center gap-0.5">
-                          <Check className="w-2.5 h-2.5" /> บันทึกแล้ว!
+              return (
+                <tr key={s.id} className="hover:bg-slate-50/80 transition">
+                  {/* Running No. */}
+                  <td className="py-2 px-2 text-center font-bold text-slate-400">{displayIndex}</td>
+                  <td className="py-2 px-2.5 font-bold text-slate-900 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <span>{s.supplier_code}</span>
+                      {s.is_new && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white shadow-2xs">
+                          NEW
                         </span>
                       )}
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-1 cursor-pointer" onClick={() => { setEditingEmailId(s.id); setEditingEmailVal(''); }}>
-                      <span className="text-amber-600 font-bold text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1 hover:bg-amber-100 transition">
-                        <AlertCircle className="w-3 h-3 text-amber-500" />
-                        กรุณาระบุ Email
-                      </span>
-                      <Edit className="w-3 h-3 text-slate-300 hover:text-amber-600 transition" />
-                      {savedEmailIndicator[s.id] && (
-                        <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5">
-                          <Check className="w-2.5 h-2.5" /> บันทึกแล้ว!
+                  </td>
+                  <td className="py-2 px-3 text-slate-800 font-semibold">{s.supplier_name}</td>
+
+                  {/* Email Column (With Inline Edit) */}
+                  <td className="py-2 px-2.5 whitespace-nowrap">
+                    {editingEmailId === s.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="email"
+                          value={editingEmailVal}
+                          onChange={(e) => setEditingEmailVal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveInlineEmail(s.id);
+                            if (e.key === 'Escape') setEditingEmailId(null);
+                          }}
+                          placeholder="email@supplier.com"
+                          className="px-2 py-0.5 bg-white border border-sky-400 rounded-lg text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-sky-200 w-44"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSaveInlineEmail(s.id)}
+                          className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs"
+                          title="บันทึก Email"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : isEmailValid(s.email) ? (
+                      <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => { setEditingEmailId(s.id); setEditingEmailVal(s.email!); }}>
+                        <span className="text-sky-600 font-medium flex items-center gap-1 group-hover:underline">
+                          <Mail className="w-3 h-3 text-sky-500" />
+                          {s.email}
                         </span>
+                        <Edit className="w-3 h-3 text-slate-300 group-hover:text-sky-500 transition" />
+                        {savedEmailIndicator[s.id] && (
+                          <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 animate-fade-in flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" /> บันทึกแล้ว!
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => { setEditingEmailId(s.id); setEditingEmailVal(''); }}>
+                        <span className="text-amber-600 font-bold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 group-hover:bg-amber-100">
+                          <AlertCircle className="w-3 h-3" />
+                          ยังไม่มี Email
+                        </span>
+                        <Edit className="w-3 h-3 text-slate-300 group-hover:text-sky-500 transition" />
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Phone & Contact Person */}
+                  <td className="py-2 px-2.5 text-slate-600 whitespace-nowrap">
+                    <div>{s.telephone || '-'}</div>
+                    <div className="text-[10px] text-slate-400">{s.contact_person || '-'}</div>
+                  </td>
+
+                  {/* Allow Over-Delivery Toggle Switch */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    <button
+                      onClick={() => handleToggleOverDelivery(s)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition shadow-2xs cursor-pointer ${
+                        s.allow_over_delivery
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                          : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                      }`}
+                      title={s.allow_over_delivery ? 'อนุญาตให้ส่งของเกินยอด PO ได้' : 'ไม่อนุญาตให้ส่งเกินยอด PO'}
+                    >
+                      {s.allow_over_delivery ? (
+                        <>
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                          <span>อนุญาต</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
+                          <span>ไม่อนุญาต</span>
+                        </>
                       )}
-                    </div>
-                  )}
-                </td>
+                    </button>
+                  </td>
 
-                {/* Phone & Contact */}
-                <td className="py-2 px-2.5 whitespace-nowrap">
-                  <div className="text-slate-700 font-medium">{s.telephone || '-'}</div>
-                  {s.contact_person && (
-                    <div className="text-[10px] text-slate-400">{s.contact_person}</div>
-                  )}
-                </td>
-
-                {/* Direct Over-Delivery Interactive Toggle Button */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleOverDelivery(s)}
-                    className={`px-3 py-1 rounded-full text-[10px] font-extrabold border transition shadow-2xs cursor-pointer inline-flex items-center gap-1.5 ${
-                      s.allow_over_delivery
-                        ? 'bg-amber-100 text-amber-950 border-amber-400 hover:bg-amber-200'
-                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700'
-                    }`}
-                    title="คลิกเพื่อสลับสิทธิ์การส่งเกินยอดสั่งซื้อของ Supplier รายนี้"
-                  >
-                    {s.allow_over_delivery ? (
-                      <>
-                        <ShieldCheck className="w-3 h-3 text-amber-600" />
-                        <span>⚡ ส่งเกินได้</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldAlert className="w-3 h-3 text-slate-400" />
-                        <span>ไม่อนุญาต</span>
-                      </>
-                    )}
-                  </button>
-                </td>
-
-                {/* Email Status Badge & Accept Status */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  <div className="flex flex-col items-center gap-0.5">
-                    {!isEmailValid(s.email) ? (
-                      <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                        ขาดข้อมูล Email
-                      </span>
-                    ) : s.last_sent_at ? (
-                      <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {formatDateTimeThai(s.last_sent_at)}
+                  {/* Status */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    {s.is_new ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        รอ Accept
                       </span>
                     ) : (
-                      <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-slate-50 text-slate-500 border border-slate-200">
-                        ยังไม่เคยส่ง
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        พร้อมใช้งาน
                       </span>
                     )}
-                  </div>
-                </td>
+                  </td>
 
-                {/* Actions */}
-                <td className="py-2 px-2.5 text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-1.5">
-                    {/* Accept New Button */}
-                    {s.is_new && (
+                  {/* Actions */}
+                  <td className="py-2 px-2.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {s.is_new && (
+                        <button
+                          onClick={() => handleAcceptNew(s.id)}
+                          className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                          title="รับทราบ Supplier ใหม่"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Accept</span>
+                        </button>
+                      )}
+
+                      {/* Copy Portal Link */}
                       <button
-                        onClick={() => handleAcceptNew(s.id)}
-                        className="px-2 py-0.5 rounded text-amber-700 hover:bg-amber-50 border border-amber-300 font-bold text-[10px] flex items-center gap-1 transition shadow-2xs"
-                        title="รับทราบ Supplier ใหม่"
+                        onClick={() => handleCopyLink(s.id, s.supplier_code)}
+                        className="px-2 py-1 rounded bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold text-[10px] border border-sky-200 flex items-center gap-1 transition"
+                        title="สร้าง Token และคัดลอกลิงก์ Portal ส่งให้ Supplier รายนี้"
                       >
-                        <Check className="w-3 h-3 text-amber-600" />
-                        <span>Accept</span>
+                        {copiedCode === s.supplier_code ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-600 font-bold">คัดลอกแล้ว!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>คัดลอกลิงก์</span>
+                          </>
+                        )}
                       </button>
-                    )}
 
-                    {/* Copy Link Button */}
-                    <button
-                      onClick={() => handleCopyLink(s.id, s.supplier_code)}
-                      className="px-2 py-0.5 rounded text-slate-600 hover:text-sky-600 hover:bg-sky-50 border border-slate-200 font-semibold text-[10px] flex items-center gap-1 transition"
-                      title="คัดลอกลิงก์ส่งให้ Supplier"
-                    >
-                      {copiedCode === s.supplier_code ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span className="text-emerald-600">คัดลอกแล้ว!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Copy Link</span>
-                        </>
-                      )}
-                    </button>
+                      {/* Send Portal Email Button */}
+                      <button
+                        onClick={() => handleSendPortalEmail(s)}
+                        disabled={sendingEmailId === s.id || !isEmailValid(s.email)}
+                        className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        title={
+                          !isEmailValid(s.email)
+                            ? 'โปรดกรอก Email ก่อนส่ง'
+                            : 'ส่งอีเมลแจ้งลิงก์ Portal ไปยัง Supplier'
+                        }
+                      >
+                        {sendingEmailId === s.id ? (
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Send className="w-3 h-3" />
+                        )}
+                        <span>ส่ง Email</span>
+                      </button>
 
-                    {/* Send Email Button */}
-                    <button
-                      onClick={() => handleSendPortalEmail(s)}
-                      disabled={sendingEmailId === s.id}
-                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-[11px] flex items-center gap-1 shadow-sm transition disabled:opacity-50"
-                      title="ส่ง Email แจ้งลิงก์ Portal"
-                    >
-                      {sendingEmailId === s.id ? (
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      <span>ส่ง Email</span>
-                    </button>
-
-                    {/* Edit Button */}
-                    <button
-                      onClick={() => handleOpenEdit(s)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 border border-slate-200 transition"
-                      title="แก้ไขข้อมูล Email / สิทธิ์ส่งเกิน / เบอร์โทร"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => handleOpenEdit(s)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 border border-slate-200 transition"
+                        title="แก้ไขข้อมูล Email / สิทธิ์ส่งเกิน / เบอร์โทร"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+      </div>
+
+      {/* PAGINATION CONTROLS */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-slate-500 font-medium flex-wrap">
+          <span>แสดง</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 transition cursor-pointer"
+          >
+            <option value={50}>50 รายการ / หน้า</option>
+            <option value={100}>100 รายการ / หน้า</option>
+            <option value={200}>200 รายการ / หน้า</option>
+            <option value={0}>แสดงทั้งหมด ({filtered.length.toLocaleString()})</option>
+          </select>
+          <span>
+            (รายการที่ {filtered.length === 0 ? 0 : (currentPage - 1) * (pageSize || filtered.length) + 1} - {pageSize === 0 ? filtered.length : Math.min(currentPage * pageSize, filtered.length)} จากทั้งหมด <strong className="text-slate-800 font-bold">{filtered.length.toLocaleString()}</strong> รายการ)
+          </span>
+        </div>
+
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>ย้อนกลับ</span>
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, idx) => {
+                let pageNum = idx + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pageNum = currentPage - 2 + idx;
+                  if (pageNum > totalPages) pageNum = totalPages - (4 - idx);
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
+                      currentPage === pageNum
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <span>ถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Edit Modal */}

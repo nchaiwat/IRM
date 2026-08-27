@@ -1,17 +1,44 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import { ItemMaster } from '@/types';
-import { Package, Search, Edit, Check, Download, Upload, Filter, FileSpreadsheet } from 'lucide-react';
+import {
+  Package,
+  Search,
+  Edit,
+  Check,
+  Download,
+  Upload,
+  Filter,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 export default function ItemsPage() {
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
   const [savedIndicator, setSavedIndicator] = useState<Record<string, boolean>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+
+  // Debounce search term by 200ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Reset pagination when search or group filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedGroup]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -273,14 +300,17 @@ export default function ItemsPage() {
     return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300">{g}</span>;
   };
 
-  // Group list count calculation
-  const groupCounts: Record<string, number> = {};
-  items.forEach((it) => {
-    const grp = it.item_group || 'HW';
-    groupCounts[grp] = (groupCounts[grp] || 0) + 1;
-  });
+  // Group list count calculation (Memoized)
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < items.length; i++) {
+      const grp = items[i].item_group || 'HW';
+      counts[grp] = (counts[grp] || 0) + 1;
+    }
+    return counts;
+  }, [items]);
 
-  const availableGroups = [
+  const availableGroups = useMemo(() => [
     { key: 'ALL', label: 'ทั้งหมด', count: items.length },
     { key: 'HW', label: 'HW (ฮาร์ดแวร์)', count: groupCounts['HW'] || 0 },
     { key: 'RM-ALU/UPVC (เต็ม)', label: 'RM-ALU/UPVC', count: groupCounts['RM-ALU/UPVC (เต็ม)'] || 0 },
@@ -289,18 +319,37 @@ export default function ItemsPage() {
     { key: 'SP - Sparepart', label: 'SP-Sparepart', count: groupCounts['SP - Sparepart'] || 0 },
     { key: 'RM-เหล็กดัด', label: 'RM-เหล็กดัด', count: groupCounts['RM-เหล็กดัด'] || 0 },
     { key: 'HW-Partner', label: 'HW-Partner', count: groupCounts['HW-Partner'] || 0 },
-  ];
+  ], [items.length, groupCounts]);
 
-  const filtered = items.filter((i) => {
-    const matchSearch =
-      i.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (i.item_group && i.item_group.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchGroup = selectedGroup === 'ALL' || i.item_group === selectedGroup;
+  const filtered = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    return items.filter((i) => {
+      if (searchLower) {
+        const matchSearch =
+          i.item_code.toLowerCase().includes(searchLower) ||
+          i.description.toLowerCase().includes(searchLower) ||
+          (i.item_group && i.item_group.toLowerCase().includes(searchLower));
+        if (!matchSearch) return false;
+      }
 
-    return matchSearch && matchGroup;
-  });
+      if (selectedGroup !== 'ALL' && i.item_group !== selectedGroup) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [items, debouncedSearch, selectedGroup]);
+
+  const totalPages = useMemo(() => {
+    if (pageSize === 0) return 1;
+    return Math.ceil(filtered.length / pageSize) || 1;
+  }, [filtered.length, pageSize]);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === 0) return filtered;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filtered.slice(startIndex, startIndex + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   if (loading) {
     return (
@@ -414,113 +463,185 @@ export default function ItemsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((item, index) => (
-              <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                {/* Running No. */}
-                <td className="py-2 px-2 text-center font-bold text-slate-400">{index + 1}</td>
-                <td className="py-2 px-2.5 font-bold text-slate-900 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <span>{item.item_code}</span>
-                    {item.is_new && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white shadow-2xs">
-                        NEW
+            {paginatedItems.map((item, index) => {
+              const displayIndex = (pageSize === 0 ? 0 : (currentPage - 1) * pageSize) + index + 1;
+
+              return (
+                <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                  {/* Running No. */}
+                  <td className="py-2 px-2 text-center font-bold text-slate-400">{displayIndex}</td>
+                  <td className="py-2 px-2.5 font-bold text-slate-900 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <span>{item.item_code}</span>
+                      {item.is_new && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white shadow-2xs">
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Dynamic Group Badge */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    {getGroupBadge(item.item_group)}
+                  </td>
+
+                  <td className="py-2 px-3 text-slate-700 font-medium">{item.description}</td>
+                  <td className="py-2 px-2 text-center text-slate-500 font-medium whitespace-nowrap">
+                    {formatDateThai(item.created_at)}
+                  </td>
+
+                  {/* Lead Time Days (Inline Editable) */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={item.lead_time_days || 60}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val !== item.lead_time_days) {
+                            handleInlineSave(item.id, 'lead_time_days', val);
+                          }
+                        }}
+                        className="w-14 px-1 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition"
+                      />
+                      {savedIndicator[`${item.id}-lead_time_days`] && (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Notify Alert Days (Inline Editable) */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={item.notify_alert_days || 3}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val !== item.notify_alert_days) {
+                            handleInlineSave(item.id, 'notify_alert_days', val);
+                          }
+                        }}
+                        className="w-14 px-1 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition"
+                      />
+                      {savedIndicator[`${item.id}-notify_alert_days`] && (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Status */}
+                  <td className="py-2 px-2 text-center whitespace-nowrap">
+                    {item.is_new ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        รอ Accept
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        พร้อมใช้งาน
                       </span>
                     )}
-                  </div>
-                </td>
+                  </td>
 
-                {/* Dynamic Group Badge */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  {getGroupBadge(item.item_group)}
-                </td>
+                  {/* Actions */}
+                  <td className="py-2 px-2.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {item.is_new && (
+                        <button
+                          onClick={() => handleAcceptItem(item.id)}
+                          className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition"
+                          title="รับทราบรหัสสินค้าใหม่"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Accept</span>
+                        </button>
+                      )}
 
-                <td className="py-2 px-3 text-slate-700 font-medium">{item.description}</td>
-                <td className="py-2 px-2 text-center text-slate-500 font-medium whitespace-nowrap">
-                  {formatDateThai(item.created_at)}
-                </td>
-
-                {/* Lead Time Days (Inline Editable) */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1">
-                    <input
-                      type="number"
-                      min={0}
-                      defaultValue={item.lead_time_days || 60}
-                      onBlur={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val) && val !== item.lead_time_days) {
-                          handleInlineSave(item.id, 'lead_time_days', val);
-                        }
-                      }}
-                      className="w-14 px-1 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition"
-                    />
-                    {savedIndicator[`${item.id}-lead_time_days`] && (
-                      <Check className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                    )}
-                  </div>
-                </td>
-
-                {/* Notify Alert Days (Inline Editable) */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1">
-                    <input
-                      type="number"
-                      min={0}
-                      defaultValue={item.notify_alert_days || 3}
-                      onBlur={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val) && val !== item.notify_alert_days) {
-                          handleInlineSave(item.id, 'notify_alert_days', val);
-                        }
-                      }}
-                      className="w-14 px-1 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white transition"
-                    />
-                    {savedIndicator[`${item.id}-notify_alert_days`] && (
-                      <Check className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                    )}
-                  </div>
-                </td>
-
-                {/* Status */}
-                <td className="py-2 px-2 text-center whitespace-nowrap">
-                  {item.is_new ? (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                      รอ Accept
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      พร้อมใช้งาน
-                    </span>
-                  )}
-                </td>
-
-                {/* Actions */}
-                <td className="py-2 px-2.5 text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-1.5">
-                    {item.is_new && (
                       <button
-                        onClick={() => handleAcceptItem(item.id)}
-                        className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition"
-                        title="รับทราบรหัสสินค้าใหม่"
+                        onClick={() => handleEditClick(item)}
+                        className="p-1 rounded text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition"
+                        title="แก้ไขข้อมูล Lead Time / วันเตือน / กลุ่มสินค้า"
                       >
-                        <Check className="w-3 h-3" />
-                        <span>Accept</span>
+                        <Edit className="w-3.5 h-3.5" />
                       </button>
-                    )}
-
-                    <button
-                      onClick={() => handleEditClick(item)}
-                      className="p-1 rounded text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition"
-                      title="แก้ไขข้อมูล Lead Time / วันเตือน / กลุ่มสินค้า"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+      </div>
+
+      {/* PAGINATION CONTROLS */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-slate-500 font-medium flex-wrap">
+          <span>แสดง</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 transition cursor-pointer"
+          >
+            <option value={50}>50 รายการ / หน้า</option>
+            <option value={100}>100 รายการ / หน้า</option>
+            <option value={200}>200 รายการ / หน้า</option>
+            <option value={0}>แสดงทั้งหมด ({filtered.length.toLocaleString()})</option>
+          </select>
+          <span>
+            (รายการที่ {filtered.length === 0 ? 0 : (currentPage - 1) * (pageSize || filtered.length) + 1} - {pageSize === 0 ? filtered.length : Math.min(currentPage * pageSize, filtered.length)} จากทั้งหมด <strong className="text-slate-800 font-bold">{filtered.length.toLocaleString()}</strong> รายการ)
+          </span>
+        </div>
+
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>ย้อนกลับ</span>
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, idx) => {
+                let pageNum = idx + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pageNum = currentPage - 2 + idx;
+                  if (pageNum > totalPages) pageNum = totalPages - (4 - idx);
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
+                      currentPage === pageNum
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <span>ถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Edit Modal */}
