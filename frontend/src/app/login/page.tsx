@@ -168,10 +168,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        <div className="mt-8 text-center text-xs text-slate-500">
-          Default Admin: <code className="text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">admin</code> / <code className="text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">irm@2026</code>
-        </div>
       </div>
     </div>
   );
