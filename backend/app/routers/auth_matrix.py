@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.auth_matrix import AuthMatrix
 from app.models.group import Group
 from app.models.menu import Menu
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/auth-matrix", tags=["Auth Matrix"])
 @router.get("", response_model=list[GroupMatrixRow])
 async def get_matrix_grid(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/auth-matrix", "view"))],
 ):
     """
     Get full Auth Matrix grid: Groups (rows) x Menus (columns).
@@ -74,7 +74,7 @@ async def get_matrix_grid(
 async def bulk_update_matrix(
     data: AuthMatrixBulkUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/auth-matrix", "edit"))],
 ):
     """Bulk update permission matrix entries."""
     for item in data.entries:

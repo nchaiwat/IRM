@@ -131,45 +131,30 @@ async def get_me(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Get current user details along with permission list for sidebar & route protection."""
-    permissions: list[PermissionItem] = []
+    all_menus_stmt = select(Menu).where(Menu.is_active == True).order_by(Menu.sort_order.asc())
+    all_menus = (await db.execute(all_menus_stmt)).scalars().all()
 
+    is_admin_group = bool(current_user.group and current_user.group.name.lower() == "admin")
+
+    matrix_map = {}
     if current_user.group_id:
-        stmt = (
-            select(AuthMatrix, Menu)
-            .join(Menu, AuthMatrix.menu_id == Menu.id)
-            .where(AuthMatrix.group_id == current_user.group_id, Menu.is_active == True)
+        stmt = select(AuthMatrix).where(AuthMatrix.group_id == current_user.group_id)
+        matrix_rows = (await db.execute(stmt)).scalars().all()
+        matrix_map = {row.menu_id: row for row in matrix_rows}
+
+    for menu in all_menus:
+        entry = matrix_map.get(menu.id)
+        permissions.append(
+            PermissionItem(
+                menu_id=menu.id,
+                menu_name=menu.name,
+                menu_path=menu.path,
+                can_view=True if is_admin_group else (entry.can_view if entry else False),
+                can_create=True if is_admin_group else (entry.can_create if entry else False),
+                can_edit=True if is_admin_group else (entry.can_edit if entry else False),
+                can_delete=True if is_admin_group else (entry.can_delete if entry else False),
+            )
         )
-        result = await db.execute(stmt)
-        rows = result.all()
-
-        is_admin_group = current_user.group and current_user.group.name.lower() == "admin"
-
-        for matrix, menu in rows:
-            permissions.append(
-                PermissionItem(
-                    menu_id=menu.id,
-                    menu_name=menu.name,
-                    menu_path=menu.path,
-                    can_view=True if is_admin_group else matrix.can_view,
-                    can_create=True if is_admin_group else matrix.can_create,
-                    can_edit=True if is_admin_group else matrix.can_edit,
-                    can_delete=True if is_admin_group else matrix.can_delete,
-                )
-            )
-    elif current_user.group and current_user.group.name.lower() == "admin":
-        all_menus = (await db.execute(select(Menu).where(Menu.is_active == True))).scalars().all()
-        for menu in all_menus:
-            permissions.append(
-                PermissionItem(
-                    menu_id=menu.id,
-                    menu_name=menu.name,
-                    menu_path=menu.path,
-                    can_view=True,
-                    can_create=True,
-                    can_edit=True,
-                    can_delete=True,
-                )
-            )
 
     return UserMeResponse(
         id=current_user.id,

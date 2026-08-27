@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.auth_matrix import AuthMatrix
 from app.models.menu import Menu
 from app.models.user import User
 from app.schemas.menu import MenuResponse
@@ -23,19 +24,34 @@ async def get_menu_tree(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """
-    Get navigation menus structured as a tree.
-    Top-level items have parent_id=None (e.g. Operation, Calendar, Item Master, Supplier Master, History, Admin).
-    Sub-menus appear inside `children` (e.g. Admin -> System Setting, User Management, Auth Matrix).
+    Get navigation menus structured as a tree, filtered by user group permissions.
+    - Admin group gets all active menus.
+    - Non-admin groups get only menus where `can_view == True` in AuthMatrix.
+    - Parent menus (e.g. Admin) are only shown if they contain at least one visible child.
     """
+    # 1. Fetch all active menus
     stmt = select(Menu).where(Menu.is_active == True).order_by(Menu.sort_order.asc())
     result = await db.execute(stmt)
     all_menus = result.scalars().all()
 
-    # Map menus by ID for easy tree construction
-    menu_map: dict[int, MenuResponse] = {}
-    top_level_menus: list[MenuResponse] = []
+    is_admin = bool(current_user.group and current_user.group.name.lower() == "admin")
 
-    # First pass: create all response objects
+    # 2. If not admin, determine allowed menu IDs from AuthMatrix
+    allowed_menu_ids: set[int] = set()
+    if is_admin:
+        allowed_menu_ids = {m.id for m in all_menus}
+    elif current_user.group_id:
+        matrix_stmt = select(AuthMatrix).where(
+            AuthMatrix.group_id == current_user.group_id,
+            AuthMatrix.can_view == True,
+        )
+        matrix_rows = (await db.execute(matrix_stmt)).scalars().all()
+        allowed_menu_ids = {row.menu_id for row in matrix_rows}
+    else:
+        return []
+
+    # 3. Build menu map
+    menu_map: dict[int, MenuResponse] = {}
     for m in all_menus:
         menu_map[m.id] = MenuResponse(
             id=m.id,
@@ -48,12 +64,28 @@ async def get_menu_tree(
             children=[],
         )
 
-    # Second pass: link children to parents
+    # 4. Link children to parent menus (only include children that are permitted)
+    top_level_menus: list[MenuResponse] = []
     for m in all_menus:
         node = menu_map[m.id]
         if m.parent_id and m.parent_id in menu_map:
-            menu_map[m.parent_id].children.append(node)
+            if is_admin or m.id in allowed_menu_ids:
+                menu_map[m.parent_id].children.append(node)
         elif not m.parent_id:
+            # Top-level item
             top_level_menus.append(node)
 
-    return top_level_menus
+    # 5. Filter top-level menus
+    final_top_menus: list[MenuResponse] = []
+    for m in top_level_menus:
+        has_children = len(m.children) > 0
+        if is_admin:
+            final_top_menus.append(m)
+        elif has_children:
+            # Parent menu has visible children -> keep it
+            final_top_menus.append(m)
+        elif m.id in allowed_menu_ids:
+            # Top-level standalone menu with permission -> keep it
+            final_top_menus.append(m)
+
+    return final_top_menus

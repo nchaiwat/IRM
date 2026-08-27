@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.master import ItemMaster
 from app.models.user import User
 from app.schemas.master import ItemMasterCreate, ItemMasterResponse, ItemMasterUpdate
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/items", tags=["Item Master"])
 @router.get("", response_model=list[ItemMasterResponse])
 async def list_items(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/items", "view"))],
 ):
     """List all item masters."""
     stmt = select(ItemMaster).order_by(ItemMaster.item_code.asc())
@@ -31,7 +31,7 @@ async def list_items(
 async def create_item(
     data: ItemMasterCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/items", "create"))],
 ):
     """Create a new item master."""
     existing = await db.execute(select(ItemMaster).where(ItemMaster.item_code == data.item_code))
@@ -73,7 +73,7 @@ class ItemBulkUpdateRequest(BaseModel):
 async def bulk_update_items(
     data: ItemBulkUpdateRequest | list[ItemBulkItem],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/items", "edit"))],
 ):
     """Bulk update item master records by item_code from Excel Import."""
     items_to_process = data.items if isinstance(data, ItemBulkUpdateRequest) else data
@@ -137,7 +137,7 @@ async def update_item(
     item_id: int,
     data: ItemMasterUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/items", "edit"))],
 ):
     """Update item master (Lead Time, Notify Alert Days, Description, Item Group, is_new)."""
     stmt = select(ItemMaster).where(ItemMaster.id == item_id)
@@ -165,7 +165,7 @@ async def update_item(
 async def accept_new_item(
     item_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/items", "edit"))],
 ):
     """Accept a new Item Master record, clearing the 'is_new' badge."""
     stmt = select(ItemMaster).where(ItemMaster.id == item_id)

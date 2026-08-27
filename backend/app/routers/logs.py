@@ -12,7 +12,7 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.po import POItem, POHeader
 from app.models.system_setting import SystemSetting
 from app.models.transaction_log import TransactionLog
@@ -57,7 +57,7 @@ class LogSummaryStats(BaseModel):
 
 @router.get("", response_model=LogsListResponse)
 async def list_transaction_logs(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/logs", "view"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     category: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
@@ -124,8 +124,8 @@ async def list_transaction_logs(
 
 
 @router.get("/summary", response_model=LogSummaryStats)
-async def get_logs_summary_stats(
-    current_user: Annotated[User, Depends(get_current_user)],
+async def get_log_summary_stats(
+    current_user: Annotated[User, Depends(require_permission("/admin/logs", "view"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
@@ -151,7 +151,7 @@ async def get_logs_summary_stats(
 @router.get("/{log_id}", response_model=LogItemResponse)
 async def get_single_log(
     log_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/logs", "view"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Get single transaction log detail."""
@@ -164,7 +164,7 @@ async def get_single_log(
 
 @router.post("/trigger-qms-export")
 async def trigger_qms_export(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/logs", "edit"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """

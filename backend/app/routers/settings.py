@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.system_setting import SystemSettingResponse, SystemSettingsBulkUpdate
@@ -33,7 +33,7 @@ class TestEmailRequest(BaseModel):
 @router.get("", response_model=list[SystemSettingResponse])
 async def get_all_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "view"))],
 ):
     """Get all system settings."""
     stmt = select(SystemSetting).order_by(SystemSetting.category.asc(), SystemSetting.id.asc())
@@ -46,7 +46,7 @@ async def get_all_settings(
 async def bulk_update_settings(
     data: SystemSettingsBulkUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Bulk update system settings by key."""
     updated_count = 0
@@ -93,7 +93,7 @@ async def bulk_update_settings(
 @router.post("/sync-sap")
 async def manual_sync_sap_from_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Manually trigger SAP B1 Open PO Sync (Runs SQL Query Report 8). Hosted in System Settings."""
     try:
@@ -111,7 +111,7 @@ async def manual_sync_sap_from_settings(
 async def test_email_sending(
     data: TestEmailRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Test send a test email to verify SMTP configuration."""
     # Fetch SMTP Settings by keys
@@ -181,7 +181,7 @@ async def test_email_sending(
 async def test_pu_remind_email(
     data: TestEmailRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Manually test triggering the Daily PU Reminder Email with 2-Sheet Excel attachment."""
     from app.services.email_service import send_pu_daily_reminder_email
@@ -218,7 +218,7 @@ async def test_pu_remind_email(
 @router.post("/test-telegram-group")
 async def test_telegram_group(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Send a test message to the configured Telegram Group."""
     settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
@@ -263,7 +263,7 @@ async def test_telegram_group(
 @router.post("/test-telegram-morning-summary")
 async def test_telegram_morning_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Manually test triggering the Daily 08:00 AM Morning Summary Telegram message."""
     from app.services.telegram_service import send_telegram_morning_summary
@@ -283,7 +283,7 @@ async def test_telegram_morning_summary(
 @router.post("/test-sap-connection")
 async def test_sap_connection(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
 ):
     """Test SQL connection to SAP B1 Server (wa-dbs2.wa.net)."""
     settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "sap"))).scalars().all()

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserCreate, UserResponse, UserUpdate
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/users", tags=["Users"])
 @router.get("", response_model=list[UserResponse])
 async def list_users(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "view"))],
 ):
     """List all users."""
     stmt = select(User).order_by(User.id.asc())
@@ -34,7 +34,7 @@ async def list_users(
 async def create_user(
     data: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "create"))],
 ):
     """Create a new user."""
     existing = await db.execute(select(User).where(User.username == data.username))
@@ -63,7 +63,7 @@ async def create_user(
 async def get_user(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "view"))],
 ):
     """Get user by ID."""
     stmt = select(User).where(User.id == user_id)
@@ -79,7 +79,7 @@ async def update_user(
     user_id: int,
     data: UserUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "edit"))],
 ):
     """Update user information."""
     stmt = select(User).where(User.id == user_id)
@@ -109,7 +109,7 @@ async def reset_password(
     user_id: int,
     data: PasswordReset,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "edit"))],
 ):
     """Reset a user's password."""
     stmt = select(User).where(User.id == user_id)
@@ -127,7 +127,7 @@ async def reset_password(
 async def test_telegram_user(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "edit"))],
 ):
     """Send a test Direct Message (DM) to the target user via Telegram Bot API."""
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()

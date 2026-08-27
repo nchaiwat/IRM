@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { GroupMatrixRow } from '@/types';
 import { Lock, Save, CheckCircle2, AlertCircle, Shield, CornerDownRight } from 'lucide-react';
 
 export default function AuthMatrixPage() {
+  const { refreshUser } = useAuth();
   const [rows, setRows] = useState<GroupMatrixRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,7 @@ export default function AuthMatrixPage() {
 
     try {
       await api.put('/api/auth-matrix', { entries: entriesToSave });
+      await refreshUser();
       setMessage({ type: 'success', text: 'บันทึกสิทธิ์การใช้งานตาราง Auth Matrix เรียบร้อยแล้ว' });
     } catch (err) {
       console.error('Failed to save auth matrix:', err);

@@ -1,84 +1,32 @@
-"""
-Supplier Master Router — CRUD, Accept New Record, Cryptographic Token Generation, Real SMTP Email Delivery, and Fail-Safe Auto-Seeding.
-"""
-
 from datetime import datetime, timezone, timedelta
-import secrets
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_permission
 from app.models.master import SupplierMaster
 from app.models.supplier_token import SupplierPortalToken
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.master import SupplierMasterCreate, SupplierMasterResponse, SupplierMasterUpdate
+from app.services.email_service import (
+    calculate_prd_expiry_date,
+    get_or_create_supplier_token,
+    send_single_supplier_email,
+    send_batch_portal_emails,
+)
 
 router = APIRouter(prefix="/api/suppliers", tags=["Supplier Master"])
-
-
-def calculate_prd_expiry_date(now_dt: datetime) -> datetime:
-    """
-    PRD Expiration Rules:
-    - Monday (0), Tuesday (1), Wednesday (2) -> Expires Wednesday 23:59:59
-    - Thursday (3), Friday (4), Saturday (5), Sunday (6) -> Expires Sunday 23:59:59
-    """
-    weekday = now_dt.weekday()
-    if weekday <= 2:
-        days_ahead = 2 - weekday
-        return (now_dt + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
-    else:
-        days_ahead = 6 - weekday
-        return (now_dt + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
-
-
-async def get_or_create_supplier_token(db: AsyncSession, supplier_code: str) -> SupplierPortalToken:
-    """
-    Invalidate all previous active tokens for this supplier and create a fresh cryptographic token.
-    Enforces that opening an older email link will be rejected / expired immediately.
-    """
-    now_dt = datetime.now(timezone.utc)
-    target_expiry = calculate_prd_expiry_date(now_dt)
-
-    # 1. Invalidate / Revoke all old active tokens for this supplier
-    stmt_revoke = (
-        select(SupplierPortalToken)
-        .where(SupplierPortalToken.supplier_code == supplier_code)
-        .where(SupplierPortalToken.is_submitted == False)
-    )
-    old_tokens = (await db.execute(stmt_revoke)).scalars().all()
-    for old_tok in old_tokens:
-        old_tok.expires_at = now_dt - timedelta(seconds=1)
-        old_tok.is_submitted = True
-        db.add(old_tok)
-
-    # 2. Generate a brand new cryptographic token
-    raw_token = f"tok_{secrets.token_hex(20)}"
-    token_obj = SupplierPortalToken(
-        token=raw_token,
-        supplier_code=supplier_code,
-        po_number=None,
-        is_submitted=False,
-        expires_at=target_expiry,
-    )
-    db.add(token_obj)
-    await db.commit()
-    await db.refresh(token_obj)
-
-    return token_obj
 
 
 @router.get("", response_model=list[SupplierMasterResponse])
 async def list_suppliers(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "view"))],
 ):
     """List all supplier masters."""
     stmt = select(SupplierMaster).order_by(SupplierMaster.supplier_code.asc())
@@ -90,7 +38,7 @@ async def list_suppliers(
 async def create_supplier(
     data: SupplierMasterCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "create"))],
 ):
     """Create a new supplier master."""
     existing = await db.execute(select(SupplierMaster).where(SupplierMaster.supplier_code == data.supplier_code))
@@ -111,9 +59,6 @@ async def create_supplier(
     return supplier
 
 
-from pydantic import BaseModel, Field
-from typing import Any
-
 class SupplierBulkItem(BaseModel):
     supplier_code: str
     supplier_name: str | None = None
@@ -124,16 +69,18 @@ class SupplierBulkItem(BaseModel):
     is_new: Any = None
     accept: Any = None
 
+
 class SupplierBulkUpdateRequest(BaseModel):
     suppliers: list[SupplierBulkItem]
 
 
+# ─── LITERAL PATHS (MUST BE DEFINED BEFORE /{supplier_id}) ─────────────────────
 @router.post("/bulk-update")
 @router.put("/bulk-update")
 async def bulk_update_suppliers(
     data: SupplierBulkUpdateRequest | list[SupplierBulkItem],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
 ):
     """Bulk update supplier master records by supplier_code from Excel Import."""
     items_to_process = data.suppliers if isinstance(data, SupplierBulkUpdateRequest) else data
@@ -198,12 +145,32 @@ async def bulk_update_suppliers(
     return {"message": f"นำเข้าและอัปเดตข้อมูล Supplier สำเร็จ {updated_count} รายการ", "updated_count": updated_count}
 
 
+@router.post("/send-all-portal-emails")
+async def broadcast_portal_emails(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
+):
+    """Manual trigger to batch broadcast portal links to all active suppliers (Rate-limited, max 100)."""
+    try:
+        result = await send_batch_portal_emails(db, max_suppliers=100)
+        return {
+            "message": f"กระจายส่ง Email ให้ Supplier สำเร็จ {result['sent_count']}/{result['total_attempted']} ราย (ล้มเหลว {result['failed_count']} ราย)",
+            "details": result,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"การกระจายส่ง Email ล้มเหลว: {str(e)}",
+        )
+
+
+# ─── PARAMETERIZED PATHS (/{supplier_id}) ──────────────────────────────────────
 @router.put("/{supplier_id}", response_model=SupplierMasterResponse)
 async def update_supplier(
     supplier_id: int,
     data: SupplierMasterUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
 ):
     """Update supplier information (email, phone, contact person, is_new)."""
     stmt = select(SupplierMaster).where(SupplierMaster.id == supplier_id)
@@ -234,7 +201,7 @@ async def update_supplier(
 async def accept_new_supplier(
     supplier_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
 ):
     """Accept a new Supplier Master record, clearing the 'is_new' badge."""
     stmt = select(SupplierMaster).where(SupplierMaster.id == supplier_id)
@@ -252,14 +219,13 @@ async def accept_new_supplier(
 async def generate_token_for_supplier(
     supplier_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
 ):
     """Generate or retrieve cryptographic Portal Token for a supplier."""
     supplier = (await db.execute(select(SupplierMaster).where(SupplierMaster.id == supplier_id))).scalar_one_or_none()
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
 
-    from app.services.email_service import get_or_create_supplier_token
     token_obj = await get_or_create_supplier_token(db, supplier.supplier_code)
 
     stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
@@ -275,19 +241,11 @@ async def generate_token_for_supplier(
     }
 
 
-from app.services.email_service import (
-    calculate_prd_expiry_date,
-    get_or_create_supplier_token,
-    send_single_supplier_email,
-    send_batch_portal_emails,
-)
-
-
 @router.post("/{supplier_id}/send-portal-email")
 async def send_portal_email(
     supplier_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_permission("/suppliers", "edit"))],
 ):
     """Send Supplier Portal Cryptographic Token Link with No-Reply banner and Item Lock."""
     supplier = (await db.execute(select(SupplierMaster).where(SupplierMaster.id == supplier_id))).scalar_one_or_none()
@@ -315,25 +273,3 @@ async def send_portal_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"ส่ง Email ล้มเหลว: {str(e)}",
         )
-
-
-@router.post("/send-all-portal-emails")
-async def broadcast_portal_emails(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-):
-    """Manual trigger to batch broadcast portal links to all active suppliers (Rate-limited, max 100)."""
-    try:
-        result = await send_batch_portal_emails(db, max_suppliers=100)
-        return {
-            "message": f"กระจายส่ง Email ให้ Supplier สำเร็จ {result['sent_count']}/{result['total_attempted']} ราย (ล้มเหลว {result['failed_count']} ราย)",
-            "details": result,
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"การกระจายส่ง Email ล้มเหลว: {str(e)}",
-        )
-
-
-
