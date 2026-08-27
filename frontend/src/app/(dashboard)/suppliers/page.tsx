@@ -250,6 +250,8 @@ export default function SuppliersPage() {
       'Supplier Code': s.supplier_code,
       'Supplier Name': s.supplier_name,
       'Email': isEmailValid(s.email) ? s.email! : '',
+      'Telephone': s.telephone || '',
+      'Contact Person': s.contact_person || '',
       'Allow Over Delivery': s.allow_over_delivery ? 'ใช่' : 'ไม่ใช่',
       'Accept': s.is_new ? 'รอ Accept' : 'Accept',
     }));
