@@ -20,7 +20,7 @@ class POHeader(Base):
     buyer_name: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="O", index=True)  # O = Open, C = Closed
 
-    items = relationship("POItem", back_populates="header", cascade="all, delete-orphan", lazy="selectin")
+    items = relationship("POItem", back_populates="header", cascade="all, delete-orphan")
 
 
 class POItem(Base):
@@ -35,11 +35,11 @@ class POItem(Base):
     unit: Mapped[str] = mapped_column(String(20), default="แผ่น")
     received_qty: Mapped[float] = mapped_column(Float, default=0.0)
     remaining_qty: Mapped[float] = mapped_column(Float, nullable=False)
-    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
     item_group: Mapped[str | None] = mapped_column(String(50), nullable=True, default="RM-กระจก")
     
     # Estimate Planning Data
-    estimate_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    estimate_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
     estimate_qty: Mapped[float | None] = mapped_column(Float, nullable=True)
     
     # Status: 'pending', 'estimate', 'supplier_responded', 'confirmed', 'delay', 'closed'
@@ -57,16 +57,16 @@ class POItem(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    header = relationship("POHeader", back_populates="items", lazy="selectin")
-    sub_items = relationship("SubItem", back_populates="parent_item", cascade="all, delete-orphan", lazy="selectin")
-    audit_logs = relationship("POItemAuditLog", back_populates="po_item", cascade="all, delete-orphan", lazy="selectin")
+    header = relationship("POHeader", back_populates="items")
+    sub_items = relationship("SubItem", back_populates="parent_item", cascade="all, delete-orphan")
+    audit_logs = relationship("POItemAuditLog", back_populates="po_item", cascade="all, delete-orphan")
 
 
 class SubItem(Base):
     __tablename__ = "sub_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    po_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_items.id", ondelete="CASCADE"), nullable=False)
+    po_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_items.id", ondelete="CASCADE"), index=True, nullable=False)
     estimate_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     
@@ -75,18 +75,18 @@ class SubItem(Base):
     updated_by_type: Mapped[str | None] = mapped_column(String(20), nullable=True, default="user")  # 'user' หรือ 'supplier'
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    parent_item = relationship("POItem", back_populates="sub_items", lazy="selectin")
+    parent_item = relationship("POItem", back_populates="sub_items")
 
 
 class POItemAuditLog(Base):
     __tablename__ = "po_item_audit_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    po_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_items.id", ondelete="CASCADE"), nullable=False)
+    po_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_items.id", ondelete="CASCADE"), index=True, nullable=False)
     action: Mapped[str] = mapped_column(String(50), nullable=False)  # 'create', 'update_estimate', 'accept_supplier', 'split_subitem'
     changes_detail: Mapped[str] = mapped_column(Text, nullable=False)  # JSON or text string of changes
     changed_by_name: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g., "Patcha", "Supplier ABC"
     changed_by_type: Mapped[str] = mapped_column(String(20), default="user")
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    po_item = relationship("POItem", back_populates="audit_logs", lazy="selectin")
+    po_item = relationship("POItem", back_populates="audit_logs")

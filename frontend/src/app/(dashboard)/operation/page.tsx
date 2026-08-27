@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { POItemResponse } from '@/types';
 import { useAuth } from '@/lib/auth-context';
@@ -29,6 +29,8 @@ import {
   Sparkles,
   Copy,
   Link as LinkIcon,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 type FilterTab = 'all' | 'new_today' | 'modified' | 'unmodified' | 'supplier_responded';
@@ -40,6 +42,8 @@ export default function OperationPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(100);
 
   // Debounce search term by 200ms to eliminate UI stuttering during typing
   useEffect(() => {
@@ -48,6 +52,11 @@ export default function OperationPage() {
     }, 200);
     return () => clearTimeout(handler);
   }, [searchTerm]);
+
+  // Reset pagination when search or tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, activeTab]);
 
   // Lazy Loaded Audit Logs state
   const [modalAuditLogs, setModalAuditLogs] = useState<any[]>([]);
@@ -539,40 +548,73 @@ export default function OperationPage() {
     }
   };
 
-  // Tab Filtering & Search
-  const filteredItems = items.filter((i) => {
-    const matchesSearch =
-      i.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.item_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.supplier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.supplier_code.toLowerCase().includes(searchTerm.toLowerCase());
+  // Tab Filtering & Search (Memoized with Debounced Search)
+  const filteredItems = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
 
-    if (!matchesSearch) return false;
+    return items.filter((i) => {
+      if (searchLower) {
+        const matchesSearch =
+          i.po_number.toLowerCase().includes(searchLower) ||
+          i.item_code.toLowerCase().includes(searchLower) ||
+          i.item_name.toLowerCase().includes(searchLower) ||
+          i.supplier_name.toLowerCase().includes(searchLower) ||
+          i.supplier_code.toLowerCase().includes(searchLower);
 
-    const modified = isRecordModified(i);
+        if (!matchesSearch) return false;
+      }
 
-    if (activeTab === 'new_today') {
-      return i.is_new === true;
-    }
-    if (activeTab === 'modified') {
-      return modified;
-    }
-    if (activeTab === 'unmodified') {
-      return !modified;
-    }
-    if (activeTab === 'supplier_responded') {
-      return i.status === 'supplier_responded';
-    }
-    return true;
-  });
+      const modified = isRecordModified(i);
 
-  // Calculate Tab Counts
-  const countAll = items.length;
-  const countNewToday = items.filter((i) => i.is_new === true).length;
-  const countModified = items.filter(isRecordModified).length;
-  const countUnmodified = items.length - countModified;
-  const countSupResponded = items.filter((i) => i.status === 'supplier_responded').length;
+      if (activeTab === 'new_today') {
+        return i.is_new === true;
+      }
+      if (activeTab === 'modified') {
+        return modified;
+      }
+      if (activeTab === 'unmodified') {
+        return !modified;
+      }
+      if (activeTab === 'supplier_responded') {
+        return i.status === 'supplier_responded';
+      }
+      return true;
+    });
+  }, [items, debouncedSearch, activeTab]);
+
+  // Calculate Tab Counts (Memoized on items list change)
+  const { countAll, countNewToday, countModified, countUnmodified, countSupResponded } = useMemo(() => {
+    let newToday = 0;
+    let modified = 0;
+    let supResponded = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.is_new === true) newToday++;
+      if (isRecordModified(item)) modified++;
+      if (item.status === 'supplier_responded') supResponded++;
+    }
+
+    return {
+      countAll: items.length,
+      countNewToday: newToday,
+      countModified: modified,
+      countUnmodified: items.length - modified,
+      countSupResponded: supResponded,
+    };
+  }, [items]);
+
+  // Paginated Sliced Items for High Performance Rendering
+  const totalPages = useMemo(() => {
+    if (pageSize === 0) return 1;
+    return Math.ceil(filteredItems.length / pageSize) || 1;
+  }, [filteredItems.length, pageSize]);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === 0) return filteredItems;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, currentPage, pageSize]);
 
   const getStatusBadge = (item: POItemResponse) => {
     const isLocked = isSupplierLocked(item);
@@ -800,7 +842,7 @@ export default function OperationPage() {
               let lastSupplierCode = '';
               let lastItemGroup = '';
 
-              return filteredItems.map((item, index) => {
+              return paginatedItems.map((item, index) => {
                 const isFirstInPo = item.po_number !== lastPoNumber;
                 const isFirstInSup = isFirstInPo || item.supplier_code !== lastSupplierCode;
                 const isFirstInGroup = isFirstInPo || item.item_group !== lastItemGroup;
@@ -821,6 +863,7 @@ export default function OperationPage() {
               const isModified = isRecordModified(item);
               const isSupResponded = item.status === 'supplier_responded';
               const isNew = item.is_new === true;
+              const displayIndex = (pageSize === 0 ? 0 : (currentPage - 1) * pageSize) + index + 1;
 
               // Visual Differentiation Styles - SOLID OPAQUE BACKGROUNDS (NO TRANSPARENCY ON STICKY)
               let rowBorderStripe = 'border-l-4 border-l-slate-200';
@@ -861,7 +904,7 @@ export default function OperationPage() {
                         ) : (
                           <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" title="ยังไม่ปรับปรุง"></span>
                         )}
-                        <span className={isModified || isNew ? 'text-slate-800 font-bold' : 'text-slate-400'}>{index + 1}</span>
+                        <span className={isModified || isNew ? 'text-slate-800 font-bold' : 'text-slate-400'}>{displayIndex}</span>
                       </div>
                     </td>
 
@@ -1261,6 +1304,74 @@ export default function OperationPage() {
           })()}
         </tbody>
         </table>
+      </div>
+
+      {/* PAGINATION CONTROLS */}
+      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 text-slate-500 font-medium flex-wrap">
+          <span>แสดง</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-sky-500 transition cursor-pointer"
+          >
+            <option value={50}>50 รายการ / หน้า</option>
+            <option value={100}>100 รายการ / หน้า</option>
+            <option value={200}>200 รายการ / หน้า</option>
+            <option value={0}>แสดงทั้งหมด ({filteredItems.length.toLocaleString()})</option>
+          </select>
+          <span>
+            (รายการที่ {filteredItems.length === 0 ? 0 : (currentPage - 1) * (pageSize || filteredItems.length) + 1} - {pageSize === 0 ? filteredItems.length : Math.min(currentPage * pageSize, filteredItems.length)} จากทั้งหมด <strong className="text-slate-800 font-bold">{filteredItems.length.toLocaleString()}</strong> รายการ)
+          </span>
+        </div>
+
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>ย้อนกลับ</span>
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, idx) => {
+                let pageNum = idx + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pageNum = currentPage - 2 + idx;
+                  if (pageNum > totalPages) pageNum = totalPages - (4 - idx);
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
+                      currentPage === pageNum
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+            >
+              <span>ถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* EDIT MODAL */}
