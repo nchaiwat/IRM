@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { POItemResponse } from '@/types';
 import {
@@ -14,13 +14,17 @@ import {
   Minus,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
+
+type HistoryFilterTab = 'all' | 'closed_yesterday';
 
 export default function HistoryPage() {
   const [items, setItems] = useState<POItemResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<HistoryFilterTab>('all');
   const [showHistoryModal, setShowHistoryModal] = useState<POItemResponse | null>(null);
   const [modalAuditLogs, setModalAuditLogs] = useState<any[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
@@ -39,10 +43,10 @@ export default function HistoryPage() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Reset pagination when search changes
+  // Reset pagination when search or tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, activeTab]);
 
   const handleTopScroll = () => {
     if (topScrollRef.current && mainTableRef.current) {
@@ -101,18 +105,67 @@ export default function HistoryPage() {
     }
   };
 
+  // Find latest closed date string in dataset (YYYY-MM-DD)
+  const latestClosedDateStr = useMemo(() => {
+    if (items.length === 0) return null;
+    let maxTime = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.closed_at) {
+        const t = new Date(it.closed_at).getTime();
+        if (t > maxTime) maxTime = t;
+      }
+    }
+    if (maxTime === 0) return null;
+    const d = new Date(maxTime);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [items]);
+
+  const isClosedYesterdayOrLatest = useCallback((item: POItemResponse): boolean => {
+    if (!item.closed_at) return false;
+    const d = new Date(item.closed_at);
+    if (isNaN(d.getTime())) return false;
+    const itemDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    if (latestClosedDateStr && itemDateStr === latestClosedDateStr) {
+      return true;
+    }
+    const today = new Date();
+    const diffHours = (today.getTime() - d.getTime()) / (1000 * 60 * 60);
+    return diffHours <= 30;
+  }, [latestClosedDateStr]);
+
+  const { countAll, countClosedYesterday } = useMemo(() => {
+    let closedYesterday = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (isClosedYesterdayOrLatest(items[i])) closedYesterday++;
+    }
+    return {
+      countAll: items.length,
+      countClosedYesterday: closedYesterday,
+    };
+  }, [items, isClosedYesterdayOrLatest]);
+
   const filtered = useMemo(() => {
     const searchLower = debouncedSearch.trim().toLowerCase();
-    if (!searchLower) return items;
-    return items.filter(
-      (i) =>
-        i.po_number.toLowerCase().includes(searchLower) ||
-        i.item_code.toLowerCase().includes(searchLower) ||
-        i.item_name.toLowerCase().includes(searchLower) ||
-        i.supplier_name.toLowerCase().includes(searchLower) ||
-        i.supplier_code.toLowerCase().includes(searchLower)
-    );
-  }, [items, debouncedSearch]);
+    return items.filter((i) => {
+      if (searchLower) {
+        const match =
+          i.po_number.toLowerCase().includes(searchLower) ||
+          i.item_code.toLowerCase().includes(searchLower) ||
+          i.item_name.toLowerCase().includes(searchLower) ||
+          i.supplier_name.toLowerCase().includes(searchLower) ||
+          i.supplier_code.toLowerCase().includes(searchLower);
+        if (!match) return false;
+      }
+
+      if (activeTab === 'closed_yesterday') {
+        return isClosedYesterdayOrLatest(i);
+      }
+
+      return true;
+    });
+  }, [items, debouncedSearch, activeTab, isClosedYesterdayOrLatest]);
 
   const totalPages = useMemo(() => {
     if (pageSize === 0) return 1;
@@ -152,7 +205,51 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+      {/* FILTER TABS & SEARCH BAR */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          {/* Quick Filter Tabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === 'all'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>ทั้งหมด</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'all' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/60 text-slate-600'
+              }`}>
+                {countAll}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('closed_yesterday')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === 'closed_yesterday'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>ปิดเมื่อวาน</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'closed_yesterday' ? 'bg-indigo-700 text-white' : 'bg-indigo-200 text-indigo-900'
+              }`}>
+                {countClosedYesterday}
+              </span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium">
+            แสดง <strong className="text-slate-800 font-bold">{filtered.length}</strong> จากทั้งหมด {items.length} รายการ
+          </div>
+        </div>
+
+        {/* Search input */}
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input

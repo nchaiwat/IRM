@@ -33,7 +33,17 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
-type FilterTab = 'all' | 'new_today' | 'modified' | 'unmodified' | 'supplier_responded';
+type FilterTab =
+  | 'all'
+  | 'new_today'
+  | 'unconfirmed'
+  | 'confirmed'
+  | 'split_delivery'
+  | 'over_po'
+  | 'overdue'
+  | 'due_7d'
+  | 'due_3d'
+  | 'awaiting_sup';
 
 export default function OperationPage() {
   const { user } = useAuth();
@@ -125,7 +135,7 @@ export default function OperationPage() {
   useEffect(() => {
     if (mainTableRef.current) {
       const scrollW = mainTableRef.current.scrollWidth;
-      setTableScrollWidth(scrollW > 1200 ? scrollW : 1450);
+      setTableScrollWidth(scrollW > 1200 ? scrollW : 1400);
     }
   }, [items, loading]);
 
@@ -139,6 +149,188 @@ export default function OperationPage() {
       setLoading(false);
     }
   };
+
+  const isSupplierLocked = (item: POItemResponse) => {
+    if (item.locked_by === 'supplier' && item.lock_expires_at) {
+      const expiry = new Date(item.lock_expires_at);
+      return expiry > new Date();
+    }
+    return false;
+  };
+
+  const isRecordModified = (item: POItemResponse): boolean => {
+    return (
+      item.status === 'confirmed' ||
+      item.status === 'supplier_responded' ||
+      (item.sub_items && item.sub_items.length > 0 && item.status === 'confirmed') ||
+      (item.updated_by_name !== null && item.updated_by_name !== '')
+    );
+  };
+
+  // Helper date getters and condition checkers
+  const getItemTargetDate = (item: POItemResponse): Date | null => {
+    if (item.sub_items && item.sub_items.length > 0) {
+      const dates = item.sub_items
+        .map((s) => (s.estimate_date ? new Date(s.estimate_date) : null))
+        .filter((d): d is Date => d !== null && !isNaN(d.getTime()));
+      if (dates.length > 0) {
+        return new Date(Math.min(...dates.map((d) => d.getTime())));
+      }
+    }
+    if (item.estimate_date) {
+      const d = new Date(item.estimate_date);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (item.due_date) {
+      const d = new Date(item.due_date);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
+  const isOverdue = (item: POItemResponse, todayTime: number): boolean => {
+    const d = getItemTargetDate(item);
+    if (!d) return false;
+    const itemDate = new Date(d);
+    itemDate.setHours(0, 0, 0, 0);
+    return itemDate.getTime() < todayTime;
+  };
+
+  const isDueWithinDays = (item: POItemResponse, todayTime: number, days: number): boolean => {
+    const d = getItemTargetDate(item);
+    if (!d) return false;
+    const itemDate = new Date(d);
+    itemDate.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((itemDate.getTime() - todayTime) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= days;
+  };
+
+  const isOverPO = (item: POItemResponse): boolean => {
+    const est = item.estimate_qty || 0;
+    const rem = item.remaining_qty || 0;
+    if (est > rem && rem > 0) return true;
+    if (item.sub_items && item.sub_items.length > 0) {
+      const totalSub = item.sub_items.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+      if (totalSub > rem && rem > 0) return true;
+    }
+    return false;
+  };
+
+  const isSplitDelivery = (item: POItemResponse): boolean => {
+    return Boolean(item.sub_items && item.sub_items.length > 1);
+  };
+
+  const isAwaitingSup = (item: POItemResponse): boolean => {
+    return (
+      item.status === 'awaiting_supplier' ||
+      item.status === 'supplier_responded' ||
+      isSupplierLocked(item)
+    );
+  };
+
+  // Tab Filtering & Search (Memoized with Debounced Search)
+  const filteredItems = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+
+    return items.filter((i) => {
+      if (searchLower) {
+        const matchesSearch =
+          i.po_number.toLowerCase().includes(searchLower) ||
+          i.item_code.toLowerCase().includes(searchLower) ||
+          i.item_name.toLowerCase().includes(searchLower) ||
+          i.supplier_name.toLowerCase().includes(searchLower) ||
+          i.supplier_code.toLowerCase().includes(searchLower);
+
+        if (!matchesSearch) return false;
+      }
+
+      if (activeTab === 'new_today') {
+        return i.is_new === true;
+      }
+      if (activeTab === 'unconfirmed') {
+        return i.is_new === false && i.status !== 'confirmed';
+      }
+      if (activeTab === 'confirmed') {
+        return i.status === 'confirmed';
+      }
+      if (activeTab === 'split_delivery') {
+        return isSplitDelivery(i);
+      }
+      if (activeTab === 'over_po') {
+        return isOverPO(i);
+      }
+      if (activeTab === 'overdue') {
+        return isOverdue(i, todayTime);
+      }
+      if (activeTab === 'due_7d') {
+        return isDueWithinDays(i, todayTime, 7);
+      }
+      if (activeTab === 'due_3d') {
+        return isDueWithinDays(i, todayTime, 3);
+      }
+      if (activeTab === 'awaiting_sup') {
+        return isAwaitingSup(i);
+      }
+      return true;
+    });
+  }, [items, debouncedSearch, activeTab]);
+
+  // Calculate Tab Counts (Memoized on items list change)
+  const {
+    countAll,
+    countNewToday,
+    countUnconfirmed,
+    countConfirmed,
+    countSplitDelivery,
+    countOverPO,
+    countOverdue,
+    countDue7d,
+    countDue3d,
+    countAwaitingSup,
+  } = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+
+    let newToday = 0;
+    let unconfirmed = 0;
+    let confirmed = 0;
+    let split = 0;
+    let overPO = 0;
+    let overdue = 0;
+    let due7d = 0;
+    let due3d = 0;
+    let awaitingSup = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.is_new === true) newToday++;
+      if (item.is_new === false && item.status !== 'confirmed') unconfirmed++;
+      if (item.status === 'confirmed') confirmed++;
+      if (isSplitDelivery(item)) split++;
+      if (isOverPO(item)) overPO++;
+      if (isOverdue(item, todayTime)) overdue++;
+      if (isDueWithinDays(item, todayTime, 7)) due7d++;
+      if (isDueWithinDays(item, todayTime, 3)) due3d++;
+      if (isAwaitingSup(item)) awaitingSup++;
+    }
+
+    return {
+      countAll: items.length,
+      countNewToday: newToday,
+      countUnconfirmed: unconfirmed,
+      countConfirmed: confirmed,
+      countSplitDelivery: split,
+      countOverPO: overPO,
+      countOverdue: overdue,
+      countDue7d: due7d,
+      countDue3d: due3d,
+      countAwaitingSup: awaitingSup,
+    };
+  }, [items]);
 
   const cleanBuyerName = (name: string | null | undefined) => {
     if (!name) return '-';
@@ -190,23 +382,6 @@ export default function OperationPage() {
     
     const d = new Date(year, month - 1, day, 12, 0, 0);
     return d.toISOString();
-  };
-
-  const isSupplierLocked = (item: POItemResponse): boolean => {
-    if (item.locked_by === 'supplier' && item.lock_expires_at) {
-      const exp = new Date(item.lock_expires_at);
-      return exp.getTime() > Date.now();
-    }
-    return false;
-  };
-
-  const isRecordModified = (item: POItemResponse): boolean => {
-    return (
-      item.status === 'confirmed' ||
-      item.status === 'supplier_responded' ||
-      (item.sub_items && item.sub_items.length > 0 && item.status === 'confirmed') ||
-      (item.updated_by_name !== null && item.updated_by_name !== '')
-    );
   };
 
   const handleOpenInlineSubItem = (item: POItemResponse) => {
@@ -548,62 +723,6 @@ export default function OperationPage() {
     }
   };
 
-  // Tab Filtering & Search (Memoized with Debounced Search)
-  const filteredItems = useMemo(() => {
-    const searchLower = debouncedSearch.trim().toLowerCase();
-
-    return items.filter((i) => {
-      if (searchLower) {
-        const matchesSearch =
-          i.po_number.toLowerCase().includes(searchLower) ||
-          i.item_code.toLowerCase().includes(searchLower) ||
-          i.item_name.toLowerCase().includes(searchLower) ||
-          i.supplier_name.toLowerCase().includes(searchLower) ||
-          i.supplier_code.toLowerCase().includes(searchLower);
-
-        if (!matchesSearch) return false;
-      }
-
-      const modified = isRecordModified(i);
-
-      if (activeTab === 'new_today') {
-        return i.is_new === true;
-      }
-      if (activeTab === 'modified') {
-        return modified;
-      }
-      if (activeTab === 'unmodified') {
-        return !modified;
-      }
-      if (activeTab === 'supplier_responded') {
-        return i.status === 'supplier_responded';
-      }
-      return true;
-    });
-  }, [items, debouncedSearch, activeTab]);
-
-  // Calculate Tab Counts (Memoized on items list change)
-  const { countAll, countNewToday, countModified, countUnmodified, countSupResponded } = useMemo(() => {
-    let newToday = 0;
-    let modified = 0;
-    let supResponded = 0;
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.is_new === true) newToday++;
-      if (isRecordModified(item)) modified++;
-      if (item.status === 'supplier_responded') supResponded++;
-    }
-
-    return {
-      countAll: items.length,
-      countNewToday: newToday,
-      countModified: modified,
-      countUnmodified: items.length - modified,
-      countSupResponded: supResponded,
-    };
-  }, [items]);
-
   // Paginated Sliced Items for High Performance Rendering
   const totalPages = useMemo(() => {
     if (pageSize === 0) return 1;
@@ -674,10 +793,11 @@ export default function OperationPage() {
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-3">
         {/* Quick Filter Tabs */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl border border-slate-200 flex-wrap">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200 overflow-x-auto max-w-full scrollbar-thin flex-nowrap">
+            {/* 1. ทั้งหมด */}
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'all'
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -691,75 +811,167 @@ export default function OperationPage() {
               </span>
             </button>
 
-            {countNewToday > 0 && (
-              <button
-                onClick={() => setActiveTab('new_today')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  activeTab === 'new_today'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>มาใหม่วันนี้</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  activeTab === 'new_today' ? 'bg-indigo-700 text-white' : 'bg-indigo-200 text-indigo-900'
-                }`}>
-                  {countNewToday}
-                </span>
-              </button>
-            )}
-
+            {/* 2. มาใหม่วันนี้ */}
             <button
-              onClick={() => setActiveTab('modified')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeTab === 'modified'
+              onClick={() => setActiveTab('new_today')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'new_today'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>มาใหม่วันนี้</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'new_today' ? 'bg-indigo-700 text-white' : 'bg-indigo-200 text-indigo-900'
+              }`}>
+                {countNewToday}
+              </span>
+            </button>
+
+            {/* 3. ยังไม่ยืนยัน */}
+            <button
+              onClick={() => setActiveTab('unconfirmed')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'unconfirmed'
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'text-slate-700 bg-slate-200/70 hover:bg-slate-200 border border-slate-300'
+              }`}
+            >
+              <Clock3 className="w-3.5 h-3.5 text-slate-400" />
+              <span>ยังไม่ยืนยัน</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'unconfirmed' ? 'bg-slate-900 text-white' : 'bg-slate-300 text-slate-800'
+              }`}>
+                {countUnconfirmed}
+              </span>
+            </button>
+
+            {/* 4. ยืนยันแล้ว */}
+            <button
+              onClick={() => setActiveTab('confirmed')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'confirmed'
                   ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-emerald-700 hover:bg-emerald-50'
+                  : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
               }`}
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>ปรับเปลี่ยนแล้ว</span>
+              <span>ยืนยันแล้ว</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                activeTab === 'modified' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+                activeTab === 'confirmed' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
               }`}>
-                {countModified}
+                {countConfirmed}
               </span>
             </button>
 
+            {/* 5. แบ่งการส่ง */}
             <button
-              onClick={() => setActiveTab('unmodified')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeTab === 'unmodified'
-                  ? 'bg-slate-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200/60'
+              onClick={() => setActiveTab('split_delivery')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'split_delivery'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200'
               }`}
             >
-              <Clock3 className="w-3.5 h-3.5" />
-              <span>ยังไม่ปรับเปลี่ยน</span>
+              <Layers className="w-3.5 h-3.5" />
+              <span>แบ่งการส่ง</span>
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                activeTab === 'unmodified' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'
+                activeTab === 'split_delivery' ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-800'
               }`}>
-                {countUnmodified}
+                {countSplitDelivery}
               </span>
             </button>
 
-            {countSupResponded > 0 && (
-              <button
-                onClick={() => setActiveTab('supplier_responded')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 animate-pulse ${
-                  activeTab === 'supplier_responded'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
-                }`}
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Sup ตอบกลับ</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-700 text-white">
-                  {countSupResponded}
-                </span>
-              </button>
-            )}
+            {/* 6. ส่งเกิน PO */}
+            <button
+              onClick={() => setActiveTab('over_po')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'over_po'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <span>ส่งเกิน PO</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'over_po' ? 'bg-amber-700 text-white' : 'bg-amber-200 text-amber-900'
+              }`}>
+                {countOverPO}
+              </span>
+            </button>
+
+            {/* 7. เกินกำหนด */}
+            <button
+              onClick={() => setActiveTab('overdue')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'overdue'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>เกินกำหนด</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'overdue' ? 'bg-rose-700 text-white' : 'bg-rose-100 text-rose-800'
+              }`}>
+                {countOverdue}
+              </span>
+            </button>
+
+            {/* 8. ถึงใน 7 วัน */}
+            <button
+              onClick={() => setActiveTab('due_7d')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'due_7d'
+                  ? 'bg-yellow-600 text-white shadow-sm'
+                  : 'text-yellow-800 bg-yellow-50 hover:bg-yellow-100 border border-yellow-300'
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>ถึงใน 7 วัน</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'due_7d' ? 'bg-yellow-700 text-white' : 'bg-yellow-100 text-yellow-900'
+              }`}>
+                {countDue7d}
+              </span>
+            </button>
+
+            {/* 9. ถึงใน 3 วัน */}
+            <button
+              onClick={() => setActiveTab('due_3d')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'due_3d'
+                  ? 'bg-orange-600 text-white shadow-sm'
+                  : 'text-orange-800 bg-orange-50 hover:bg-orange-100 border border-orange-200'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>ถึงใน 3 วัน</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'due_3d' ? 'bg-orange-700 text-white' : 'bg-orange-100 text-orange-900'
+              }`}>
+                {countDue3d}
+              </span>
+            </button>
+
+            {/* 10. รอ Sup ยืนยัน */}
+            <button
+              onClick={() => setActiveTab('awaiting_sup')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                activeTab === 'awaiting_sup'
+                  ? 'bg-cyan-700 text-white shadow-sm'
+                  : 'text-cyan-800 bg-cyan-50 hover:bg-cyan-100 border border-cyan-300'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>รอ Sup ยืนยัน</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'awaiting_sup' ? 'bg-cyan-800 text-white' : 'bg-cyan-100 text-cyan-900'
+              }`}>
+                {countAwaitingSup}
+              </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
