@@ -430,6 +430,8 @@ async def _process_and_save_sap_records(
             po_item.remaining_qty = rec["remaining_qty"]
             po_item.due_date = rec.get("due_date", rec["po_date"] + timedelta(days=30))
             po_item.item_group = rec.get("item_group", "113")
+            if po_item.status != "confirmed" and not po_item.updated_by_name:
+                po_item.estimate_qty = rec["remaining_qty"]
             if po_item.status == "closed":
                 po_item.status = "pending"
                 po_item.closed_at = None

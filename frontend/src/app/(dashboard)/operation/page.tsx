@@ -206,13 +206,28 @@ export default function OperationPage() {
   };
 
   const isOverPO = (item: POItemResponse): boolean => {
-    const est = item.estimate_qty || 0;
-    const rem = item.remaining_qty || 0;
-    if (est > rem && rem > 0) return true;
+    const isModified = isRecordModified(item);
+    const poQty = item.quantity || 0;
+    const received = item.received_qty || 0;
+    const remaining = item.remaining_qty || 0;
+
+    // 1. If item has split deliveries (sub items)
     if (item.sub_items && item.sub_items.length > 0) {
       const totalSub = item.sub_items.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
-      if (totalSub > rem && rem > 0) return true;
+      if (received + totalSub > poQty || totalSub > remaining) {
+        return true;
+      }
     }
+
+    // 2. Single item check: only consider over-delivery if the item was modified/confirmed
+    // and the entered estimate exceeds remaining or (received + estimate) exceeds total PO quantity
+    if (isModified || item.status === 'confirmed') {
+      const est = item.estimate_qty || 0;
+      if (est > remaining || (received + est > poQty && est > 0)) {
+        return true;
+      }
+    }
+
     return false;
   };
 
@@ -1228,10 +1243,10 @@ export default function OperationPage() {
                           <span className="text-indigo-900 font-bold">รวม: {subItemsTotalQty.toLocaleString()}</span>
                           <span className="text-[10px] text-slate-500 font-normal">ค้าง {item.remaining_qty.toLocaleString()}</span>
                         </div>
-                      ) : item.estimate_qty ? (
+                      ) : isModified && item.estimate_qty ? (
                         <span className="text-emerald-900 font-bold">{item.estimate_qty.toLocaleString()}</span>
                       ) : (
-                        <span className="text-slate-300">-</span>
+                        <span className="text-slate-500 font-medium">{(item.remaining_qty || 0).toLocaleString()}</span>
                       )}
                     </td>
 
