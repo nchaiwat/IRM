@@ -287,13 +287,14 @@ async def send_single_supplier_email(
     return {"status": "success", "supplier_code": supplier.supplier_code, "email": supplier.email}
 
 
-async def send_batch_portal_emails(db: AsyncSession, max_suppliers: int = 100) -> dict:
+async def send_batch_portal_emails(db: AsyncSession, max_suppliers: int = 100, round_name: str = "ประจำรอบ") -> dict:
     """
     Automated Batch Email Sender with rate limiting:
     - Chunks suppliers into batches of 20
     - Waits 5 seconds between chunks to prevent SMTP provider throttling
     - Sends up to max_suppliers (<= 100) per session
     """
+    from sqlalchemy import func, distinct, or_
     now_dt = datetime.now(timezone.utc)
 
     # 1. Fetch SMTP & Batching configs
@@ -361,6 +362,43 @@ async def send_batch_portal_emails(db: AsyncSession, max_suppliers: int = 100) -
         if i + batch_size < len(suppliers):
             logger.info(f"⏳ Waiting {delay_secs}s before sending next batch chunk...")
             await asyncio.sleep(delay_secs)
+
+    # 4. Trigger Telegram Notification for Email Broadcast
+    try:
+        stmt_missing = (
+            select(SupplierMaster.supplier_code)
+            .join(POHeader, POHeader.supplier_code == SupplierMaster.supplier_code)
+            .where(POHeader.status == "O")
+            .where(or_(SupplierMaster.email.is_(None), SupplierMaster.email == "", SupplierMaster.email == "-"))
+            .distinct()
+        )
+        missing_sup_list = (await db.execute(stmt_missing)).scalars().all()
+
+        stmt_pos_items = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status != "closed")
+        )
+        res_p = (await db.execute(stmt_pos_items)).first()
+        total_pos = res_p[0] or 0 if res_p else 0
+        total_items = res_p[1] or 0 if res_p else 0
+
+        target_expiry = calculate_prd_expiry_date(now_dt)
+        expiry_str = target_expiry.strftime("%d/%m/%Y")
+
+        from app.services.telegram_service import send_telegram_email_broadcast
+        await send_telegram_email_broadcast(
+            db=db,
+            total_sent=sent_count,
+            total_items=total_items,
+            missing_sup_list=missing_sup_list,
+            expiry_str=expiry_str,
+            round_name=round_name,
+            total_suppliers=len(suppliers),
+            total_pos=total_pos,
+        )
+    except Exception as t_err:
+        logger.error(f"Failed to send Telegram email broadcast alert: {t_err}")
 
     return {
         "status": "completed",

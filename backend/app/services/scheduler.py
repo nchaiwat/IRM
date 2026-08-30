@@ -31,8 +31,8 @@ async def job_send_portal_emails_round1():
                 logger.warning("🛡️ [SAFEGUARD] Scheduled Email Broadcast is LOCKED (mail_schedule_enabled=false). No emails sent to suppliers during Implementation Phase.")
                 return
 
-            result = await send_batch_portal_emails(session, max_suppliers=100)
-            logger.info(f"✅ [Scheduler] Round 1 Broadcast Completed: {result}")
+            result = await send_batch_portal_emails(session, max_suppliers=100, round_name="รอบวันจันทร์")
+            logger.info(f"✅ [Scheduler] Round 1 (Monday) Broadcast Completed: {result}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error during Round 1 Email Broadcast: {e}")
 
@@ -51,8 +51,8 @@ async def job_send_portal_emails_round2():
                 logger.warning("🛡️ [SAFEGUARD] Scheduled Email Broadcast is LOCKED (mail_schedule_enabled=false). No emails sent to suppliers during Implementation Phase.")
                 return
 
-            result = await send_batch_portal_emails(session, max_suppliers=100)
-            logger.info(f"✅ [Scheduler] Round 2 Broadcast Completed: {result}")
+            result = await send_batch_portal_emails(session, max_suppliers=100, round_name="รอบวันพฤหัสบดี")
+            logger.info(f"✅ [Scheduler] Round 2 (Thursday) Broadcast Completed: {result}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error during Round 2 Email Broadcast: {e}")
 

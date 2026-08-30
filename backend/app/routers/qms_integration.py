@@ -63,6 +63,12 @@ async def verify_qms_api_key(
             details=f"Header provided: {'Yes' if provided_key else 'None'}, Client IP: {client_ip}",
             db=db,
         )
+        try:
+            from app.services.telegram_service import send_telegram_qms_pull
+            await send_telegram_qms_pull(db, item_count=0, client_ip=client_ip, success=False, error_msg="Invalid or missing API Key")
+        except Exception:
+            pass
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized: Invalid or missing X-API-Key header",
@@ -209,6 +215,19 @@ async def get_confirmed_inbound_deliveries_for_qms(
         details=f"Filters: date_from={date_from}, date_to={date_to}, po={po_number}, item={item_code} | Total returned: {len(deliveries)}",
         db=db,
     )
+
+    try:
+        from app.services.telegram_service import send_telegram_qms_pull
+        await send_telegram_qms_pull(
+            db,
+            item_count=len(deliveries),
+            client_ip=client_ip,
+            date_from=date_from,
+            date_to=date_to,
+            success=True,
+        )
+    except Exception:
+        pass
 
     return {
         "status": "success",

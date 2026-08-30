@@ -122,22 +122,35 @@ async def send_telegram_email_broadcast(
     total_sent: int,
     total_items: int,
     missing_sup_list: list[str],
-    expiry_str: str
+    expiry_str: str,
+    round_name: str = "ประจำรอบ",
+    total_suppliers: int = 0,
+    total_pos: int = 0,
 ):
-    topic = "📬 <b>รายงานการกระจาย Email แจ้งเตือน Supplier</b>"
+    topic = f"📬 <b>รายงานการกระจาย Email แจ้งเตือน Supplier ({round_name})</b>"
+    total_sup_val = total_suppliers or total_sent
+    pct = (total_sent / total_sup_val * 100) if total_sup_val > 0 else 100.0
+
     body = (
-        f"• 🏢 <b>ส่งสำเร็จ:</b> {total_sent:,} บริษัท (รวม {total_items:,} รายการ PO)\n"
-        f"• ⏳ <b>กำหนดเวลากรอกข้อมูล:</b> หมดอายุในวันที่ {expiry_str}\n"
+        f"• 🏢 <b>บริษัทที่ส่งสำเร็จ:</b> {total_sent:,} บริษัท"
     )
+    if total_pos > 0 or total_items > 0:
+        body += f" (รวม {total_pos:,} PO / {total_items:,} รายการ)"
+    body += f"\n• ⏳ <b>กำหนดเวลาตอบกลับ:</b> ภายในวันที่ {expiry_str}\n"
+
     if missing_sup_list:
         missing_preview = ", ".join(missing_sup_list[:4])
         if len(missing_sup_list) > 4:
             missing_preview += f" และอีก {len(missing_sup_list)-4} ราย"
-        body += f"• ⚠️ <b>ยังไม่มี Email ในระบบ:</b> {len(missing_sup_list)} บริษัท ({missing_preview})\n"
+        body += f"• ⚠️ <b>Supplier ที่ยังไม่มี Email:</b> {len(missing_sup_list)} บริษัท ({missing_preview})\n"
     else:
         body += "• ✅ <b>สถานะ Email:</b> Supplier ทุกรายมี Email ครบถ้วน\n"
-    
-    body += "• 🔐 <b>ความปลอดภัย:</b> ส่ง Secure Cryptographic Token เรียบร้อยแล้ว"
+
+    body += (
+        f"\n📊 <b>[สถานะการส่ง]</b>\n"
+        f"• ส่งสำเร็จ: {total_sent:,}/{total_sup_val:,} บริษัท ({pct:.1f}%)\n"
+        "• ระบบล็อกข้อมูลเพื่อรอ Supplier ตอบกลับเรียบร้อยแล้ว"
+    )
     full_msg = f"{format_telegram_header(topic)}\n\n{body}"
     await send_telegram_message(db, full_msg, category="supplier_email")
 
@@ -243,33 +256,77 @@ async def send_telegram_buyer_unlock(
 async def send_telegram_morning_summary(db: AsyncSession) -> dict:
     """
     Daily Morning Briefing at 08:00 AM:
-    1. มี Item Master เพิ่มกี่ Item (ItemMaster.is_new == True)
-    2. มี Supplier Master เพิ่มกี่ Item (SupplierMaster.is_new == True)
-    3. มี Item ที่ใกล้ Delivery ภายใน 7 วันกี่ Item
+    Dashboard:
+      1. PO เข้าใหม่ x PO (y รายการ)
+      2. PO ทั้งหมด x PO (y รายการ)
+      3. Item ยังไม่ยืนยัน x รายการ
+      4. Item ที่ Sup ตอบกลับแล้ว x รายการ
+      5. Item ที่จะส่งภายใน 7 วันและยังไม่ได้ยืนยัน x รายการ
+    Item Master:
+      1. Item เพิ่มใหม่ x รายการ
+      2. Item ยังไม่ยืนยัน x รายการ
+    Supplier Master:
+      1. Supplier เพิ่มใหม่ x รายชื่อ
+      2. Supplier ยังไม่มี Email x รายชื่อ
+      3. Supplier รอการตอบกลับ x รายชื่อ
+    History:
+      1. Item ปิดยอดใหม่วันนี้ x รายการ
+      2. Item พ้นระยะจัดเก็บ (เกิน 7 วัน) x รายการ
+      3. Item ในประวัติคงเหลือ x รายการ
     """
     from datetime import datetime, timezone, timedelta
+    from zoneinfo import ZoneInfo
     from sqlalchemy import func, distinct, select, or_, and_
-    from app.models.po import POHeader, POItem, SubItem
+    from app.models.po import POHeader, POItem
     from app.models.master import ItemMaster, SupplierMaster
 
-    # 1. New Item Master Count (รอ Accept)
-    stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
-    new_item_master_count = (await db.execute(stmt_new_items)).scalar_one() or 0
-
-    # 2. New Supplier Master Count (รอ Accept)
-    stmt_new_sups = select(func.count(SupplierMaster.id)).where(SupplierMaster.is_new == True)
-    new_sup_master_count = (await db.execute(stmt_new_sups)).scalar_one() or 0
-
-    # 3. Items with upcoming delivery within next 7 days
+    bkk_tz = ZoneInfo("Asia/Bangkok")
+    now_bkk = datetime.now(bkk_tz)
+    today_bkk_date_str = now_bkk.strftime("%d/%m/%Y")
+    
     now_dt = datetime.now(timezone.utc)
     start_today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     end_7days = start_today + timedelta(days=7, hours=23, minutes=59, seconds=59)
 
-    stmt_upcoming_items = (
-        select(func.count(distinct(POItem.id)), func.count(distinct(POHeader.po_number)))
+    # 1. Dashboard / Operation Queries
+    stmt_new = (
+        select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POItem.is_new == True, POItem.status != "closed")
+    )
+    res_new = (await db.execute(stmt_new)).first()
+    new_pos = res_new[0] or 0 if res_new else 0
+    new_items = res_new[1] or 0 if res_new else 0
+
+    stmt_open = (
+        select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O", POItem.status != "closed")
+    )
+    res_open = (await db.execute(stmt_open)).first()
+    total_open_pos = res_open[0] or 0 if res_open else 0
+    total_open_items = res_open[1] or 0 if res_open else 0
+
+    stmt_unconfirmed = (
+        select(func.count(POItem.id))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
+    )
+    unconfirmed_items = (await db.execute(stmt_unconfirmed)).scalar_one() or 0
+
+    stmt_sup_resp = (
+        select(func.count(POItem.id))
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O", POItem.status == "supplier_responded")
+    )
+    sup_responded_items = (await db.execute(stmt_sup_resp)).scalar_one() or 0
+
+    stmt_upcoming_unconfirmed = (
+        select(func.count(distinct(POItem.id)))
         .join(POHeader, POItem.po_header_id == POHeader.id)
         .where(POHeader.status == "O")
         .where(POItem.status != "closed")
+        .where(POItem.status != "confirmed")
         .where(
             or_(
                 and_(POItem.estimate_date >= start_today, POItem.estimate_date <= end_7days),
@@ -277,25 +334,113 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
             )
         )
     )
-    res_upcoming = (await db.execute(stmt_upcoming_items)).first()
-    upcoming_items_count = res_upcoming[0] or 0 if res_upcoming else 0
-    upcoming_pos_count = res_upcoming[1] or 0 if res_upcoming else 0
+    upcoming_unconfirmed_7d = (await db.execute(stmt_upcoming_unconfirmed)).scalar_one() or 0
 
-    topic = "🌅 <b>สรุปสถานะประจำวัน (Daily 08:00 AM Morning Summary)</b>"
+    # 2. Item Master Queries
+    stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
+    new_item_master_count = (await db.execute(stmt_new_items)).scalar_one() or 0
+
+    stmt_unconf_items = select(func.count(ItemMaster.id)).where(
+        or_(ItemMaster.is_new == True, ItemMaster.is_confirmed == False)
+    )
+    unconf_item_master_count = (await db.execute(stmt_unconf_items)).scalar_one() or 0
+
+    # 3. Supplier Master Queries
+    stmt_new_sups = select(func.count(SupplierMaster.id)).where(SupplierMaster.is_new == True)
+    new_sup_master_count = (await db.execute(stmt_new_sups)).scalar_one() or 0
+
+    stmt_no_email = select(func.count(SupplierMaster.id)).where(
+        or_(SupplierMaster.email.is_(None), SupplierMaster.email == "", SupplierMaster.email == "-")
+    )
+    no_email_sup_count = (await db.execute(stmt_no_email)).scalar_one() or 0
+
+    stmt_awaiting_sup = (
+        select(func.count(distinct(POHeader.supplier_code)))
+        .join(POItem, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
+    )
+    awaiting_sup_count = (await db.execute(stmt_awaiting_sup)).scalar_one() or 0
+
+    # 4. History Queries
+    stmt_closed_today = select(func.count(POItem.id)).where(
+        POItem.status == "closed",
+        POItem.closed_at >= (start_today - timedelta(hours=4))
+    )
+    closed_today_count = (await db.execute(stmt_closed_today)).scalar_one() or 0
+
+    stmt_purged = select(func.count(POItem.id)).where(
+        POItem.status == "closed",
+        POItem.closed_at < (start_today - timedelta(days=7))
+    )
+    retention_purged_count = (await db.execute(stmt_purged)).scalar_one() or 0
+
+    stmt_total_hist = select(func.count(POItem.id)).where(POItem.status == "closed")
+    total_history_count = (await db.execute(stmt_total_hist)).scalar_one() or 0
+
+    topic = f"🌅 <b>สรุปสถานะระบบ IRM ประจำวัน ({today_bkk_date_str})</b>"
     body = (
-        f"• 📦 <b>Item Master เพิ่มใหม่:</b> {new_item_master_count:,} รายการ\n"
-        f"• 🏢 <b>Supplier Master เพิ่มใหม่:</b> {new_sup_master_count:,} รายชื่อ\n"
-        f"• 🚚 <b>Item ใกล้ถึงกำหนดส่งมอบ (ภายใน 7 วัน):</b> {upcoming_items_count:,} รายการ ({upcoming_pos_count:,} ใบสั่งซื้อ PO)\n\n"
-        "• 💻 <b>คำแนะนำ:</b> ผู้ดูแลระบบและฝ่ายจัดซื้อสามารถเข้าตรวจสอบ/กดยอมรับ Master และดูปฏิทินรอบส่งได้ที่ระบบ IRM"
+        "📊 <b>[สถานะใบสั่งซื้อ & รายการส่งมอบ]</b>\n"
+        f"• PO เข้าใหม่: {new_pos:,} PO ({new_items:,} รายการ)\n"
+        f"• PO ทั้งหมดที่เปิดอยู่: {total_open_pos:,} PO ({total_open_items:,} รายการ)\n"
+        f"• Item ยังไม่ยืนยัน: {unconfirmed_items:,} รายการ\n"
+        f"• Item ที่ Sup ตอบกลับแล้ว: {sup_responded_items:,} รายการ\n"
+        f"• Item ส่งใน 7 วัน (ยังไม่ยืนยัน): {upcoming_unconfirmed_7d:,} รายการ\n\n"
+        "📦 <b>[Item Master]</b>\n"
+        f"• Item เพิ่มใหม่: {new_item_master_count:,} รายการ\n"
+        f"• Item ยังไม่ยืนยัน: {unconf_item_master_count:,} รายการ\n\n"
+        "🏢 <b>[Supplier Master]</b>\n"
+        f"• Supplier เพิ่มใหม่: {new_sup_master_count:,} รายชื่อ\n"
+        f"• Supplier ยังไม่มี Email: {no_email_sup_count:,} รายชื่อ\n"
+        f"• Supplier รอการตอบกลับ: {awaiting_sup_count:,} รายชื่อ\n\n"
+        "📜 <b>[History (ประวัติปิดยอด)]</b>\n"
+        f"• Item ปิดยอดใหม่วันนี้: {closed_today_count:,} รายการ\n"
+        f"• Item พ้นระยะจัดเก็บ (เกิน 7 วัน): {retention_purged_count:,} รายการ\n"
+        f"• Item ในประวัติคงเหลือ: {total_history_count:,} รายการ"
     )
     full_msg = f"{format_telegram_header(topic)}\n\n{body}"
     res = await send_telegram_message(db, full_msg, category="morning_summary")
     return {
         "success": res,
-        "new_item_masters": new_item_master_count,
-        "new_supplier_masters": new_sup_master_count,
-        "upcoming_delivery_items_7days": upcoming_items_count,
-        "upcoming_delivery_pos_7days": upcoming_pos_count,
+        "new_pos": new_pos,
+        "new_items": new_items,
+        "total_open_pos": total_open_pos,
+        "total_open_items": total_open_items,
+        "unconfirmed_items": unconfirmed_items,
+        "sup_responded_items": sup_responded_items,
+        "upcoming_unconfirmed_7d": upcoming_unconfirmed_7d,
     }
+
+
+# ----------------------------------------------------
+# 8. Incident: QMS API Pull Delivery Schedule Alert
+# ----------------------------------------------------
+async def send_telegram_qms_pull(
+    db: AsyncSession,
+    item_count: int,
+    client_ip: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    success: bool = True,
+    error_msg: str | None = None
+):
+    if success:
+        topic = "🔍 <b>QMS ดึงข้อมูลแผนส่งมอบ (Inbound Schedule Sync)</b>"
+        date_range_str = f"{date_from} ถึง {date_to}" if (date_from and date_to) else "ทุกช่วงเวลาที่ Confirmed"
+        body = (
+            "• 🏢 <b>ระบบปลายทาง:</b> QMS (Quality Management System)\n"
+            f"• 📦 <b>ข้อมูลที่ส่งออก:</b> {item_count:,} รายการ (เฉพาะรายการที่ Confirmed แล้ว)\n"
+            f"• 📅 <b>ช่วงวันที่ส่งมอบ:</b> {date_range_str}\n"
+            f"• 🌐 <b>Client IP:</b> <code>{client_ip}</code>\n"
+            "• ⚡ <b>สถานะ:</b> 200 OK (ส่งมอบข้อมูลสำเร็จ)"
+        )
+    else:
+        topic = "🚨 <b>แจ้งเตือน: QMS API Authentication Failed</b>"
+        body = (
+            f"• ⚠️ <b>สาเหตุ:</b> {error_msg or 'API Key ไม่ถูกต้อง'}\n"
+            f"• 🌐 <b>Client IP:</b> <code>{client_ip}</code>\n"
+            "• 🛡️ <b>ระบบความปลอดภัย:</b> ปฏิเสธการเข้าถึง (401 Unauthorized)"
+        )
+    full_msg = f"{format_telegram_header(topic)}\n\n{body}"
+    await send_telegram_message(db, full_msg, category="qms_export")
 
 
