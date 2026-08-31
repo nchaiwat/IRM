@@ -288,127 +288,136 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
     start_today = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     end_7days = start_today + timedelta(days=7, hours=23, minutes=59, seconds=59)
 
-    # 1. Dashboard / Operation Queries
-    stmt_new = (
-        select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POItem.is_new == True, POItem.status != "closed")
-    )
-    res_new = (await db.execute(stmt_new)).first()
-    new_pos = res_new[0] or 0 if res_new else 0
-    new_items = res_new[1] or 0 if res_new else 0
+    try:
+        # 1. Dashboard / Operation Queries
+        stmt_new = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POItem.is_new == True, POItem.status != "closed")
+        )
+        res_new = (await db.execute(stmt_new)).first()
+        new_pos = res_new[0] or 0 if res_new else 0
+        new_items = res_new[1] or 0 if res_new else 0
 
-    stmt_open = (
-        select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O", POItem.status != "closed")
-    )
-    res_open = (await db.execute(stmt_open)).first()
-    total_open_pos = res_open[0] or 0 if res_open else 0
-    total_open_items = res_open[1] or 0 if res_open else 0
+        stmt_open = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status != "closed")
+        )
+        res_open = (await db.execute(stmt_open)).first()
+        total_open_pos = res_open[0] or 0 if res_open else 0
+        total_open_items = res_open[1] or 0 if res_open else 0
 
-    stmt_unconfirmed = (
-        select(func.count(POItem.id))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
-    )
-    unconfirmed_items = (await db.execute(stmt_unconfirmed)).scalar_one() or 0
+        stmt_unconfirmed = (
+            select(func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
+        )
+        unconfirmed_items = (await db.execute(stmt_unconfirmed)).scalar_one() or 0
 
-    stmt_sup_resp = (
-        select(func.count(POItem.id))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O", POItem.status == "supplier_responded")
-    )
-    sup_responded_items = (await db.execute(stmt_sup_resp)).scalar_one() or 0
+        stmt_sup_resp = (
+            select(func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status == "supplier_responded")
+        )
+        sup_responded_items = (await db.execute(stmt_sup_resp)).scalar_one() or 0
 
-    stmt_upcoming_unconfirmed = (
-        select(func.count(distinct(POItem.id)))
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O")
-        .where(POItem.status != "closed")
-        .where(POItem.status != "confirmed")
-        .where(
-            or_(
-                and_(POItem.estimate_date >= start_today, POItem.estimate_date <= end_7days),
-                and_(POItem.estimate_date.is_(None), POItem.due_date >= start_today, POItem.due_date <= end_7days),
+        stmt_upcoming_unconfirmed = (
+            select(func.count(distinct(POItem.id)))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O")
+            .where(POItem.status != "closed")
+            .where(POItem.status != "confirmed")
+            .where(
+                or_(
+                    and_(POItem.estimate_date >= start_today, POItem.estimate_date <= end_7days),
+                    and_(POItem.estimate_date.is_(None), POItem.due_date >= start_today, POItem.due_date <= end_7days),
+                )
             )
         )
-    )
-    upcoming_unconfirmed_7d = (await db.execute(stmt_upcoming_unconfirmed)).scalar_one() or 0
+        upcoming_unconfirmed_7d = (await db.execute(stmt_upcoming_unconfirmed)).scalar_one() or 0
 
-    # 2. Item Master Queries
-    stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
-    new_item_master_count = (await db.execute(stmt_new_items)).scalar_one() or 0
+        # 2. Item Master Queries
+        stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
+        new_item_master_count = (await db.execute(stmt_new_items)).scalar_one() or 0
 
-    stmt_unconf_items = select(func.count(ItemMaster.id)).where(
-        or_(ItemMaster.is_new == True, ItemMaster.is_confirmed == False)
-    )
-    unconf_item_master_count = (await db.execute(stmt_unconf_items)).scalar_one() or 0
+        stmt_unconf_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
+        unconf_item_master_count = (await db.execute(stmt_unconf_items)).scalar_one() or 0
 
-    # 3. Supplier Master Queries
-    stmt_new_sups = select(func.count(SupplierMaster.id)).where(SupplierMaster.is_new == True)
-    new_sup_master_count = (await db.execute(stmt_new_sups)).scalar_one() or 0
+        # 3. Supplier Master Queries
+        stmt_new_sups = select(func.count(SupplierMaster.id)).where(SupplierMaster.is_new == True)
+        new_sup_master_count = (await db.execute(stmt_new_sups)).scalar_one() or 0
 
-    stmt_no_email = select(func.count(SupplierMaster.id)).where(
-        or_(SupplierMaster.email.is_(None), SupplierMaster.email == "", SupplierMaster.email == "-")
-    )
-    no_email_sup_count = (await db.execute(stmt_no_email)).scalar_one() or 0
+        stmt_no_email = select(func.count(SupplierMaster.id)).where(
+            or_(SupplierMaster.email.is_(None), SupplierMaster.email == "", SupplierMaster.email == "-")
+        )
+        no_email_sup_count = (await db.execute(stmt_no_email)).scalar_one() or 0
 
-    stmt_awaiting_sup = (
-        select(func.count(distinct(POHeader.supplier_code)))
-        .join(POItem, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
-    )
-    awaiting_sup_count = (await db.execute(stmt_awaiting_sup)).scalar_one() or 0
+        stmt_awaiting_sup = (
+            select(func.count(distinct(POHeader.supplier_code)))
+            .join(POItem, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
+        )
+        awaiting_sup_count = (await db.execute(stmt_awaiting_sup)).scalar_one() or 0
 
-    # 4. History Queries
-    stmt_closed_today = select(func.count(POItem.id)).where(
-        POItem.status == "closed",
-        POItem.closed_at >= (start_today - timedelta(hours=4))
-    )
-    closed_today_count = (await db.execute(stmt_closed_today)).scalar_one() or 0
+        # 4. History Queries
+        stmt_closed_today = select(func.count(POItem.id)).where(
+            POItem.status == "closed",
+            POItem.closed_at >= (start_today - timedelta(hours=4))
+        )
+        closed_today_count = (await db.execute(stmt_closed_today)).scalar_one() or 0
 
-    stmt_purged = select(func.count(POItem.id)).where(
-        POItem.status == "closed",
-        POItem.closed_at < (start_today - timedelta(days=7))
-    )
-    retention_purged_count = (await db.execute(stmt_purged)).scalar_one() or 0
+        stmt_purged = select(func.count(POItem.id)).where(
+            POItem.status == "closed",
+            POItem.closed_at < (start_today - timedelta(days=7))
+        )
+        retention_purged_count = (await db.execute(stmt_purged)).scalar_one() or 0
 
-    stmt_total_hist = select(func.count(POItem.id)).where(POItem.status == "closed")
-    total_history_count = (await db.execute(stmt_total_hist)).scalar_one() or 0
+        stmt_total_hist = select(func.count(POItem.id)).where(POItem.status == "closed")
+        total_history_count = (await db.execute(stmt_total_hist)).scalar_one() or 0
 
-    topic = f"🌅 <b>สรุปสถานะระบบ IRM ประจำวัน ({today_bkk_date_str})</b>"
-    body = (
-        "📊 <b>[สถานะใบสั่งซื้อ & รายการส่งมอบ]</b>\n"
-        f"• PO เข้าใหม่: {new_pos:,} PO ({new_items:,} รายการ)\n"
-        f"• PO ทั้งหมดที่เปิดอยู่: {total_open_pos:,} PO ({total_open_items:,} รายการ)\n"
-        f"• Item ยังไม่ยืนยัน: {unconfirmed_items:,} รายการ\n"
-        f"• Item ที่ Sup ตอบกลับแล้ว: {sup_responded_items:,} รายการ\n"
-        f"• Item ส่งใน 7 วัน (ยังไม่ยืนยัน): {upcoming_unconfirmed_7d:,} รายการ\n\n"
-        "📦 <b>[Item Master]</b>\n"
-        f"• Item เพิ่มใหม่: {new_item_master_count:,} รายการ\n"
-        f"• Item ยังไม่ยืนยัน: {unconf_item_master_count:,} รายการ\n\n"
-        "🏢 <b>[Supplier Master]</b>\n"
-        f"• Supplier เพิ่มใหม่: {new_sup_master_count:,} รายชื่อ\n"
-        f"• Supplier ยังไม่มี Email: {no_email_sup_count:,} รายชื่อ\n"
-        f"• Supplier รอการตอบกลับ: {awaiting_sup_count:,} รายชื่อ\n\n"
-        "📜 <b>[History (ประวัติปิดยอด)]</b>\n"
-        f"• Item ปิดยอดใหม่วันนี้: {closed_today_count:,} รายการ\n"
-        f"• Item พ้นระยะจัดเก็บ (เกิน 7 วัน): {retention_purged_count:,} รายการ\n"
-        f"• Item ในประวัติคงเหลือ: {total_history_count:,} รายการ"
-    )
-    full_msg = f"{format_telegram_header(topic)}\n\n{body}"
-    res = await send_telegram_message(db, full_msg, category="morning_summary")
-    return {
-        "success": res,
-        "new_pos": new_pos,
-        "new_items": new_items,
-        "total_open_pos": total_open_pos,
-        "total_open_items": total_open_items,
-        "unconfirmed_items": unconfirmed_items,
-        "sup_responded_items": sup_responded_items,
-        "upcoming_unconfirmed_7d": upcoming_unconfirmed_7d,
-    }
+        topic = f"🌅 <b>สรุปสถานะระบบ IRM ประจำวัน ({today_bkk_date_str})</b>"
+        body = (
+            "📊 <b>[สถานะใบสั่งซื้อ & รายการส่งมอบ]</b>\n"
+            f"• PO เข้าใหม่: {new_pos:,} PO ({new_items:,} รายการ)\n"
+            f"• PO ทั้งหมดที่เปิดอยู่: {total_open_pos:,} PO ({total_open_items:,} รายการ)\n"
+            f"• Item ยังไม่ยืนยัน: {unconfirmed_items:,} รายการ\n"
+            f"• Item ที่ Sup ตอบกลับแล้ว: {sup_responded_items:,} รายการ\n"
+            f"• Item ส่งใน 7 วัน (ยังไม่ยืนยัน): {upcoming_unconfirmed_7d:,} รายการ\n\n"
+            "📦 <b>[Item Master]</b>\n"
+            f"• Item เพิ่มใหม่: {new_item_master_count:,} รายการ\n"
+            f"• Item ยังไม่ยืนยัน: {unconf_item_master_count:,} รายการ\n\n"
+            "🏢 <b>[Supplier Master]</b>\n"
+            f"• Supplier เพิ่มใหม่: {new_sup_master_count:,} รายชื่อ\n"
+            f"• Supplier ยังไม่มี Email: {no_email_sup_count:,} รายชื่อ\n"
+            f"• Supplier รอการตอบกลับ: {awaiting_sup_count:,} รายชื่อ\n\n"
+            "📜 <b>[History (ประวัติปิดยอด)]</b>\n"
+            f"• Item ปิดยอดใหม่วันนี้: {closed_today_count:,} รายการ\n"
+            f"• Item พ้นระยะจัดเก็บ (เกิน 7 วัน): {retention_purged_count:,} รายการ\n"
+            f"• Item ในประวัติคงเหลือ: {total_history_count:,} รายการ"
+        )
+        full_msg = f"{format_telegram_header(topic)}\n\n{body}"
+        res = await send_telegram_message(db, full_msg, category="morning_summary")
+        return {
+            "success": res,
+            "new_pos": new_pos,
+            "new_items": new_items,
+            "total_open_pos": total_open_pos,
+            "total_open_items": total_open_items,
+            "unconfirmed_items": unconfirmed_items,
+            "sup_responded_items": sup_responded_items,
+            "upcoming_unconfirmed_7d": upcoming_unconfirmed_7d,
+        }
+    except Exception as e:
+        await record_transaction_log(
+            category="morning_summary",
+            action="telegram_broadcast",
+            status="ERROR",
+            message=f"ส่งสรุปสถานะประจำวันล้มเหลว: {str(e)}",
+            details=str(e),
+            db=db,
+        )
+        raise e
 
 
 # ----------------------------------------------------
