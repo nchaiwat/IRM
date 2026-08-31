@@ -30,6 +30,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
+  const [testingMorningSummary, setTestingMorningSummary] = useState(false);
   const [testingSap, setTestingSap] = useState(false);
   const [syncingSap, setSyncingSap] = useState(false);
   const [testEmailRecipient, setTestEmailRecipient] = useState('');
@@ -120,6 +121,23 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'ส่งข้อความ Telegram ล้มเหลว' });
     } finally {
       setTestingTelegram(false);
+    }
+  };
+
+  const handleTestMorningSummary = async () => {
+    setTestingMorningSummary(true);
+    setMessage(null);
+    try {
+      const res = await api.post('/api/settings/test-telegram-morning-summary');
+      const successText = res.data.message || 'ส่งสรุปสถานะประจำวัน (Morning Summary) เข้า Telegram สำเร็จแล้ว!';
+      setMessage({ type: 'success', text: successText });
+      alert(`✅ ${successText}`);
+    } catch (err: any) {
+      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการส่งสรุปสถานะประจำวัน Telegram';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
+    } finally {
+      setTestingMorningSummary(false);
     }
   };
 
@@ -710,6 +728,72 @@ export default function SettingsPage() {
                 placeholder="-5394050672"
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
               />
+            </div>
+          </div>
+
+          {/* Sub-Card: Telegram Morning Daily Briefing Schedule & Controls */}
+          <div className="bg-gradient-to-br from-amber-50/80 via-sky-50/50 to-indigo-50/60 border border-amber-200/80 rounded-xl p-4 mt-4 space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-amber-200/60">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <span className="text-base">🌅</span>
+                  <span>รายงานสรุปสถานะระบบประจำวัน (Telegram Morning Daily Summary)</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  รายงานสรุป 4 หมวด: สถานะ PO/Item ค้างส่ง, Item Master เพิ่มใหม่, Supplier Master และ History ปิดยอด
+                </p>
+              </div>
+
+              {/* Dedicated Test Morning Summary Button */}
+              <button
+                type="button"
+                onClick={handleTestMorningSummary}
+                disabled={testingMorningSummary}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all disabled:opacity-50 flex-shrink-0 cursor-pointer"
+              >
+                {testingMorningSummary ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                <span>ทดสอบส่ง Morning Summary ทันที</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  สวิตช์เปิด/ปิดรายงานประจำวัน (Morning Summary)
+                </label>
+                <div className="flex items-center gap-2 p-2 bg-white border border-slate-300 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="telegram_morning_summary_enabled"
+                    checked={settings.telegram_morning_summary_enabled !== 'false'}
+                    onChange={(e) => handleChange('telegram_morning_summary_enabled', e.target.checked ? 'true' : 'false')}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                  />
+                  <label htmlFor="telegram_morning_summary_enabled" className="text-xs font-bold text-slate-800 cursor-pointer">
+                    {settings.telegram_morning_summary_enabled !== 'false' ? '🟢 เปิดใช้งานส่งแจ้งเตือนประจำวัน' : '⚪ ปิดใช้งาน (Disabled)'}
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  เวลากำหนดส่งรายงานสรุปประจำวัน (HH:MM)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={settings.telegram_morning_summary_time || '08:00'}
+                    onChange={(e) => handleChange('telegram_morning_summary_time', e.target.value)}
+                    placeholder="08:00"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none font-mono font-bold text-slate-800"
+                  />
+                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">น. (เวลาไทย)</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

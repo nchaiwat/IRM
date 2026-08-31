@@ -221,6 +221,8 @@ async def seed_data():
                 ("telegram_api_url", "https://api.telegram.org", "Telegram API Base URL", "telegram", "string"),
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
+                ("telegram_morning_summary_enabled", "true", "เปิด/ปิดการส่งสรุปสถานะประจำวันเข้า Telegram (Morning Daily Briefing)", "telegram", "boolean"),
+                ("telegram_morning_summary_time", "08:00", "เวลาส่งสรุปสถานะประจำวันเข้า Telegram (HH:MM)", "telegram", "string"),
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
                 ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
                 ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),

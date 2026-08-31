@@ -68,14 +68,38 @@ async def job_sync_sap_daily():
         logger.error(f"❌ [Scheduler] Error during SAP Daily Sync: {e}")
 
 
+_last_telegram_morning_date: str | None = None
+
+
 async def job_daily_morning_telegram_summary():
-    """Daily Morning Briefing to Telegram at 08:00 AM"""
-    logger.info("⏰ [Scheduler] Executing Daily Telegram Morning Summary (08:00 AM)...")
+    """Checks every minute if current time matches telegram_morning_summary_time and dispatches Morning Briefing."""
+    global _last_telegram_morning_date
     try:
+        from zoneinfo import ZoneInfo
+        now_bkk = datetime.now(ZoneInfo("Asia/Bangkok"))
+        current_hm = now_bkk.strftime("%H:%M")
+        today_date_str = now_bkk.strftime("%Y-%m-%d")
+
         async with AsyncSessionLocal() as session:
-            from app.services.telegram_service import send_telegram_morning_summary
-            res = await send_telegram_morning_summary(session)
-            logger.info(f"✅ [Scheduler] Daily Telegram Morning Summary Sent: {res}")
+            from app.models.system_setting import SystemSetting
+            from sqlalchemy import select
+            stmt = select(SystemSetting).where(
+                SystemSetting.key.in_(["telegram_morning_summary_enabled", "telegram_morning_summary_time"])
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            s_map = {s.key: s.value for s in rows}
+
+            is_enabled = s_map.get("telegram_morning_summary_enabled", "true").strip().lower() in ("true", "1", "yes")
+            target_time = s_map.get("telegram_morning_summary_time", "08:00").strip()
+
+            if is_enabled and current_hm == target_time:
+                if _last_telegram_morning_date == today_date_str:
+                    return  # Already dispatched today
+                logger.info(f"⏰ [Scheduler] Triggering Daily Telegram Morning Summary at {current_hm}...")
+                from app.services.telegram_service import send_telegram_morning_summary
+                res = await send_telegram_morning_summary(session)
+                _last_telegram_morning_date = today_date_str
+                logger.info(f"✅ [Scheduler] Daily Telegram Morning Summary Sent: {res}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error during Daily Telegram Morning Summary: {e}")
 
@@ -138,12 +162,12 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Job 4: Daily 08:00 AM Telegram Morning Briefing
+    # Job 4: Daily Telegram Morning Briefing (Minute-Checker with dynamic time)
     scheduler.add_job(
         job_daily_morning_telegram_summary,
-        trigger=CronTrigger(hour=8, minute=0, timezone="Asia/Bangkok"),
-        id="telegram_morning_summary_daily_0800",
-        name="Daily 08:00 AM Telegram Morning Summary Briefing",
+        trigger=CronTrigger(second=0, timezone="Asia/Bangkok"),
+        id="telegram_morning_summary_minute_checker",
+        name="Daily Telegram Morning Summary Dispatcher",
         replace_existing=True,
     )
 
@@ -157,7 +181,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 04:00 SAP Sync, Daily 08:00 Telegram Summary, and PU Reminder Dispatcher.")
+    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 04:00 SAP Sync, Dynamic Telegram Morning Summary Dispatcher, and PU Reminder Dispatcher.")
 
 
 def stop_scheduler():
