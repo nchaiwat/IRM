@@ -100,24 +100,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="min-h-screen flex bg-slate-100">
+    <div className="min-h-screen flex bg-slate-100 print:min-h-0 print:bg-white print:block">
       {/* Sidebar (Desktop Collapsible/Permanent + Mobile Drawer Overlay) */}
-      <Sidebar
-        menus={menus}
-        isOpenMobile={mobileMenuOpen}
-        onCloseMobile={() => setMobileMenuOpen(false)}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleSidebar}
-      />
+      <div className="print:hidden">
+        <Sidebar
+          menus={menus}
+          isOpenMobile={mobileMenuOpen}
+          onCloseMobile={() => setMobileMenuOpen(false)}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+        />
+      </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        <Header
-          onOpenMobileMenu={() => setMobileMenuOpen(true)}
-          isSidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
-        />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden print:overflow-visible print:block print:w-full">
+        <div className="print:hidden">
+          <Header
+            onOpenMobileMenu={() => setMobileMenuOpen(true)}
+            isSidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={handleToggleSidebar}
+          />
+        </div>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 print:p-0 print:m-0 print:overflow-visible print:block print:w-full">
           {!isAuthorized ? (
             <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-sm max-w-xl mx-auto mt-8">
               <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-red-500 mb-4 shadow-sm">
