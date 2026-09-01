@@ -838,9 +838,10 @@ export default function ReceivingChecklistPage() {
                 return (
                   <tr
                     key={item.id}
-                    className={`border-b border-slate-300 break-inside-avoid ${
+                    className={`border-b border-slate-300 ${
                       isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
                     }`}
+                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
                   >
                     <td className="py-1.5 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
                     <td className="py-1.5 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
@@ -889,29 +890,31 @@ export default function ReceivingChecklistPage() {
                 );
               });
             })()}
+
+            {/* Guaranteed Signatures Row directly inside Table */}
+            <tr style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }} className="border-t-2 border-slate-800 bg-white">
+              <td colSpan={9} className="p-4">
+                <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800 pt-4 pb-2">
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </tbody>
         </table>
-
-        {/* Signatures Block on Final Page */}
-        <div className="mt-6 pt-3 border-t-2 border-slate-800 break-inside-avoid page-break-inside-avoid">
-          <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800 pt-2 pb-1">
-            <div className="space-y-4">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
-            </div>
-            <div className="space-y-4">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
-            </div>
-            <div className="space-y-4">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
