@@ -37,7 +37,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateEvents, setSelectedDateEvents] = useState<{ date: string; events: CalendarEvent[] } | null>(null);
-  const [filterMode, setFilterMode] = useState<'all' | 'confirmed' | 'estimate'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'confirmed' | 'estimate' | 'overdue'>('all');
 
   useEffect(() => {
     fetchEvents();
@@ -74,24 +74,41 @@ export default function CalendarPage() {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
 
+  // Today Date string YYYY-MM-DD for overdue check
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
   // Group events by date string (YYYY-MM-DD) with active filter (Memoized)
-  const { eventsByDate, confirmedCount, estimateCount } = useMemo(() => {
+  const { eventsByDate, confirmedCount, estimateCount, overdueCount } = useMemo(() => {
     const byDate: Record<string, CalendarEvent[]> = {};
     let conf = 0;
     let est = 0;
+    let overdue = 0;
 
     for (let i = 0; i < events.length; i++) {
       const ev = events[i];
       const isConf = ev.status === 'confirmed' || ev.is_confirmed;
+      const isOverdue = !isConf && !!ev.date && ev.date < todayStr;
+
       if (isConf) {
         conf++;
       } else {
         est++;
       }
 
+      if (isOverdue) {
+        overdue++;
+      }
+
       // Apply Filter Mode
       if (filterMode === 'confirmed' && !isConf) continue;
       if (filterMode === 'estimate' && isConf) continue;
+      if (filterMode === 'overdue' && !isOverdue) continue;
 
       if (ev.date) {
         const dStr = ev.date;
@@ -100,8 +117,13 @@ export default function CalendarPage() {
       }
     }
 
-    return { eventsByDate: byDate, confirmedCount: conf, estimateCount: est };
-  }, [events, filterMode]);
+    return {
+      eventsByDate: byDate,
+      confirmedCount: conf,
+      estimateCount: est,
+      overdueCount: overdue,
+    };
+  }, [events, filterMode, todayStr]);
 
   const handleDateClick = (dateStr: string, dayEvents: CalendarEvent[]) => {
     if (dayEvents.length > 0) {
@@ -206,7 +228,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setFilterMode('estimate')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs cursor-pointer ${
               filterMode === 'estimate'
                 ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600'
                 : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
@@ -214,6 +236,20 @@ export default function CalendarPage() {
           >
             <span className={`w-2.5 h-2.5 rounded-full ${filterMode === 'estimate' ? 'bg-white' : 'bg-amber-500'}`}></span>
             <span>🟠 ประมาณการ ({estimateCount.toLocaleString()})</span>
+          </button>
+
+          {/* Overdue Pill (Red) */}
+          <button
+            type="button"
+            onClick={() => setFilterMode('overdue')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs cursor-pointer ${
+              filterMode === 'overdue'
+                ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-600'
+                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+            }`}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${filterMode === 'overdue' ? 'bg-white' : 'bg-rose-500'}`}></span>
+            <span>🔴 เกินกำหนด ({overdueCount.toLocaleString()})</span>
           </button>
         </div>
 
@@ -276,6 +312,7 @@ export default function CalendarPage() {
                 <div className="space-y-1.5 my-1">
                   {dayEvents.slice(0, 2).map((ev) => {
                     const isConfirmed = ev.status === 'confirmed' || ev.is_confirmed;
+                    const isOverdue = !isConfirmed && !!ev.date && ev.date < todayStr;
                     const itemCode = ev.item_code || ev.title.split(' - ')[0];
                     const supName = ev.supplier_name || ev.title.split(' - ')[1] || '';
                     const buyerName = ev.buyer_name && ev.buyer_name !== '-' ? ev.buyer_name : '';
@@ -286,6 +323,8 @@ export default function CalendarPage() {
                         className={`p-1.5 rounded-lg text-[10px] border shadow-2xs transition ${
                           isConfirmed
                             ? 'bg-emerald-50/95 text-emerald-950 border-emerald-300 hover:border-emerald-400'
+                            : isOverdue
+                            ? 'bg-rose-50/95 text-rose-950 border-rose-300 hover:border-rose-400 ring-1 ring-rose-300/60'
                             : 'bg-amber-50/95 text-amber-950 border-amber-300 hover:border-amber-400'
                         }`}
                       >
@@ -294,7 +333,9 @@ export default function CalendarPage() {
                           <span className="font-extrabold text-[10px] truncate text-slate-900" title={itemCode}>
                             {itemCode}
                           </span>
-                          <span className={`font-black text-[10px] shrink-0 whitespace-nowrap ${isConfirmed ? 'text-emerald-700' : 'text-amber-800'}`}>
+                          <span className={`font-black text-[10px] shrink-0 whitespace-nowrap ${
+                            isConfirmed ? 'text-emerald-700' : isOverdue ? 'text-rose-700' : 'text-amber-800'
+                          }`}>
                             {ev.quantity.toLocaleString()} {ev.unit}
                           </span>
                         </div>
@@ -347,6 +388,7 @@ export default function CalendarPage() {
             <div className="space-y-3">
               {selectedDateEvents.events.map((ev) => {
                 const isConfirmed = ev.status === 'confirmed' || ev.is_confirmed;
+                const isOverdue = !isConfirmed && !!ev.date && ev.date < todayStr;
                 const itemCode = ev.item_code || ev.title.split(' - ')[0];
                 const supName = ev.supplier_name || ev.title.split(' - ')[1] || '';
                 const buyerName = ev.buyer_name && ev.buyer_name !== '-' ? ev.buyer_name : '-';
@@ -361,16 +403,24 @@ export default function CalendarPage() {
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                         isConfirmed
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : isOverdue
+                          ? 'bg-rose-50 text-rose-700 border-rose-200 font-extrabold'
                           : 'bg-amber-50 text-amber-800 border-amber-200'
                       }`}>
-                        {isConfirmed ? '🟢 Confirmed (ยืนยันแล้ว)' : '🟠 Estimate (ประมาณการ)'}
+                        {isConfirmed
+                          ? '🟢 Confirmed (ยืนยันแล้ว)'
+                          : isOverdue
+                          ? '🔴 Overdue (เกินกำหนดส่งมอบ)'
+                          : '🟠 Estimate (ประมาณการ)'}
                       </span>
                     </div>
 
                     <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-slate-900 text-xs">{itemCode}</span>
-                        <span className={`font-black text-sm ${isConfirmed ? 'text-emerald-700' : 'text-amber-800'}`}>
+                        <span className={`font-black text-sm ${
+                          isConfirmed ? 'text-emerald-700' : isOverdue ? 'text-rose-700' : 'text-amber-800'
+                        }`}>
                           {ev.quantity.toLocaleString()} {ev.unit}
                         </span>
                       </div>

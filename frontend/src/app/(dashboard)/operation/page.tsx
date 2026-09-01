@@ -1560,39 +1560,46 @@ export default function OperationPage() {
             <button
               onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1 cursor-pointer"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               <span>ย้อนกลับ</span>
             </button>
             
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, idx) => {
-                let pageNum = idx + 1;
-                if (totalPages > 5 && currentPage > 3) {
-                  pageNum = currentPage - 2 + idx;
-                  if (pageNum > totalPages) pageNum = totalPages - (4 - idx);
+              {(() => {
+                if (totalPages <= 5) {
+                  return Array.from({ length: totalPages }, (_, i) => i + 1);
                 }
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
-                      currentPage === pageNum
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+                let start = Math.max(1, currentPage - 2);
+                let end = Math.min(totalPages, start + 4);
+                if (end - start < 4) {
+                  start = Math.max(1, end - 4);
+                }
+                const pages: number[] = [];
+                for (let i = start; i <= end; i++) {
+                  pages.push(i);
+                }
+                return pages;
+              })().map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    currentPage === pageNum
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
             </div>
 
             <button
               onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition flex items-center gap-1 cursor-pointer"
             >
               <span>ถัดไป</span>
               <ChevronRight className="w-3.5 h-3.5" />
