@@ -812,18 +812,18 @@ export default function ReceivingChecklistPage() {
         </div>
 
         {/* Printable Checklist Table */}
-        <table className="w-full text-left text-[11px] border-collapse border border-slate-400">
-          <thead className="table-header-group">
+        <table className="w-full text-left text-[10px] border-collapse border border-slate-400">
+          <thead>
             <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
-              <th className="py-2 px-1.5 text-center border-r border-slate-400 w-8">ลำดับ</th>
-              <th className="py-2 px-2 border-r border-slate-400 w-20">กำหนดส่ง</th>
-              <th className="py-2 px-2 border-r border-slate-400 w-22">เลขที่ PO</th>
-              <th className="py-2 px-2 border-r border-slate-400">รหัสสินค้า / รายละเอียดสินค้า</th>
-              <th className="py-2 px-1.5 text-center border-r border-slate-400 w-14">กลุ่ม</th>
-              <th className="py-2 px-2 text-right border-r border-slate-400 w-20">จำนวนนัดส่ง</th>
-              <th className="py-2 px-2 border-r border-slate-400 w-36">ผู้ขาย (Supplier)</th>
-              <th className="py-2 px-2 text-center border-r border-slate-400 w-28">ผลการตรวจรับ</th>
-              <th className="py-2 px-2 text-center w-28">หมายเหตุ / เลขที่บิล</th>
+              <th className="py-1.5 px-1 text-center border-r border-slate-400 w-8">ลำดับ</th>
+              <th className="py-1.5 px-1.5 border-r border-slate-400 w-20">กำหนดส่ง</th>
+              <th className="py-1.5 px-1.5 border-r border-slate-400 w-22">เลขที่ PO</th>
+              <th className="py-1.5 px-1.5 border-r border-slate-400">รหัสสินค้า / รายละเอียดสินค้า</th>
+              <th className="py-1.5 px-1 text-center border-r border-slate-400 w-14">กลุ่ม</th>
+              <th className="py-1.5 px-1.5 text-right border-r border-slate-400 w-18">จำนวนนัดส่ง</th>
+              <th className="py-1.5 px-1.5 border-r border-slate-400 w-36">ผู้ขาย (Supplier)</th>
+              <th className="py-1.5 px-1.5 text-center border-r border-slate-400 w-24">ผลการตรวจรับ</th>
+              <th className="py-1.5 px-1.5 text-center w-24">หมายเหตุ / เลขที่บิล</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-300">
@@ -842,78 +842,76 @@ export default function ReceivingChecklistPage() {
                       isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
                     }`}
                   >
-                    <td className="py-2 px-1.5 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
-                    <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">
+                    <td className="py-1.5 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
+                    <td className="py-1.5 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
                       {isFirstInPo ? (
                         formatDisplayDate(item.delivery_date)
                       ) : (
                         <span className="text-slate-300 select-none pl-1">↳</span>
                       )}
                     </td>
-                    <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">
+                    <td className="py-1.5 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
                       {isFirstInPo ? (
                         item.po_number
                       ) : (
                         <span className="text-slate-300 select-none pl-1">↳</span>
                       )}
                     </td>
-                    <td className="py-2 px-2 border-r border-slate-300">
+                    <td className="py-1.5 px-1.5 border-r border-slate-300">
                       <div className="font-bold">{item.item_code}</div>
-                      <div className="text-[10px] text-slate-600 leading-tight">{item.item_name}</div>
+                      <div className="text-[9px] text-slate-600 leading-tight">{item.item_name}</div>
                     </td>
-                    <td className="py-2 px-1.5 text-center border-r border-slate-300 font-semibold">
+                    <td className="py-1.5 px-1 text-center border-r border-slate-300 font-semibold">
                       {item.item_group || '-'}
                     </td>
-                    <td className="py-2 px-2 text-right font-black border-r border-slate-300 whitespace-nowrap">
+                    <td className="py-1.5 px-1.5 text-right font-black border-r border-slate-300 whitespace-nowrap">
                       {item.quantity.toLocaleString()} {item.unit}
                     </td>
-                    <td className="py-2 px-2 border-r border-slate-300 text-[10px] leading-tight">
+                    <td className="py-1.5 px-1.5 border-r border-slate-300 text-[9px] leading-tight">
                       {item.supplier_name}
                     </td>
                     {/* Physical Checklist Box */}
-                    <td className="py-2 px-2 border-r border-slate-300 text-[10px]">
-                      <div className="flex flex-col gap-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
+                    <td className="py-1.5 px-1.5 border-r border-slate-300 text-[9px]">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-3 h-3 border border-slate-700 rounded-2xs"></span>
                           <span>ครบถ้วน</span>
                         </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
-                          <span>ขาด: ........</span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-3 h-3 border border-slate-700 rounded-2xs"></span>
+                          <span>ขาด: .....</span>
                         </span>
                       </div>
                     </td>
                     {/* Notes / Invoice */}
-                    <td className="py-2 px-2 text-[10px] text-slate-400"></td>
+                    <td className="py-1.5 px-1.5 text-[9px] text-slate-400"></td>
                   </tr>
                 );
               });
             })()}
           </tbody>
-          <tfoot className="table-footer-group">
-            <tr>
-              <td colSpan={9} className="pt-4 border-t-2 border-slate-800">
-                <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800 pt-2 pb-1">
-                  <div className="space-y-4">
-                    <div>ลงชื่อ ............................................................</div>
-                    <div>( ............................................................ )</div>
-                    <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
-                  </div>
-                  <div className="space-y-4">
-                    <div>ลงชื่อ ............................................................</div>
-                    <div>( ............................................................ )</div>
-                    <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
-                  </div>
-                  <div className="space-y-4">
-                    <div>ลงชื่อ ............................................................</div>
-                    <div>( ............................................................ )</div>
-                    <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tfoot>
         </table>
+
+        {/* Signatures Block on Final Page */}
+        <div className="mt-6 pt-3 border-t-2 border-slate-800 break-inside-avoid page-break-inside-avoid">
+          <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800 pt-2 pb-1">
+            <div className="space-y-4">
+              <div>ลงชื่อ ............................................................</div>
+              <div>( ............................................................ )</div>
+              <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
+            </div>
+            <div className="space-y-4">
+              <div>ลงชื่อ ............................................................</div>
+              <div>( ............................................................ )</div>
+              <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
+            </div>
+            <div className="space-y-4">
+              <div>ลงชื่อ ............................................................</div>
+              <div>( ............................................................ )</div>
+              <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
