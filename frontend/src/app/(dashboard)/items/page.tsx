@@ -23,6 +23,7 @@ export default function ItemsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
+  const [acceptFilter, setAcceptFilter] = useState<'ALL' | 'PENDING' | 'ACCEPTED'>('ALL');
   const [savedIndicator, setSavedIndicator] = useState<Record<string, boolean>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(100);
@@ -35,10 +36,10 @@ export default function ItemsPage() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Reset pagination when search or group filter changes
+  // Reset pagination when search, group, or accept filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, selectedGroup]);
+  }, [debouncedSearch, selectedGroup, acceptFilter]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -321,9 +322,13 @@ export default function ItemsPage() {
     { key: 'HW-Partner', label: 'HW-Partner', count: groupCounts['HW-Partner'] || 0 },
   ], [items.length, groupCounts]);
 
+  const pendingAcceptCount = useMemo(() => items.filter((i) => i.is_new).length, [items]);
+  const acceptedCount = useMemo(() => items.filter((i) => !i.is_new).length, [items]);
+
   const filtered = useMemo(() => {
     const searchLower = debouncedSearch.trim().toLowerCase();
     return items.filter((i) => {
+      // Search filter
       if (searchLower) {
         const matchSearch =
           i.item_code.toLowerCase().includes(searchLower) ||
@@ -332,13 +337,22 @@ export default function ItemsPage() {
         if (!matchSearch) return false;
       }
 
+      // Group filter
       if (selectedGroup !== 'ALL' && i.item_group !== selectedGroup) {
+        return false;
+      }
+
+      // Accept Status filter
+      if (acceptFilter === 'PENDING' && !i.is_new) {
+        return false;
+      }
+      if (acceptFilter === 'ACCEPTED' && i.is_new) {
         return false;
       }
 
       return true;
     });
-  }, [items, debouncedSearch, selectedGroup]);
+  }, [items, debouncedSearch, selectedGroup, acceptFilter]);
 
   const totalPages = useMemo(() => {
     if (pageSize === 0) return 1;
@@ -399,7 +413,7 @@ export default function ItemsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs by Group & Search */}
+      {/* Filter Tabs by Group & Accept Status & Search */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         {/* Quick Filter Group Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -427,21 +441,79 @@ export default function ItemsPage() {
           ))}
         </div>
 
-        {/* Search Bar */}
-        <div className="flex items-center justify-between gap-4 pt-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ค้นหารหัสสินค้า, กลุ่มสินค้า หรือชื่อสินค้า..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-sky-500 focus:bg-white transition"
-            />
+        {/* Accept Status Filter + Search Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-1 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 shrink-0 mr-1">
+              สถานะ:
+            </span>
+            <button
+              type="button"
+              onClick={() => setAcceptFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                acceptFilter === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <span>ทั้งหมด</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                acceptFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {items.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAcceptFilter('PENDING')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                acceptFilter === 'PENDING'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/30 ring-2 ring-amber-400'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300'
+              }`}
+            >
+              <span>🟠 รอ Accept</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                acceptFilter === 'PENDING' ? 'bg-white text-amber-700' : 'bg-amber-200 text-amber-900'
+              }`}>
+                {pendingAcceptCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAcceptFilter('ACCEPTED')}
+              className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                acceptFilter === 'ACCEPTED'
+                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
+              }`}
+            >
+              <span>🟢 ยอมรับแล้ว (Accept)</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                acceptFilter === 'ACCEPTED' ? 'bg-white text-emerald-700' : 'bg-emerald-200 text-emerald-900'
+              }`}>
+                {acceptedCount}
+              </span>
+            </button>
           </div>
 
-          <div className="text-xs text-slate-500 font-medium">
-            แสดง <span className="font-bold text-slate-800">{filtered.length}</span> จากทั้งหมด {items.length} รายการ
+          <div className="flex items-center gap-3 flex-1 justify-end">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ค้นหารหัส หรือชื่อสินค้า..."
+                className="w-full pl-10 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-sky-500 focus:bg-white transition"
+              />
+            </div>
+
+            <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
+              แสดง <span className="font-bold text-slate-800">{filtered.length}</span> รายการ
+            </div>
           </div>
         </div>
       </div>

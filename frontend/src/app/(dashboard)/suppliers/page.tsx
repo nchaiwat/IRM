@@ -27,6 +27,7 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [acceptFilter, setAcceptFilter] = useState<'ALL' | 'PENDING' | 'ACCEPTED'>('ALL');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
@@ -41,10 +42,10 @@ export default function SuppliersPage() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Reset pagination when search changes
+  // Reset pagination when search or accept filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, acceptFilter]);
 
   // Inline Email Editing State
   const [editingEmailId, setEditingEmailId] = useState<number | null>(null);
@@ -380,18 +381,28 @@ export default function SuppliersPage() {
     }
   };
 
+  const pendingAcceptCount = useMemo(() => suppliers.filter((s) => s.is_new).length, [suppliers]);
+  const acceptedCount = useMemo(() => suppliers.filter((s) => !s.is_new).length, [suppliers]);
+
   const filtered = useMemo(() => {
     const searchLower = debouncedSearch.trim().toLowerCase();
-    if (!searchLower) return suppliers;
-    return suppliers.filter(
-      (s) =>
-        s.supplier_code.toLowerCase().includes(searchLower) ||
-        s.supplier_name.toLowerCase().includes(searchLower) ||
-        (s.email && s.email.toLowerCase().includes(searchLower)) ||
-        (s.contact_person && s.contact_person.toLowerCase().includes(searchLower)) ||
-        (s.telephone && s.telephone.toLowerCase().includes(searchLower))
-    );
-  }, [suppliers, debouncedSearch]);
+    return suppliers.filter((s) => {
+      if (searchLower) {
+        const matchSearch =
+          s.supplier_code.toLowerCase().includes(searchLower) ||
+          s.supplier_name.toLowerCase().includes(searchLower) ||
+          (s.email && s.email.toLowerCase().includes(searchLower)) ||
+          (s.contact_person && s.contact_person.toLowerCase().includes(searchLower)) ||
+          (s.telephone && s.telephone.toLowerCase().includes(searchLower));
+        if (!matchSearch) return false;
+      }
+
+      if (acceptFilter === 'PENDING' && !s.is_new) return false;
+      if (acceptFilter === 'ACCEPTED' && s.is_new) return false;
+
+      return true;
+    });
+  }, [suppliers, debouncedSearch, acceptFilter]);
 
   const totalPages = useMemo(() => {
     if (pageSize === 0) return 1;
@@ -466,21 +477,81 @@ export default function SuppliersPage() {
         </div>
       </div>
 
-      {/* Filter / Search */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="ค้นหารหัส, ชื่อ Supplier หรือ อีเมล..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-sky-500 focus:bg-white transition"
-          />
+      {/* Filter / Search Bar with Accept Status Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        {/* Accept Status Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 shrink-0 mr-1">
+            สถานะ:
+          </span>
+          <button
+            type="button"
+            onClick={() => setAcceptFilter('ALL')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              acceptFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <span>ทั้งหมด</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              acceptFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {suppliers.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAcceptFilter('PENDING')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              acceptFilter === 'PENDING'
+                ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/30 ring-2 ring-amber-400'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300'
+            }`}
+          >
+            <span>🟠 รอ Accept</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              acceptFilter === 'PENDING' ? 'bg-white text-amber-700' : 'bg-amber-200 text-amber-900'
+            }`}>
+              {pendingAcceptCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAcceptFilter('ACCEPTED')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              acceptFilter === 'ACCEPTED'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
+            }`}
+          >
+            <span>🟢 พร้อมใช้งาน (Accept)</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              acceptFilter === 'ACCEPTED' ? 'bg-white text-emerald-700' : 'bg-emerald-200 text-emerald-900'
+            }`}>
+              {acceptedCount}
+            </span>
+          </button>
         </div>
 
-        <div className="text-xs text-slate-500 font-medium">
-          พบทั้งหมด <span className="font-bold text-slate-800">{filtered.length}</span> รายชื่อ
+        {/* Search Box */}
+        <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ค้นหารหัส, ชื่อ Supplier หรือ อีเมล..."
+              className="w-full pl-10 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-sky-500 focus:bg-white transition"
+            />
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
+            พบ <span className="font-bold text-slate-800">{filtered.length}</span> รายชื่อ
+          </div>
         </div>
       </div>
 
