@@ -80,13 +80,38 @@ export default function ReceivingChecklistPage() {
   // Interactive on-screen checkboxes (Checked items)
   const [checkedIds, setCheckedIds] = useState<Record<string, boolean>>({});
 
-  // Helper date generators
+  // Mask function for DD/MM/YYYY
+  const handleDateMask = (val: string) => {
+    let cleaned = val.replace(/\D/g, '');
+    if (cleaned.length > 8) cleaned = cleaned.slice(0, 8);
+    if (cleaned.length > 4) {
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`;
+    } else if (cleaned.length > 2) {
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+    }
+    return cleaned;
+  };
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD for backend API
+  const toIsoDate = (dStr: string) => {
+    if (!dStr) return '';
+    const trimmed = dStr.trim();
+    if (trimmed.includes('/')) {
+      const [d, m, y] = trimmed.split('/');
+      if (d && m && y && y.length === 4) {
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+    }
+    return trimmed;
+  };
+
+  // Helper date generators (DD/MM/YYYY)
   const getTodayStr = () => {
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return `${day}/${m}/${y}`;
   };
 
   const getWeekRange = (offsetWeeks = 0) => {
@@ -103,7 +128,7 @@ export default function ReceivingChecklistPage() {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
+      return `${day}/${m}/${y}`;
     };
 
     return { from: format(monday), to: format(sunday) };
@@ -112,18 +137,10 @@ export default function ReceivingChecklistPage() {
   const getMonthRange = () => {
     const now = new Date();
     const y = now.getFullYear();
-    const m = now.getMonth();
-    const first = new Date(y, m, 1);
-    const last = new Date(y, m + 1, 0);
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0');
 
-    const format = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
-
-    return { from: format(first), to: format(last) };
+    return { from: `01/${m}/${y}`, to: `${lastDay}/${m}/${y}` };
   };
 
   // Initialize Today Preset on load
@@ -149,8 +166,11 @@ export default function ReceivingChecklistPage() {
       const params: Record<string, string> = {
         status_mode: statusFilter,
       };
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
+      const isoFrom = toIsoDate(dateFrom);
+      const isoTo = toIsoDate(dateTo);
+
+      if (isoFrom) params.date_from = isoFrom;
+      if (isoTo) params.date_to = isoTo;
       if (selectedGroup && selectedGroup !== 'all') params.item_group = selectedGroup;
 
       const res = await api.get<ChecklistResponse>('/api/receiving-checklist', { params });
@@ -231,15 +251,15 @@ export default function ReceivingChecklistPage() {
 
   const formatDisplayDate = (dStr: string) => {
     if (!dStr) return '-';
-    try {
-      return new Date(dStr).toLocaleDateString('th-TH', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    } catch {
-      return dStr;
+    const trimmed = dStr.trim();
+    if (trimmed.includes('/')) return trimmed;
+    if (trimmed.includes('-')) {
+      const [y, m, d] = trimmed.split('-');
+      if (y && m && d) {
+        return `${d}/${m}/${y}`;
+      }
     }
+    return trimmed;
   };
 
   return (
@@ -437,25 +457,92 @@ export default function ReceivingChecklistPage() {
             {/* Custom Date Pickers */}
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-500 font-semibold">จาก:</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPresetPeriod('custom');
-                }}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="วว/ดด/ปปปป"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(handleDateMask(e.target.value));
+                    setPresetPeriod('custom');
+                  }}
+                  className="w-28 pl-2.5 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    const hiddenDate = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    if (hiddenDate) {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        hiddenDate.showPicker();
+                      } else {
+                        hiddenDate.focus();
+                      }
+                    }
+                  }}
+                  className="absolute right-2 text-slate-400 hover:text-sky-600 focus:outline-none cursor-pointer"
+                  title="คลิกเพื่อเลือกจากปฏิทิน"
+                >
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="date"
+                  tabIndex={-1}
+                  className="absolute opacity-0 pointer-events-none w-0 h-0"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) {
+                      const [y, m, d] = val.split('-');
+                      setDateFrom(`${d}/${m}/${y}`);
+                      setPresetPeriod('custom');
+                    }
+                  }}
+                />
+              </div>
+
               <span className="text-slate-500 font-semibold">ถึง:</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
-                  setPresetPeriod('custom');
-                }}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="วว/ดด/ปปปป"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(handleDateMask(e.target.value));
+                    setPresetPeriod('custom');
+                  }}
+                  className="w-28 pl-2.5 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500 focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    const hiddenDate = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    if (hiddenDate) {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        hiddenDate.showPicker();
+                      } else {
+                        hiddenDate.focus();
+                      }
+                    }
+                  }}
+                  className="absolute right-2 text-slate-400 hover:text-sky-600 focus:outline-none cursor-pointer"
+                  title="คลิกเพื่อเลือกจากปฏิทิน"
+                >
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="date"
+                  tabIndex={-1}
+                  className="absolute opacity-0 pointer-events-none w-0 h-0"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) {
+                      const [y, m, d] = val.split('-');
+                      setDateTo(`${d}/${m}/${y}`);
+                      setPresetPeriod('custom');
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
 
