@@ -813,7 +813,7 @@ export default function ReceivingChecklistPage() {
 
         {/* Printable Checklist Table */}
         <table className="w-full text-left text-[11px] border-collapse border border-slate-400">
-          <thead>
+          <thead className="table-header-group">
             <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
               <th className="py-2 px-1.5 text-center border-r border-slate-400 w-8">ลำดับ</th>
               <th className="py-2 px-2 border-r border-slate-400 w-20">กำหนดส่ง</th>
@@ -838,7 +838,7 @@ export default function ReceivingChecklistPage() {
                 return (
                   <tr
                     key={item.id}
-                    className={`border-b border-slate-300 ${
+                    className={`border-b border-slate-300 break-inside-avoid ${
                       isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
                     }`}
                   >
@@ -890,26 +890,30 @@ export default function ReceivingChecklistPage() {
               });
             })()}
           </tbody>
+          <tfoot className="table-footer-group">
+            <tr>
+              <td colSpan={9} className="pt-4 border-t-2 border-slate-800">
+                <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800 pt-2 pb-1">
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>ลงชื่อ ............................................................</div>
+                    <div>( ............................................................ )</div>
+                    <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tfoot>
         </table>
-
-        {/* Signatures Footer */}
-        <div className="mt-8 pt-4 border-t border-slate-400 grid grid-cols-3 gap-8 text-center text-xs">
-          <div className="space-y-6">
-            <div>ลงชื่อ ............................................................</div>
-            <div>( ............................................................ )</div>
-            <div className="font-bold text-slate-700">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
-          </div>
-          <div className="space-y-6">
-            <div>ลงชื่อ ............................................................</div>
-            <div>( ............................................................ )</div>
-            <div className="font-bold text-slate-700">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
-          </div>
-          <div className="space-y-6">
-            <div>ลงชื่อ ............................................................</div>
-            <div>( ............................................................ )</div>
-            <div className="font-bold text-slate-700">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
-          </div>
-        </div>
       </div>
     </div>
   );
