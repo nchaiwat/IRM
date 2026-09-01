@@ -32,6 +32,40 @@ interface CalendarEvent {
   updated_by: string;
 }
 
+// Helper: format buyer name without "B-"
+const formatBuyerName = (name?: string | null) => {
+  if (!name || name === '-') return '-';
+  return name.replace(/^[bB]-/, '').trim();
+};
+
+// Helper: group badge styling matching Item Master
+const getGroupBadge = (grp?: string | null) => {
+  const g = (grp || '').trim();
+  if (!g || g === '-') return null;
+  if (g === 'RM-กระจก') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">RM-กระจก</span>;
+  }
+  if (g.startsWith('RM-ALU/UPVC')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 shrink-0">{g}</span>;
+  }
+  if (g === 'HW') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 shrink-0">HW</span>;
+  }
+  if (g === 'RM-เหล็กดัด') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0">RM-เหล็กดัด</span>;
+  }
+  if (g.startsWith('FG-')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 shrink-0">{g}</span>;
+  }
+  if (g.startsWith('SP')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 shrink-0">{g}</span>;
+  }
+  if (g.startsWith('HW-')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300 shrink-0">{g}</span>;
+  }
+  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 shrink-0">{g}</span>;
+};
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -423,8 +457,8 @@ export default function CalendarPage() {
                             {supName}
                           </span>
                           {buyerName && (
-                            <span className="font-bold text-slate-700 shrink-0 bg-white/80 px-1 py-0.2 rounded border border-slate-200" title={`ผู้ดูแล: ${buyerName}`}>
-                              {buyerName}
+                            <span className="font-bold text-slate-700 shrink-0 bg-white/80 px-1 py-0.2 rounded border border-slate-200" title={`ผู้ดูแล: ${formatBuyerName(buyerName)}`}>
+                              {formatBuyerName(buyerName)}
                             </span>
                           )}
                         </div>
@@ -468,7 +502,7 @@ export default function CalendarPage() {
                 const isOverdue = !isConfirmed && !!ev.date && ev.date < todayStr;
                 const itemCode = ev.item_code || ev.title.split(' - ')[0];
                 const supName = ev.supplier_name || ev.title.split(' - ')[1] || '';
-                const buyerName = ev.buyer_name && ev.buyer_name !== '-' ? ev.buyer_name : '-';
+                const buyerName = formatBuyerName(ev.buyer_name);
 
                 return (
                   <div key={ev.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
@@ -496,11 +530,7 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 truncate">
                           <span className="font-bold text-slate-900 text-xs truncate">{itemCode}</span>
-                          {ev.item_group && ev.item_group !== '-' && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
-                              กลุ่ม: {ev.item_group}
-                            </span>
-                          )}
+                          {getGroupBadge(ev.item_group)}
                         </div>
                         <span className={`font-black text-sm shrink-0 whitespace-nowrap ${
                           isConfirmed ? 'text-emerald-700' : isOverdue ? 'text-rose-700' : 'text-amber-800'
@@ -515,9 +545,11 @@ export default function CalendarPage() {
                           <Building2 className="w-3.5 h-3.5 text-slate-400" />
                           <span className="font-semibold">{supName}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-slate-700 font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                          <span>{buyerName}</span>
-                        </div>
+                        {buyerName && buyerName !== '-' && (
+                          <div className="flex items-center gap-1 text-slate-700 font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                            <span>{buyerName}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

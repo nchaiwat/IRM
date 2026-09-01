@@ -15,10 +15,6 @@ import {
   AlertTriangle,
   Layers,
   UserCheck,
-  CheckSquare,
-  Square,
-  ArrowRight,
-  ExternalLink,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -64,6 +60,40 @@ interface ChecklistResponse {
   };
 }
 
+// Helper: format buyer name without "B-"
+const formatBuyerName = (name?: string | null) => {
+  if (!name || name === '-') return '-';
+  return name.replace(/^[bB]-/, '').trim();
+};
+
+// Helper: group badge styling matching Item Master
+const getGroupBadge = (grp?: string | null) => {
+  const g = (grp || '').trim();
+  if (!g || g === '-') return <span className="text-slate-300">-</span>;
+  if (g === 'RM-กระจก') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-block">RM-กระจก</span>;
+  }
+  if (g.startsWith('RM-ALU/UPVC')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 inline-block">{g}</span>;
+  }
+  if (g === 'HW') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 inline-block">HW</span>;
+  }
+  if (g === 'RM-เหล็กดัด') {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-block">RM-เหล็กดัด</span>;
+  }
+  if (g.startsWith('FG-')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 inline-block">{g}</span>;
+  }
+  if (g.startsWith('SP')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 inline-block">{g}</span>;
+  }
+  if (g.startsWith('HW-')) {
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300 inline-block">{g}</span>;
+  }
+  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 inline-block">{g}</span>;
+};
+
 export default function ReceivingChecklistPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ChecklistResponse | null>(null);
@@ -76,9 +106,6 @@ export default function ReceivingChecklistPage() {
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'estimate' | 'overdue'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Interactive on-screen checkboxes (Checked items)
-  const [checkedIds, setCheckedIds] = useState<Record<string, boolean>>({});
 
   // Mask function for DD/MM/YYYY
   const handleDateMask = (val: string) => {
@@ -226,25 +253,6 @@ export default function ReceivingChecklistPage() {
     );
   }, [data?.items, searchQuery]);
 
-  // Toggle on-screen checkbox
-  const toggleCheck = (id: string) => {
-    setCheckedIds((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const toggleCheckAll = () => {
-    if (filteredItems.every((it) => checkedIds[it.id])) {
-      // Uncheck all
-      setCheckedIds({});
-    } else {
-      // Check all
-      const all: Record<string, boolean> = {};
-      filteredItems.forEach((it) => {
-        all[it.id] = true;
-      });
-      setCheckedIds(all);
-    }
-  };
-
   const handlePrint = () => {
     window.print();
   };
@@ -300,9 +308,9 @@ export default function ReceivingChecklistPage() {
           </div>
         </div>
 
-        {/* KPI Stats Cards */}
+        {/* KPI Stats Cards (5-Column Layout) */}
         {data && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {/* Total Items */}
             <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
               <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold">
@@ -375,21 +383,6 @@ export default function ReceivingChecklistPage() {
               </div>
               <div className="text-[10px] text-rose-600/80 mt-0.5">
                 Overdue Unconfirmed
-              </div>
-            </div>
-
-            {/* Checked Progress */}
-            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-              <div className="flex items-center justify-between text-slate-500 text-[11px] font-bold">
-                <span>ตรวจรับแล้วหน้าจอ</span>
-                <CheckSquare className="w-4 h-4 text-sky-600" />
-              </div>
-              <div className="mt-1.5 text-xl font-black text-sky-700">
-                {Object.values(checkedIds).filter(Boolean).length.toLocaleString()}
-                <span className="text-xs font-normal text-slate-500 ml-1">/{filteredItems.length}</span>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                Checked on-screen
               </div>
             </div>
           </div>
@@ -560,7 +553,7 @@ export default function ReceivingChecklistPage() {
                   <option value="all">ทั้งหมด (All Groups)</option>
                   {itemGroups.map((g) => (
                     <option key={g} value={g}>
-                      กลุ่ม {g}
+                      {g}
                     </option>
                   ))}
                 </select>
@@ -632,19 +625,8 @@ export default function ReceivingChecklistPage() {
         {/* Checklist Data Table (Screen View) */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between p-4 bg-slate-50 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggleCheckAll}
-                className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-sky-600 transition cursor-pointer"
-              >
-                {filteredItems.length > 0 && filteredItems.every((it) => checkedIds[it.id]) ? (
-                  <CheckSquare className="w-4 h-4 text-sky-600" />
-                ) : (
-                  <Square className="w-4 h-4 text-slate-400" />
-                )}
-                <span>เลือกทั้งหมด ({filteredItems.length} รายการ)</span>
-              </button>
+            <div className="text-xs font-bold text-slate-700">
+              รายการวัตถุดิบที่ต้องตรวจรับตามเงื่อนไข
             </div>
 
             <div className="text-xs text-slate-500 font-semibold">
@@ -668,115 +650,109 @@ export default function ReceivingChecklistPage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-slate-200 font-bold border-b border-slate-800">
-                    <th className="py-3 px-3 text-center w-10">ตรวจ</th>
-                    <th className="py-3 px-3 text-center w-12">ลำดับ</th>
-                    <th className="py-3 px-3">กำหนดส่ง</th>
-                    <th className="py-3 px-3">เลขที่ PO</th>
-                    <th className="py-3 px-3">รหัสสินค้า & ชื่อสินค้า</th>
-                    <th className="py-3 px-3 text-center">กลุ่มสินค้า</th>
-                    <th className="py-3 px-3 text-right">จำนวนนัดส่ง</th>
-                    <th className="py-3 px-3">ผู้ขาย (Supplier)</th>
-                    <th className="py-3 px-3">ผู้ดูแล</th>
-                    <th className="py-3 px-3 text-center">สถานะ</th>
+                    <th className="py-3 px-2 text-center w-10">#</th>
+                    <th className="py-3 px-3 w-28 whitespace-nowrap">กำหนดส่ง</th>
+                    <th className="py-3 px-3 w-28 whitespace-nowrap">เลขที่ PO</th>
+                    <th className="py-3 px-3 min-w-[220px]">รหัสสินค้า & ชื่อสินค้า</th>
+                    <th className="py-3 px-2 text-center w-28 whitespace-nowrap">กลุ่มสินค้า</th>
+                    <th className="py-3 px-3 text-right w-28 whitespace-nowrap">จำนวนนัดส่ง</th>
+                    <th className="py-3 px-3 w-52 whitespace-nowrap">ผู้ขาย (Supplier)</th>
+                    <th className="py-3 px-3 w-32 whitespace-nowrap">ผู้ดูแล</th>
+                    <th className="py-3 px-2 text-center w-28 whitespace-nowrap">สถานะ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                  {filteredItems.map((item, idx) => {
-                    const isChecked = !!checkedIds[item.id];
-                    return (
-                      <tr
-                        key={item.id}
-                        onClick={() => toggleCheck(item.id)}
-                        className={`transition cursor-pointer ${
-                          isChecked
-                            ? 'bg-sky-50/60 hover:bg-sky-50'
-                            : idx % 2 === 0
-                            ? 'bg-white hover:bg-slate-50'
-                            : 'bg-slate-50/40 hover:bg-slate-100/60'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => toggleCheck(item.id)}
-                            className="cursor-pointer text-sky-600 hover:text-sky-700"
-                          >
-                            {isChecked ? (
-                              <CheckSquare className="w-4 h-4 text-sky-600" />
+                  {(() => {
+                    let lastPoNumber = '';
+                    return filteredItems.map((item, idx) => {
+                      const isFirstInPo = item.po_number !== lastPoNumber;
+                      if (isFirstInPo) {
+                        lastPoNumber = item.po_number;
+                      }
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`transition hover:bg-slate-50/80 ${
+                            isFirstInPo && idx > 0
+                              ? '!border-t-2 !border-t-slate-300 shadow-[0_-2px_4px_rgba(0,0,0,0.03)]'
+                              : ''
+                          }`}
+                        >
+                          {/* Index */}
+                          <td className="py-2.5 px-2 text-center text-slate-400 font-semibold">{idx + 1}</td>
+
+                          {/* Delivery Date */}
+                          <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap align-top">
+                            {isFirstInPo ? (
+                              formatDisplayDate(item.delivery_date)
                             ) : (
-                              <Square className="w-4 h-4 text-slate-300 hover:text-slate-400" />
+                              <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
                             )}
-                          </button>
-                        </td>
+                          </td>
 
-                        {/* Index */}
-                        <td className="py-3 px-3 text-center text-slate-400 font-semibold">{idx + 1}</td>
+                          {/* PO Number */}
+                          <td className="py-2.5 px-3 font-bold text-sky-700 whitespace-nowrap align-top">
+                            {isFirstInPo ? (
+                              item.po_number
+                            ) : (
+                              <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
+                            )}
+                          </td>
 
-                        {/* Delivery Date */}
-                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
-                          {formatDisplayDate(item.delivery_date)}
-                        </td>
+                          {/* Item Code & Description */}
+                          <td className="py-2.5 px-3">
+                            <div className="font-extrabold text-slate-900 truncate" title={item.item_code}>
+                              {item.item_code}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate mt-0.5" title={item.item_name}>
+                              {item.item_name}
+                            </div>
+                          </td>
 
-                        {/* PO Number */}
-                        <td className="py-3 px-3 font-bold text-sky-700 whitespace-nowrap">
-                          {item.po_number}
-                        </td>
+                          {/* Item Group */}
+                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                            {getGroupBadge(item.item_group)}
+                          </td>
 
-                        {/* Item Code & Description */}
-                        <td className="py-3 px-3 max-w-[280px]">
-                          <div className="font-extrabold text-slate-900 truncate" title={item.item_code}>
-                            {item.item_code}
-                          </div>
-                          <div className="text-[11px] text-slate-500 truncate mt-0.5" title={item.item_name}>
-                            {item.item_name}
-                          </div>
-                        </td>
+                          {/* Quantity */}
+                          <td className="py-2.5 px-3 text-right font-black text-slate-900 whitespace-nowrap">
+                            {item.quantity.toLocaleString()}{' '}
+                            <span className="font-normal text-slate-500 text-[11px]">{item.unit}</span>
+                          </td>
 
-                        {/* Item Group */}
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            {item.item_group || '-'}
-                          </span>
-                        </td>
+                          {/* Supplier */}
+                          <td className="py-2.5 px-3 max-w-[200px] truncate" title={item.supplier_name}>
+                            <span className="font-semibold text-slate-800">{item.supplier_name}</span>
+                          </td>
 
-                        {/* Quantity */}
-                        <td className="py-3 px-3 text-right font-black text-slate-900 whitespace-nowrap">
-                          {item.quantity.toLocaleString()}{' '}
-                          <span className="font-normal text-slate-500 text-[11px]">{item.unit}</span>
-                        </td>
+                          {/* Buyer */}
+                          <td className="py-2.5 px-3 whitespace-nowrap text-slate-700 text-[11px] font-medium">
+                            {formatBuyerName(item.buyer_name)}
+                          </td>
 
-                        {/* Supplier */}
-                        <td className="py-3 px-3 max-w-[200px] truncate" title={item.supplier_name}>
-                          <span className="font-semibold text-slate-800">{item.supplier_name}</span>
-                        </td>
-
-                        {/* Buyer */}
-                        <td className="py-3 px-3 whitespace-nowrap text-slate-600 text-[11px]">
-                          {item.buyer_name}
-                        </td>
-
-                        {/* Status Badge */}
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              item.is_confirmed
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          {/* Status Badge */}
+                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                item.is_confirmed
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : item.is_overdue
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200 font-extrabold'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                              }`}
+                            >
+                              {item.is_confirmed
+                                ? '🟢 Confirmed'
                                 : item.is_overdue
-                                ? 'bg-rose-50 text-rose-700 border-rose-200 font-extrabold'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            {item.is_confirmed
-                              ? '🟢 Confirmed'
-                              : item.is_overdue
-                              ? '🔴 Overdue'
-                              : '🟠 Estimate'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                                ? '🔴 Overdue'
+                                : '🟠 Estimate'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -851,43 +827,68 @@ export default function ReceivingChecklistPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-300">
-            {filteredItems.map((item, idx) => (
-              <tr key={item.id} className="border-b border-slate-300">
-                <td className="py-2 px-1.5 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
-                <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">
-                  {formatDisplayDate(item.delivery_date)}
-                </td>
-                <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">{item.po_number}</td>
-                <td className="py-2 px-2 border-r border-slate-300">
-                  <div className="font-bold">{item.item_code}</div>
-                  <div className="text-[10px] text-slate-600 leading-tight">{item.item_name}</div>
-                </td>
-                <td className="py-2 px-1.5 text-center border-r border-slate-300 font-semibold">
-                  {item.item_group || '-'}
-                </td>
-                <td className="py-2 px-2 text-right font-black border-r border-slate-300 whitespace-nowrap">
-                  {item.quantity.toLocaleString()} {item.unit}
-                </td>
-                <td className="py-2 px-2 border-r border-slate-300 text-[10px] leading-tight">
-                  {item.supplier_name}
-                </td>
-                {/* Physical Checklist Box */}
-                <td className="py-2 px-2 border-r border-slate-300 text-[10px]">
-                  <div className="flex flex-col gap-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
-                      <span>ครบถ้วน</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
-                      <span>ขาด: ........</span>
-                    </span>
-                  </div>
-                </td>
-                {/* Notes / Invoice */}
-                <td className="py-2 px-2 text-[10px] text-slate-400"></td>
-              </tr>
-            ))}
+            {(() => {
+              let lastPoNumber = '';
+              return filteredItems.map((item, idx) => {
+                const isFirstInPo = item.po_number !== lastPoNumber;
+                if (isFirstInPo) {
+                  lastPoNumber = item.po_number;
+                }
+
+                return (
+                  <tr
+                    key={item.id}
+                    className={`border-b border-slate-300 ${
+                      isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
+                    }`}
+                  >
+                    <td className="py-2 px-1.5 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
+                    <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">
+                      {isFirstInPo ? (
+                        formatDisplayDate(item.delivery_date)
+                      ) : (
+                        <span className="text-slate-300 select-none pl-1">↳</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 font-bold border-r border-slate-300 whitespace-nowrap">
+                      {isFirstInPo ? (
+                        item.po_number
+                      ) : (
+                        <span className="text-slate-300 select-none pl-1">↳</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 border-r border-slate-300">
+                      <div className="font-bold">{item.item_code}</div>
+                      <div className="text-[10px] text-slate-600 leading-tight">{item.item_name}</div>
+                    </td>
+                    <td className="py-2 px-1.5 text-center border-r border-slate-300 font-semibold">
+                      {item.item_group || '-'}
+                    </td>
+                    <td className="py-2 px-2 text-right font-black border-r border-slate-300 whitespace-nowrap">
+                      {item.quantity.toLocaleString()} {item.unit}
+                    </td>
+                    <td className="py-2 px-2 border-r border-slate-300 text-[10px] leading-tight">
+                      {item.supplier_name}
+                    </td>
+                    {/* Physical Checklist Box */}
+                    <td className="py-2 px-2 border-r border-slate-300 text-[10px]">
+                      <div className="flex flex-col gap-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
+                          <span>ครบถ้วน</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-block w-3.5 h-3.5 border border-slate-700 rounded-2xs"></span>
+                          <span>ขาด: ........</span>
+                        </span>
+                      </div>
+                    </td>
+                    {/* Notes / Invoice */}
+                    <td className="py-2 px-2 text-[10px] text-slate-400"></td>
+                  </tr>
+                );
+              });
+            })()}
           </tbody>
         </table>
 
