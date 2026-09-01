@@ -175,43 +175,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Desktop Sidebar (Collapsible / Toggleable) */}
       <aside
-        className={`hidden md:flex bg-slate-900 text-slate-200 flex-col border-r border-slate-800 shadow-xl min-h-screen shrink-0 sticky top-0 h-screen transition-all duration-300 ease-in-out z-20 ${
-          isCollapsed ? 'w-0 -ml-64 opacity-0 overflow-hidden pointer-events-none' : 'w-64 opacity-100'
+        className={`hidden md:flex bg-slate-900 text-slate-200 flex-col border-slate-800 shadow-xl min-h-screen shrink-0 sticky top-0 h-screen transition-all duration-300 ease-in-out z-20 overflow-hidden ${
+          isCollapsed ? 'w-0 border-r-0 opacity-0 pointer-events-none' : 'w-64 border-r opacity-100'
         }`}
       >
-        {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/50 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <img
-              src="/logo.png"
-              alt="IRM Logo"
-              className="w-9 h-9 rounded-lg object-cover shadow-md shadow-sky-500/30 border border-sky-400/20 shrink-0"
-            />
-            <div className="truncate">
-              <h1 className="font-bold text-base text-white tracking-wide leading-none truncate">IRM System</h1>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">Incoming Raw Material</p>
+        <div className="w-64 flex flex-col h-full min-h-screen shrink-0">
+          {/* Brand Header */}
+          <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/50 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <img
+                src="/logo.png"
+                alt="IRM Logo"
+                className="w-9 h-9 rounded-lg object-cover shadow-md shadow-sky-500/30 border border-sky-400/20 shrink-0"
+              />
+              <div className="truncate">
+                <h1 className="font-bold text-base text-white tracking-wide leading-none truncate">IRM System</h1>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">Incoming Raw Material</p>
+              </div>
             </div>
+
+            {onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0 cursor-pointer"
+                title="ซ่อนแถบเมนู (Hide Sidebar)"
+                aria-label="ซ่อนแถบเมนู"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
-              title="ซ่อนแถบเมนู (Hide Sidebar)"
-              aria-label="ซ่อนแถบเมนู"
-            >
-              <PanelLeftClose className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+          {/* Navigation */}
+          {renderNavContent(false)}
 
-        {/* Navigation */}
-        {renderNavContent(false)}
-
-        {/* Footer Info */}
-        <div className="p-4 border-t border-slate-800 text-[11px] text-slate-500 text-center shrink-0">
-          IRM v1.0.0 &copy; 2026
+          {/* Footer Info */}
+          <div className="p-4 border-t border-slate-800 text-[11px] text-slate-500 text-center shrink-0">
+            IRM v1.0.0 &copy; 2026
+          </div>
         </div>
       </aside>
 

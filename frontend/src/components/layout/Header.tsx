@@ -36,14 +36,24 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="hidden md:flex items-center justify-center p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors border border-slate-200 shadow-2xs"
+          className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 border cursor-pointer ${
+            isSidebarCollapsed
+              ? 'bg-sky-50 text-sky-700 border-sky-300 hover:bg-sky-100 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200'
+          }`}
           aria-label={isSidebarCollapsed ? "แสดงแถบเมนู (Show Sidebar)" : "ซ่อนแถบเมนู (Hide Sidebar)"}
           title={isSidebarCollapsed ? "แสดงแถบเมนู (Show Sidebar)" : "ซ่อนแถบเมนู (Hide Sidebar)"}
         >
           {isSidebarCollapsed ? (
-            <PanelLeftOpen className="w-4 h-4 text-sky-600" />
+            <>
+              <PanelLeftOpen className="w-4 h-4 text-sky-600" />
+              <span>แสดงเมนู</span>
+            </>
           ) : (
-            <PanelLeftClose className="w-4 h-4 text-slate-500" />
+            <>
+              <PanelLeftClose className="w-4 h-4 text-slate-500" />
+              <span className="text-[11px] text-slate-500 font-medium">ซ่อนเมนู</span>
+            </>
           )}
         </button>
 
