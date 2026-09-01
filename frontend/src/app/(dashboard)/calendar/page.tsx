@@ -20,6 +20,7 @@ interface CalendarEvent {
   title: string;
   item_code?: string;
   item_name?: string;
+  item_group?: string;
   supplier_code?: string;
   supplier_name?: string;
   buyer_name?: string;
@@ -67,6 +68,10 @@ export default function CalendarPage() {
 
   const nextMonth = () => {
     setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
   };
 
   const monthNames = [
@@ -169,21 +174,31 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        {/* Month Navigation */}
-        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
+        {/* Month Navigation + Today Button */}
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-slate-200 shadow-sm">
+          <button
+            type="button"
+            onClick={goToToday}
+            className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
+            title="กลับมาเดือนปัจจุบัน (Today)"
+          >
+            <CalendarIcon className="w-3.5 h-3.5 text-sky-600" />
+            <span>วันนี้</span>
+          </button>
+          <div className="h-5 w-px bg-slate-200 mx-1"></div>
           <button
             onClick={prevMonth}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
             title="เดือนก่อนหน้า"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-sm font-extrabold text-slate-900 min-w-[140px] text-center">
+          <span className="text-sm font-extrabold text-slate-900 min-w-[130px] text-center">
             {monthNames[month]} {year + 543}
           </span>
           <button
             onClick={nextMonth}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
             title="เดือนถัดไป"
           >
             <ChevronRight className="w-5 h-5" />
@@ -200,7 +215,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setFilterMode('all')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs cursor-pointer ${
               filterMode === 'all'
                 ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
@@ -214,7 +229,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setFilterMode('confirmed')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition shadow-2xs cursor-pointer ${
               filterMode === 'confirmed'
                 ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600'
                 : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
@@ -281,26 +296,40 @@ export default function CalendarPage() {
 
             const { day, dateStr, dayEvents } = cell;
             const hasEvents = dayEvents.length > 0;
+            const isToday = dateStr === todayStr;
 
             return (
               <div
                 key={dateStr}
                 onClick={() => handleDateClick(dateStr, dayEvents)}
-                className={`min-h-[125px] p-2 flex flex-col justify-between transition-all ${
-                  hasEvents
+                className={`min-h-[125px] p-2 flex flex-col justify-between transition-all relative ${
+                  isToday
+                    ? 'bg-sky-50/70 ring-2 ring-sky-500 rounded-xl z-1 shadow-sm'
+                    : hasEvents
                     ? 'bg-white hover:bg-sky-50/60 cursor-pointer shadow-sm'
                     : 'bg-white/80'
                 }`}
               >
                 {/* Date Number Header */}
                 <div className="flex items-center justify-between">
-                  <span
-                    className={`text-xs font-extrabold w-6 h-6 flex items-center justify-center rounded-full ${
-                      hasEvents ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-700'
-                    }`}
-                  >
-                    {day}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-xs font-extrabold w-6 h-6 flex items-center justify-center rounded-full ${
+                        isToday
+                          ? 'bg-sky-600 text-white shadow-md'
+                          : hasEvents
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'text-slate-700'
+                      }`}
+                    >
+                      {day}
+                    </span>
+                    {isToday && (
+                      <span className="text-[10px] font-black text-sky-700 bg-sky-100/90 border border-sky-200 px-1.5 py-0.2 rounded-md shadow-2xs">
+                        วันนี้
+                      </span>
+                    )}
+                  </div>
                   {hasEvents && (
                     <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded-full">
                       {dayEvents.length} รายการ
@@ -417,8 +446,15 @@ export default function CalendarPage() {
 
                     <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-900 text-xs">{itemCode}</span>
-                        <span className={`font-black text-sm ${
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-bold text-slate-900 text-xs truncate">{itemCode}</span>
+                          {ev.item_group && ev.item_group !== '-' && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                              กลุ่ม: {ev.item_group}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`font-black text-sm shrink-0 whitespace-nowrap ${
                           isConfirmed ? 'text-emerald-700' : isOverdue ? 'text-rose-700' : 'text-amber-800'
                         }`}>
                           {ev.quantity.toLocaleString()} {ev.unit}
