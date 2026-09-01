@@ -684,20 +684,12 @@ export default function ReceivingChecklistPage() {
 
                           {/* Delivery Date */}
                           <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap align-top">
-                            {isFirstInPo ? (
-                              formatDisplayDate(item.delivery_date)
-                            ) : (
-                              <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                            )}
+                            {isFirstInPo ? formatDisplayDate(item.delivery_date) : null}
                           </td>
 
                           {/* PO Number */}
                           <td className="py-2.5 px-3 font-bold text-sky-700 whitespace-nowrap align-top">
-                            {isFirstInPo ? (
-                              item.po_number
-                            ) : (
-                              <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                            )}
+                            {isFirstInPo ? item.po_number : null}
                           </td>
 
                           {/* Item Code & Description */}
@@ -845,18 +837,10 @@ export default function ReceivingChecklistPage() {
                   >
                     <td className="py-1 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
                     <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
-                      {isFirstInPo ? (
-                        formatDisplayDate(item.delivery_date)
-                      ) : (
-                        <span className="text-slate-300 select-none pl-1">↳</span>
-                      )}
+                      {isFirstInPo ? formatDisplayDate(item.delivery_date) : null}
                     </td>
                     <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
-                      {isFirstInPo ? (
-                        item.po_number
-                      ) : (
-                        <span className="text-slate-300 select-none pl-1">↳</span>
-                      )}
+                      {isFirstInPo ? item.po_number : null}
                     </td>
                     <td className="py-1 px-1.5 border-r border-slate-300">
                       <div className="font-bold">{item.item_code}</div>
