@@ -19,7 +19,11 @@ async def run_ddl_migrations(conn):
     migrations = [
         # users table
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(50);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;",
+
+        # groups table
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
 
         # po_items table
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS line_num INTEGER DEFAULT 0;",
@@ -130,10 +134,11 @@ async def seed_data():
                 ("Dashboard", "/dashboard", "LayoutDashboard", 1),
                 ("Operation", "/operation", "ClipboardList", 2),
                 ("Calendar", "/calendar", "Calendar", 3),
-                ("Item Master", "/items", "Package", 4),
-                ("Supplier Master", "/suppliers", "Factory", 5),
-                ("History", "/history", "ScrollText", 6),
-                ("Admin", None, "Shield", 7),
+                ("Receiving Checklist", "/receiving-checklist", "FileCheck", 4),
+                ("Item Master", "/items", "Package", 5),
+                ("Supplier Master", "/suppliers", "Factory", 6),
+                ("History", "/history", "ScrollText", 7),
+                ("Admin", None, "Shield", 8),
             ]
 
             menu_map: dict[str, Menu] = {}

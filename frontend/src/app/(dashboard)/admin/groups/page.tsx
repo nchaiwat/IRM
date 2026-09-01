@@ -11,6 +11,7 @@ export default function GroupsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [allowedItemGroups, setAllowedItemGroups] = useState('*');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -32,10 +33,11 @@ export default function GroupsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post('/api/groups', { name, description });
+      await api.post('/api/groups', { name, description, allowed_item_groups: allowedItemGroups || '*' });
       setShowCreateModal(false);
       setName('');
       setDescription('');
+      setAllowedItemGroups('*');
       fetchGroups();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างกลุ่ม');
@@ -71,12 +73,12 @@ export default function GroupsPage() {
             <Shield className="w-7 h-7 text-sky-600" />
             <span>กลุ่มผู้ใช้งาน (Group Management)</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">จัดการกลุ่มบทบาทหน้าที่การทำงานในระบบ</p>
+          <p className="text-xs text-slate-500 mt-1">จัดการกลุ่มบทบาทหน้าที่การทำงานและกำหนดสิทธิ์กลุ่มสินค้าที่มองเห็นในระบบ</p>
         </div>
 
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition"
+          className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>เพิ่มกลุ่มใหม่</span>
@@ -104,6 +106,12 @@ export default function GroupsPage() {
                 </button>
               </div>
               <p className="text-xs text-slate-500 mt-2 min-h-[36px]">{g.description || 'ไม่มีคำอธิบาย'}</p>
+
+              <div className="mt-3">
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                  กลุ่มสินค้า: {g.allowed_item_groups === '*' ? 'ทุกกลุ่มสินค้า (*)' : g.allowed_item_groups || 'ทุกกลุ่ม (*)'}
+                </span>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
@@ -138,25 +146,40 @@ export default function GroupsPage() {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">คำอธิบาย</label>
                 <textarea
+                  rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="รายละเอียดหน้าที่กลุ่มสิทธิ์"
-                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 h-20"
+                  placeholder="รายละเอียดหน้าที่ความรับผิดชอบ..."
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 resize-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  กลุ่มสินค้าที่มองเห็น (Allowed Item Groups)
+                </label>
+                <input
+                  type="text"
+                  value={allowedItemGroups}
+                  onChange={(e) => setAllowedItemGroups(e.target.value)}
+                  placeholder="เช่น HW หรือ HW,RM-กระจก หรือ *"
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">ระบุรหัสกลุ่มสินค้า หรือ <code>*</code> สำหรับทุกกลุ่ม</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold"
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   บันทึก
                 </button>

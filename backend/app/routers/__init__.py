@@ -14,6 +14,7 @@ from app.routers.logs import router as logs_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.sap import router as sap_router
 from app.routers.qms_integration import router as qms_integration_router
+from app.routers.receiving_checklist import router as receiving_checklist_router
 
 __all__ = [
     "auth_router",
@@ -32,4 +33,5 @@ __all__ = [
     "dashboard_router",
     "sap_router",
     "qms_integration_router",
+    "receiving_checklist_router",
 ]

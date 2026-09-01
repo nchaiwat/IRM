@@ -51,6 +51,7 @@ async def create_user(
         email=data.email,
         telegram_chat_id=data.telegram_chat_id,
         group_id=data.group_id,
+        allowed_item_groups=data.allowed_item_groups or "*",
         is_active=data.is_active,
     )
     db.add(user)
@@ -96,6 +97,8 @@ async def update_user(
         user.telegram_chat_id = data.telegram_chat_id
     if data.group_id is not None:
         user.group_id = data.group_id
+    if data.allowed_item_groups is not None:
+        user.allowed_item_groups = data.allowed_item_groups
     if data.is_active is not None:
         user.is_active = data.is_active
 

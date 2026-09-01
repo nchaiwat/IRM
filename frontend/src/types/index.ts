@@ -15,6 +15,7 @@ export interface UserMe {
   email: string;
   group_id: number | null;
   group_name: string | null;
+  allowed_item_groups?: string | null;
   permissions: PermissionItem[];
 }
 
@@ -37,6 +38,7 @@ export interface User {
   telegram_chat_id?: string | null;
   group_id: number | null;
   group?: { id: number; name: string };
+  allowed_item_groups?: string | null;
   is_active: boolean;
   last_login_at?: string | null;
   created_at: string;
@@ -47,6 +49,7 @@ export interface Group {
   id: number;
   name: string;
   description: string | null;
+  allowed_item_groups?: string | null;
   is_active: boolean;
   user_count: number;
   created_at: string;

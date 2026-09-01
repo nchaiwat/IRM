@@ -27,6 +27,7 @@ export default function UsersPage() {
     email: '',
     telegram_chat_id: '',
     group_id: '',
+    allowed_item_groups: '*',
     is_active: true,
   });
 
@@ -56,9 +57,10 @@ export default function UsersPage() {
       await api.post('/api/users', {
         ...formData,
         group_id: formData.group_id ? parseInt(formData.group_id) : null,
+        allowed_item_groups: formData.allowed_item_groups || '*',
       });
       setShowCreateModal(false);
-      setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', is_active: true });
+      setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', allowed_item_groups: '*', is_active: true });
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างผู้ใช้งาน');
@@ -76,6 +78,7 @@ export default function UsersPage() {
       email: u.email,
       telegram_chat_id: u.telegram_chat_id || '',
       group_id: u.group_id ? u.group_id.toString() : '',
+      allowed_item_groups: u.allowed_item_groups || '*',
       is_active: u.is_active,
     });
   };
@@ -90,6 +93,7 @@ export default function UsersPage() {
         email: formData.email,
         telegram_chat_id: formData.telegram_chat_id,
         group_id: formData.group_id ? parseInt(formData.group_id) : null,
+        allowed_item_groups: formData.allowed_item_groups || '*',
         is_active: formData.is_active,
       });
       setShowEditModal(null);
@@ -169,10 +173,10 @@ export default function UsersPage() {
 
         <button
           onClick={() => {
-            setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', is_active: true });
+            setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', allowed_item_groups: '*', is_active: true });
             setShowCreateModal(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition"
+          className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
           <span>เพิ่มผู้ใช้งานใหม่</span>
@@ -224,13 +228,22 @@ export default function UsersPage() {
                   )}
                 </td>
                 <td className="py-3.5 px-5">
-                  {u.group ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
-                      <Shield className="w-3 h-3" />
-                      {u.group.name}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 italic">ไม่ได้กำหนด</span>
+                  <div>
+                    {u.group ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                        <Shield className="w-3 h-3" />
+                        {u.group.name}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">ไม่ได้กำหนด</span>
+                    )}
+                  </div>
+                  {u.allowed_item_groups && (
+                    <div className="mt-1">
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                        กลุ่มสินค้า: {u.allowed_item_groups === '*' ? 'ทั้งหมด (*)' : u.allowed_item_groups}
+                      </span>
+                    </div>
                   )}
                 </td>
 
@@ -382,6 +395,20 @@ export default function UsersPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  กลุ่มสินค้าที่รับผิดชอบ (Assigned Item Groups)
+                </label>
+                <input
+                  type="text"
+                  value={formData.allowed_item_groups}
+                  onChange={(e) => setFormData({ ...formData, allowed_item_groups: e.target.value })}
+                  placeholder="เช่น HW หรือ HW,RM-กระจก หรือ * (เห็นทุกกลุ่ม)"
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">ระบุรหัสกลุ่มสินค้า หรือคั่นด้วยจุลภาค เช่น <code>HW,RM-กระจก</code> หรือ <code>*</code> เพื่อดูทั้งหมด</p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
@@ -458,6 +485,20 @@ export default function UsersPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  กลุ่มสินค้าที่รับผิดชอบ (Assigned Item Groups)
+                </label>
+                <input
+                  type="text"
+                  value={formData.allowed_item_groups}
+                  onChange={(e) => setFormData({ ...formData, allowed_item_groups: e.target.value })}
+                  placeholder="เช่น HW หรือ HW,RM-กระจก หรือ * (เห็นทุกกลุ่ม)"
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">ระบุรหัสกลุ่มสินค้า หรือคั่นด้วยจุลภาค เช่น <code>HW,RM-กระจก</code> หรือ <code>*</code> เพื่อดูทั้งหมด</p>
               </div>
 
               <div>

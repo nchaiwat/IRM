@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import {
   Calendar as CalendarIcon,
@@ -8,11 +9,9 @@ import {
   ChevronRight,
   Package,
   Building2,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
   X,
   Truck,
+  Printer,
 } from 'lucide-react';
 
 interface CalendarEvent {
@@ -39,10 +38,22 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateEvents, setSelectedDateEvents] = useState<{ date: string; events: CalendarEvent[] } | null>(null);
   const [filterMode, setFilterMode] = useState<'all' | 'confirmed' | 'estimate' | 'overdue'>('all');
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [itemGroups, setItemGroups] = useState<string[]>([]);
 
   useEffect(() => {
     fetchEvents();
+    fetchItemGroups();
   }, []);
+
+  const fetchItemGroups = async () => {
+    try {
+      const res = await api.get<string[]>('/api/receiving-checklist/item-groups');
+      setItemGroups(res.data);
+    } catch (err) {
+      console.error('Failed to fetch item groups:', err);
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -88,7 +99,7 @@ export default function CalendarPage() {
     return `${y}-${m}-${day}`;
   }, []);
 
-  // Group events by date string (YYYY-MM-DD) with active filter (Memoized)
+  // Group events by date string (YYYY-MM-DD) with active filters (Memoized)
   const { eventsByDate, confirmedCount, estimateCount, overdueCount } = useMemo(() => {
     const byDate: Record<string, CalendarEvent[]> = {};
     let conf = 0;
@@ -97,6 +108,13 @@ export default function CalendarPage() {
 
     for (let i = 0; i < events.length; i++) {
       const ev = events[i];
+      const evGroup = ev.item_group || '-';
+
+      // Item Group Filter
+      if (selectedGroup !== 'all' && evGroup.toLowerCase() !== selectedGroup.toLowerCase()) {
+        continue;
+      }
+
       const isConf = ev.status === 'confirmed' || ev.is_confirmed;
       const isOverdue = !isConf && !!ev.date && ev.date < todayStr;
 
@@ -110,7 +128,7 @@ export default function CalendarPage() {
         overdue++;
       }
 
-      // Apply Filter Mode
+      // Apply Status Filter Mode
       if (filterMode === 'confirmed' && !isConf) continue;
       if (filterMode === 'estimate' && isConf) continue;
       if (filterMode === 'overdue' && !isOverdue) continue;
@@ -128,7 +146,7 @@ export default function CalendarPage() {
       estimateCount: est,
       overdueCount: overdue,
     };
-  }, [events, filterMode, todayStr]);
+  }, [events, filterMode, selectedGroup, todayStr]);
 
   const handleDateClick = (dateStr: string, dayEvents: CalendarEvent[]) => {
     if (dayEvents.length > 0) {
@@ -163,53 +181,83 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       {/* Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2.5">
             <CalendarIcon className="w-7 h-7 text-sky-600" />
             <span>Calendar (ปฏิทินรอบการส่งมอบวัตถุดิบ)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            แสดงกำหนดส่งมอบวัตถุดิบและจำนวน (Qty) สามารถเลือกตัวกรองดูเฉพาะ ยืนยันแล้ว (สีเขียว 🟢) หรือ ประมาณการ (สีส้ม 🟠) ได้
+            แสดงกำหนดส่งมอบวัตถุดิบและจำนวน (Qty) สามารถเลือกตัวกรองกลุ่มสินค้า และดูเฉพาะ ยืนยันแล้ว (สีเขียว 🟢) หรือ ประมาณการ (สีส้ม 🟠) ได้
           </p>
         </div>
 
-        {/* Month Navigation + Today Button */}
-        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          <button
-            type="button"
-            onClick={goToToday}
-            className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
-            title="กลับมาเดือนปัจจุบัน (Today)"
+        {/* Right Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Quick link to Receiving Checklist */}
+          <Link
+            href="/receiving-checklist"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 hover:text-sky-600 border border-slate-200 text-xs font-bold transition shadow-2xs"
+            title="เปิดหน้าใบตรวจรับสินค้า (Receiving Checklist) พร้อมสั่งพิมพ์"
           >
-            <CalendarIcon className="w-3.5 h-3.5 text-sky-600" />
-            <span>วันนี้</span>
-          </button>
-          <div className="h-5 w-px bg-slate-200 mx-1"></div>
-          <button
-            onClick={prevMonth}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-            title="เดือนก่อนหน้า"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="text-sm font-extrabold text-slate-900 min-w-[130px] text-center">
-            {monthNames[month]} {year + 543}
-          </span>
-          <button
-            onClick={nextMonth}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-            title="เดือนถัดไป"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            <Printer className="w-4 h-4 text-sky-600" />
+            <span>พิมพ์ใบตรวจรับของ (Checklist)</span>
+          </Link>
+
+          {/* Month Navigation + Today Button */}
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <button
+              type="button"
+              onClick={goToToday}
+              className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
+              title="กลับมาเดือนปัจจุบัน (Today)"
+            >
+              <CalendarIcon className="w-3.5 h-3.5 text-sky-600" />
+              <span>วันนี้</span>
+            </button>
+            <div className="h-5 w-px bg-slate-200 mx-1"></div>
+            <button
+              onClick={prevMonth}
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              title="เดือนก่อนหน้า"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-sm font-extrabold text-slate-900 min-w-[130px] text-center">
+              {monthNames[month]} {year + 543}
+            </span>
+            <button
+              onClick={nextMonth}
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              title="เดือนถัดไป"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Interactive Filter Status Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-xs">
         <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-slate-600 font-bold mr-1">มุมมองตัวกรอง:</span>
+          {/* Item Group Dropdown */}
+          <div className="flex items-center gap-2 mr-2">
+            <span className="text-slate-600 font-bold">กลุ่ม:</span>
+            <select
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+            >
+              <option value="all">ทุกกลุ่มสินค้า (All)</option>
+              {itemGroups.map((g) => (
+                <option key={g} value={g}>
+                  กลุ่ม {g}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block"></div>
 
           {/* All Filter Pill */}
           <button

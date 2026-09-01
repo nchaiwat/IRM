@@ -3,7 +3,7 @@ Calendar Router — Deliveries grouped by date for Calendar view. Supports both 
 """
 
 from typing import Annotated
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,12 +16,27 @@ from app.models.user import User
 router = APIRouter(prefix="/api/calendar", tags=["Calendar"])
 
 
+def is_user_allowed_group(user_allowed: str | None, target_group: str | None) -> bool:
+    """Check if user has permission for target item group."""
+    if not user_allowed or user_allowed.strip() == "*":
+        return True
+    allowed_list = [g.strip().lower() for g in user_allowed.split(",") if g.strip()]
+    if "*" in allowed_list:
+        return True
+    if not target_group:
+        return False
+    return target_group.strip().lower() in allowed_list
+
+
 @router.get("")
 async def get_calendar_events(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission("/calendar", "view"))],
+    item_group: str | None = Query(None, description="Filter by Item Group"),
 ):
     """Get all delivery events for Calendar view (Support Main Items, Sub-Items, Confirmed & Estimate status, with Buyer Name)."""
+    user_allowed = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+
     stmt = (
         select(POItem, POHeader)
         .join(POHeader, POItem.po_header_id == POHeader.id)
@@ -34,6 +49,12 @@ async def get_calendar_events(
 
     events = []
     for item, header in rows:
+        grp = item.item_group or "-"
+        if not is_user_allowed_group(user_allowed, grp):
+            continue
+        if item_group and item_group != "all" and grp.strip().lower() != item_group.strip().lower():
+            continue
+
         is_confirmed = (item.status == "confirmed")
         status_label = "confirmed" if is_confirmed else "estimate"
         buyer = header.buyer_name or "-"

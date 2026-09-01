@@ -164,6 +164,9 @@ async def get_me(
             )
         )
 
+    # Determine effective allowed_item_groups (User specific override, or Group fallback, or "*")
+    effective_groups = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+
     return UserMeResponse(
         id=current_user.id,
         username=current_user.username,
@@ -171,5 +174,6 @@ async def get_me(
         email=current_user.email,
         group_id=current_user.group_id,
         group_name=current_user.group.name if current_user.group else None,
+        allowed_item_groups=effective_groups,
         permissions=permissions,
     )

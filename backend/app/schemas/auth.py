@@ -37,6 +37,7 @@ class UserMeResponse(BaseModel):
     email: str
     group_id: int | None
     group_name: str | None
+    allowed_item_groups: str | None = "*"
     permissions: list[PermissionItem]
 
     model_config = {"from_attributes": True}

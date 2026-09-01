@@ -39,6 +39,7 @@ async def list_groups(
                 id=g.id,
                 name=g.name,
                 description=g.description,
+                allowed_item_groups=g.allowed_item_groups or "*",
                 is_active=g.is_active,
                 user_count=user_count,
                 created_at=g.created_at,
@@ -62,7 +63,12 @@ async def create_group(
             detail="Group name already exists",
         )
 
-    group = Group(name=data.name, description=data.description, is_active=data.is_active)
+    group = Group(
+        name=data.name,
+        description=data.description,
+        allowed_item_groups=data.allowed_item_groups or "*",
+        is_active=data.is_active,
+    )
     db.add(group)
     await db.commit()
     await db.refresh(group)
@@ -71,6 +77,7 @@ async def create_group(
         id=group.id,
         name=group.name,
         description=group.description,
+        allowed_item_groups=group.allowed_item_groups or "*",
         is_active=group.is_active,
         user_count=0,
         created_at=group.created_at,
@@ -96,6 +103,8 @@ async def update_group(
         group.name = data.name
     if data.description is not None:
         group.description = data.description
+    if data.allowed_item_groups is not None:
+        group.allowed_item_groups = data.allowed_item_groups
     if data.is_active is not None:
         group.is_active = data.is_active
 
@@ -110,6 +119,7 @@ async def update_group(
         id=group.id,
         name=group.name,
         description=group.description,
+        allowed_item_groups=group.allowed_item_groups or "*",
         is_active=group.is_active,
         user_count=user_count,
         created_at=group.created_at,

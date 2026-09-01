@@ -13,6 +13,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     telegram_chat_id: str | None = None
     group_id: int | None = None
+    allowed_item_groups: str | None = "*"
     is_active: bool = True
 
 
@@ -21,6 +22,7 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     telegram_chat_id: str | None = None
     group_id: int | None = None
+    allowed_item_groups: str | None = None
     is_active: bool | None = None
 
 
@@ -43,6 +45,7 @@ class UserResponse(BaseModel):
     telegram_chat_id: str | None = None
     group_id: int | None
     group: GroupMinimal | None
+    allowed_item_groups: str | None = "*"
     is_active: bool
     last_login_at: datetime | None = None
     created_at: datetime
