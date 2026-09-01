@@ -1,20 +1,27 @@
 'use client';
 
 import React from 'react';
-import { LogOut, User as UserIcon, Shield, Menu } from 'lucide-react';
+import { LogOut, User as UserIcon, Shield, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onOpenMobileMenu,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
+}) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-      {/* Mobile Menu Toggle & Page Context */}
-      <div className="flex items-center gap-3">
+    <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      {/* Mobile Menu Toggle & Desktop Sidebar Toggle & Page Context */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Mobile Hamburger Button */}
         <button
           type="button"
           onClick={onOpenMobileMenu}
@@ -24,6 +31,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        {/* Desktop Sidebar Toggle Button (Hide / Show) */}
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="hidden md:flex items-center justify-center p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors border border-slate-200 shadow-2xs"
+          aria-label={isSidebarCollapsed ? "แสดงแถบเมนู (Show Sidebar)" : "ซ่อนแถบเมนู (Hide Sidebar)"}
+          title={isSidebarCollapsed ? "แสดงแถบเมนู (Show Sidebar)" : "ซ่อนแถบเมนู (Hide Sidebar)"}
+        >
+          {isSidebarCollapsed ? (
+            <PanelLeftOpen className="w-4 h-4 text-sky-600" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4 text-slate-500" />
+          )}
+        </button>
+
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 truncate max-w-[150px] sm:max-w-none">
           Incoming Raw Material System
         </span>

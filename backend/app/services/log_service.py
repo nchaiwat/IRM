@@ -51,7 +51,7 @@ async def record_transaction_log(
     try:
         if db is not None:
             db.add(log_entry)
-            await db.flush()
+            await db.commit()
         else:
             async with AsyncSessionLocal() as session:
                 session.add(log_entry)

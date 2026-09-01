@@ -98,6 +98,7 @@ async def job_daily_morning_telegram_summary():
                 logger.info(f"⏰ [Scheduler] Triggering Daily Telegram Morning Summary at {current_hm}...")
                 from app.services.telegram_service import send_telegram_morning_summary
                 res = await send_telegram_morning_summary(session)
+                await session.commit()
                 _last_telegram_morning_date = today_date_str
                 logger.info(f"✅ [Scheduler] Daily Telegram Morning Summary Sent: {res}")
     except Exception as e:

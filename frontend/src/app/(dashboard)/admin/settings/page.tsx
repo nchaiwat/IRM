@@ -749,10 +749,10 @@ export default function SettingsPage() {
                 type="button"
                 onClick={handleTestMorningSummary}
                 disabled={testingMorningSummary}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all disabled:opacity-50 flex-shrink-0 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs rounded-lg transition disabled:opacity-50 flex-shrink-0 cursor-pointer"
               >
                 {testingMorningSummary ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <Send className="w-3.5 h-3.5" />
                 )}
@@ -866,33 +866,6 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
               <Server className="w-5 h-5 text-emerald-600" />
               <span>5. กำหนดค่าการเชื่อมต่อ SAP B1 MS SQL On-Premise</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleTestSapConnection}
-                disabled={testingSap}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-xs rounded-lg transition disabled:opacity-50"
-              >
-                {testingSap ? (
-                  <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <Server className="w-3.5 h-3.5" />
-                )}
-                <span>ทดสอบเชื่อมต่อ SAP B1</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleManualSyncSap}
-                disabled={syncingSap}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition disabled:opacity-50"
-                title="สั่งรัน SAP Sync ด้วยตนเอง"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncingSap ? 'animate-spin' : ''}`} />
-                <span>สั่ง Sync ข้อมูล SAP ทันที</span>
-              </button>
             </div>
           </div>
 

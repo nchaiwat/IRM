@@ -309,21 +309,25 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
         total_open_items = res_open[1] or 0 if res_open else 0
 
         stmt_unconfirmed = (
-            select(func.count(POItem.id))
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
             .join(POHeader, POItem.po_header_id == POHeader.id)
             .where(POHeader.status == "O", POItem.status != "closed", POItem.status != "confirmed")
         )
-        unconfirmed_items = (await db.execute(stmt_unconfirmed)).scalar_one() or 0
+        res_unconf = (await db.execute(stmt_unconfirmed)).first()
+        unconf_pos = res_unconf[0] or 0 if res_unconf else 0
+        unconfirmed_items = res_unconf[1] or 0 if res_unconf else 0
 
         stmt_sup_resp = (
-            select(func.count(POItem.id))
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
             .join(POHeader, POItem.po_header_id == POHeader.id)
             .where(POHeader.status == "O", POItem.status == "supplier_responded")
         )
-        sup_responded_items = (await db.execute(stmt_sup_resp)).scalar_one() or 0
+        res_sup = (await db.execute(stmt_sup_resp)).first()
+        sup_resp_pos = res_sup[0] or 0 if res_sup else 0
+        sup_responded_items = res_sup[1] or 0 if res_sup else 0
 
         stmt_upcoming_unconfirmed = (
-            select(func.count(distinct(POItem.id)))
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
             .join(POHeader, POItem.po_header_id == POHeader.id)
             .where(POHeader.status == "O")
             .where(POItem.status != "closed")
@@ -335,7 +339,9 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
                 )
             )
         )
-        upcoming_unconfirmed_7d = (await db.execute(stmt_upcoming_unconfirmed)).scalar_one() or 0
+        res_up = (await db.execute(stmt_upcoming_unconfirmed)).first()
+        upcoming_pos = res_up[0] or 0 if res_up else 0
+        upcoming_unconfirmed_7d = res_up[1] or 0 if res_up else 0
 
         # 2. Item Master Queries
         stmt_new_items = select(func.count(ItemMaster.id)).where(ItemMaster.is_new == True)
@@ -361,29 +367,47 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
         awaiting_sup_count = (await db.execute(stmt_awaiting_sup)).scalar_one() or 0
 
         # 4. History Queries
-        stmt_closed_today = select(func.count(POItem.id)).where(
-            POItem.status == "closed",
-            POItem.closed_at >= (start_today - timedelta(hours=4))
+        stmt_closed_today = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(
+                POItem.status == "closed",
+                POItem.closed_at >= (start_today - timedelta(hours=4))
+            )
         )
-        closed_today_count = (await db.execute(stmt_closed_today)).scalar_one() or 0
+        res_cl_today = (await db.execute(stmt_closed_today)).first()
+        closed_today_pos = res_cl_today[0] or 0 if res_cl_today else 0
+        closed_today_count = res_cl_today[1] or 0 if res_cl_today else 0
 
-        stmt_purged = select(func.count(POItem.id)).where(
-            POItem.status == "closed",
-            POItem.closed_at < (start_today - timedelta(days=7))
+        stmt_purged = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(
+                POItem.status == "closed",
+                POItem.closed_at < (start_today - timedelta(days=7))
+            )
         )
-        retention_purged_count = (await db.execute(stmt_purged)).scalar_one() or 0
+        res_purged = (await db.execute(stmt_purged)).first()
+        retention_purged_pos = res_purged[0] or 0 if res_purged else 0
+        retention_purged_count = res_purged[1] or 0 if res_purged else 0
 
-        stmt_total_hist = select(func.count(POItem.id)).where(POItem.status == "closed")
-        total_history_count = (await db.execute(stmt_total_hist)).scalar_one() or 0
+        stmt_total_hist = (
+            select(func.count(distinct(POHeader.po_number)), func.count(POItem.id))
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POItem.status == "closed")
+        )
+        res_hist = (await db.execute(stmt_total_hist)).first()
+        total_history_pos = res_hist[0] or 0 if res_hist else 0
+        total_history_count = res_hist[1] or 0 if res_hist else 0
 
         topic = f"🌅 <b>สรุปสถานะระบบ IRM ประจำวัน ({today_bkk_date_str})</b>"
         body = (
             "📊 <b>[สถานะใบสั่งซื้อ & รายการส่งมอบ]</b>\n"
             f"• PO เข้าใหม่: {new_pos:,} PO ({new_items:,} รายการ)\n"
             f"• PO ทั้งหมดที่เปิดอยู่: {total_open_pos:,} PO ({total_open_items:,} รายการ)\n"
-            f"• Item ยังไม่ยืนยัน: {unconfirmed_items:,} รายการ\n"
-            f"• Item ที่ Sup ตอบกลับแล้ว: {sup_responded_items:,} รายการ\n"
-            f"• Item ส่งใน 7 วัน (ยังไม่ยืนยัน): {upcoming_unconfirmed_7d:,} รายการ\n\n"
+            f"• Item ยังไม่ยืนยัน: {unconf_pos:,} PO ({unconfirmed_items:,} รายการ)\n"
+            f"• Item ที่ Sup ตอบกลับแล้ว: {sup_resp_pos:,} PO ({sup_responded_items:,} รายการ)\n"
+            f"• Item ส่งใน 7 วัน (ยังไม่ยืนยัน): {upcoming_pos:,} PO ({upcoming_unconfirmed_7d:,} รายการ)\n\n"
             "📦 <b>[Item Master]</b>\n"
             f"• Item เพิ่มใหม่: {new_item_master_count:,} รายการ\n"
             f"• Item ยังไม่ยืนยัน: {unconf_item_master_count:,} รายการ\n\n"
@@ -392,9 +416,9 @@ async def send_telegram_morning_summary(db: AsyncSession) -> dict:
             f"• Supplier ยังไม่มี Email: {no_email_sup_count:,} รายชื่อ\n"
             f"• Supplier รอการตอบกลับ: {awaiting_sup_count:,} รายชื่อ\n\n"
             "📜 <b>[History (ประวัติปิดยอด)]</b>\n"
-            f"• Item ปิดยอดใหม่วันนี้: {closed_today_count:,} รายการ\n"
-            f"• Item พ้นระยะจัดเก็บ (เกิน 7 วัน): {retention_purged_count:,} รายการ\n"
-            f"• Item ในประวัติคงเหลือ: {total_history_count:,} รายการ"
+            f"• Item ปิดยอดใหม่วันนี้: {closed_today_pos:,} PO ({closed_today_count:,} รายการ)\n"
+            f"• Item พ้นระยะจัดเก็บ (เกิน 7 วัน): {retention_purged_pos:,} PO ({retention_purged_count:,} รายการ)\n"
+            f"• Item ในประวัติคงเหลือ: {total_history_pos:,} PO ({total_history_count:,} รายการ)"
         )
         full_msg = f"{format_telegram_header(topic)}\n\n{body}"
         res = await send_telegram_message(db, full_msg, category="morning_summary")

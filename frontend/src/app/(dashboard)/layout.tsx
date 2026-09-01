@@ -16,6 +16,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menus, setMenus] = useState<MenuNode[]>([]);
   const [fetchingMenus, setFetchingMenus] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('irm_sidebar_collapsed');
+      if (saved !== null) {
+        setSidebarCollapsed(saved === 'true');
+      }
+    }
+  }, []);
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('irm_sidebar_collapsed', String(next));
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -81,16 +101,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen flex bg-slate-100">
-      {/* Sidebar (Desktop Permanent + Mobile Drawer Overlay) */}
+      {/* Sidebar (Desktop Collapsible/Permanent + Mobile Drawer Overlay) */}
       <Sidebar
         menus={menus}
         isOpenMobile={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
+        <Header
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          isSidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+        />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           {!isAuthorized ? (
             <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-sm max-w-xl mx-auto mt-8">
