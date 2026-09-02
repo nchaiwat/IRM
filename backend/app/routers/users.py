@@ -49,6 +49,8 @@ async def create_user(
         password_hash=hash_password(data.password),
         full_name=data.full_name,
         email=data.email,
+        department=data.department,
+        use_ad_auth=data.use_ad_auth,
         telegram_chat_id=data.telegram_chat_id,
         group_id=data.group_id,
         allowed_item_groups=data.allowed_item_groups or "*",
@@ -93,6 +95,10 @@ async def update_user(
         user.full_name = data.full_name
     if data.email is not None:
         user.email = data.email
+    if data.department is not None:
+        user.department = data.department
+    if data.use_ad_auth is not None:
+        user.use_ad_auth = data.use_ad_auth
     if data.telegram_chat_id is not None:
         user.telegram_chat_id = data.telegram_chat_id
     if data.group_id is not None:

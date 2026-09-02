@@ -5,7 +5,7 @@ Auth Router — Login, Token Refresh, and Me endpoints.
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.auth_matrix import AuthMatrix
 from app.models.menu import Menu
+from app.models.transaction_log import TransactionLog
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -21,6 +22,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserMeResponse,
 )
+from app.services.ad_service import verify_ad_credentials
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -33,13 +35,18 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    request: LoginRequest,
+    req: LoginRequest,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Authenticate user with username and password, returns JWT tokens."""
-    username_clean = request.username.strip()
+    """Authenticate user with username and password, supporting Active Directory and Local passwords."""
+    username_clean = req.username.strip()
+    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
+    if "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+
     stmt = select(User).where(User.username == username_clean)
-    
+
     try:
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()
@@ -52,13 +59,22 @@ async def login(
 
     if not user:
         print(f"❌ Login attempt failed: User '{username_clean}' not found in DB")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-        )
+        # Record failed logon log
+        try:
+            db.add(
+                TransactionLog(
+                    category="user_auth",
+                    action="login_unknown",
+                    status="failed",
+                    message=f"เข้าสู่ระบบล้มเหลว: ไม่พบบัญชีผู้ใช้ '{username_clean}'",
+                    details=json.dumps({"username": username_clean, "ip": client_ip}, ensure_ascii=False),
+                    triggered_by=f"user:{username_clean}",
+                )
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
 
-    if not verify_password(request.password, user.password_hash):
-        print(f"❌ Login attempt failed: Password mismatch for user '{username_clean}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -66,14 +82,156 @@ async def login(
 
     if not user.is_active:
         print(f"❌ Login attempt failed: User '{username_clean}' is deactivated")
+        try:
+            db.add(
+                TransactionLog(
+                    category="user_auth",
+                    action="login_deactivated",
+                    status="failed",
+                    message=f"เข้าสู่ระบบล้มเหลว: บัญชีผู้ใช้ '{username_clean}' ถูกระงับการใช้งาน",
+                    details=json.dumps(
+                        {"username": username_clean, "department": user.department, "ip": client_ip},
+                        ensure_ascii=False,
+                    ),
+                    triggered_by=f"user:{username_clean}",
+                )
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is deactivated",
         )
 
-    print(f"🔑 Login successful for user '{username_clean}'")
-    
-    # Safely update last_login_at without crashing if DB column is pending
+    # ──────────────────────────────────────────────────────────────────────────
+    # Check Authentication Mode: Active Directory (AD) vs Local App Password
+    # ──────────────────────────────────────────────────────────────────────────
+    use_ad = getattr(user, "use_ad_auth", False)
+
+    if use_ad:
+        # Authenticate via Active Directory Gateway
+        ad_success, ad_message, raw_resp = await verify_ad_credentials(
+            db=db,
+            username=username_clean,
+            password=req.password,
+        )
+
+        if not ad_success:
+            print(f"❌ AD Login failed for '{username_clean}': {ad_message}")
+            try:
+                db.add(
+                    TransactionLog(
+                        category="user_auth",
+                        action="login_ad",
+                        status="failed",
+                        message=f"เข้าสู่ระบบผ่าน Active Directory (AD) ล้มเหลว: {ad_message}",
+                        details=json.dumps(
+                            {
+                                "username": username_clean,
+                                "auth_method": "AD",
+                                "department": user.department,
+                                "ip": client_ip,
+                                "error": ad_message,
+                            },
+                            ensure_ascii=False,
+                        ),
+                        triggered_by=f"user:{username_clean}",
+                    )
+                )
+                await db.commit()
+            except Exception:
+                await db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"การเข้าสู่ระบบด้วย Active Directory ล้มเหลว: {ad_message}",
+            )
+
+        # AD Login Success
+        print(f"🔑 AD Login successful for '{username_clean}'")
+        try:
+            db.add(
+                TransactionLog(
+                    category="user_auth",
+                    action="login_ad",
+                    status="success",
+                    message=f"เข้าสู่ระบบผ่าน Active Directory (AD) สำเร็จ",
+                    details=json.dumps(
+                        {
+                            "username": username_clean,
+                            "auth_method": "AD",
+                            "department": user.department,
+                            "ip": client_ip,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    triggered_by=f"user:{username_clean}",
+                )
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
+    else:
+        # Authenticate via Local App Password
+        if not verify_password(req.password, user.password_hash):
+            print(f"❌ Local Password mismatch for user '{username_clean}'")
+            try:
+                db.add(
+                    TransactionLog(
+                        category="user_auth",
+                        action="login_local",
+                        status="failed",
+                        message="เข้าสู่ระบบผ่าน Local App Password ล้มเหลว: รหัสผ่านไม่ถูกต้อง",
+                        details=json.dumps(
+                            {
+                                "username": username_clean,
+                                "auth_method": "LOCAL",
+                                "department": user.department,
+                                "ip": client_ip,
+                            },
+                            ensure_ascii=False,
+                        ),
+                        triggered_by=f"user:{username_clean}",
+                    )
+                )
+                await db.commit()
+            except Exception:
+                await db.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+            )
+
+        # Local Login Success
+        print(f"🔑 Local Login successful for user '{username_clean}'")
+        try:
+            db.add(
+                TransactionLog(
+                    category="user_auth",
+                    action="login_local",
+                    status="success",
+                    message="เข้าสู่ระบบผ่าน Local App Password สำเร็จ",
+                    details=json.dumps(
+                        {
+                            "username": username_clean,
+                            "auth_method": "LOCAL",
+                            "department": user.department,
+                            "ip": client_ip,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    triggered_by=f"user:{username_clean}",
+                )
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
+    # Safely update last_login_at
     try:
         user.last_login_at = datetime.now(timezone.utc)
         await db.commit()

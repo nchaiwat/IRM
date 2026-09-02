@@ -20,6 +20,8 @@ async def run_ddl_migrations(conn):
         # users table
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(50);",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS use_ad_auth BOOLEAN DEFAULT FALSE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;",
 
         # groups table
@@ -227,10 +229,14 @@ async def seed_data():
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
                 ("telegram_morning_summary_enabled", "true", "เปิด/ปิดการส่งสรุปสถานะประจำวันเข้า Telegram (Morning Daily Briefing)", "telegram", "boolean"),
-                ("telegram_morning_summary_time", "08:00", "เวลาส่งสรุปสถานะประจำวันเข้า Telegram (HH:MM)", "telegram", "string"),
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
                 ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
                 ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),
+                ("ad_gateway_url", "", "Active Directory Gateway API URL (e.g. https://192.168.12.11:3100/api/v2/login)", "ad", "string"),
+                ("ad_app_id", "", "Application ID registered in AD Sync Agent registry.json", "ad", "string"),
+                ("ad_secret_key", "", "Secret Key for AD Sync Agent Gateway", "ad", "string"),
+                ("ad_forwarded_ip", "157.173.219.153", "Client Origin IP header (X-Forwarded-For) whitelisted on AD server", "ad", "string"),
+                ("ad_enabled", "false", "เปิดใช้งานการตรวจสอบสิทธิ์ผ่าน Active Directory (AD Authentication)", "ad", "boolean"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:

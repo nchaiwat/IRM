@@ -73,6 +73,8 @@ async def bulk_update_settings(
                     cat = "sap"
                 elif item.key.startswith("telegram_"):
                     cat = "telegram"
+                elif item.key.startswith("ad_"):
+                    cat = "ad"
                 else:
                     cat = "general"
 
@@ -329,3 +331,51 @@ async def test_sap_connection(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"❌ ไม่สามารถเชื่อมต่อ SAP SQL Server ({host}:{port}) ได้: {str(e)}"
         )
+
+
+class TestADRequest(BaseModel):
+    username: str
+    password: str
+    gateway_url: str | None = None
+    app_id: str | None = None
+    secret_key: str | None = None
+    forwarded_ip: str | None = None
+
+
+@router.post("/test-ad-connection")
+async def test_ad_connection(
+    data: TestADRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """Test user authentication against Active Directory (AD Gateway)."""
+    from app.services.ad_service import verify_ad_credentials
+
+    override = {}
+    if data.gateway_url:
+        override["ad_gateway_url"] = data.gateway_url
+    if data.app_id:
+        override["ad_app_id"] = data.app_id
+    if data.secret_key:
+        override["ad_secret_key"] = data.secret_key
+    if data.forwarded_ip:
+        override["ad_forwarded_ip"] = data.forwarded_ip
+
+    success, message, raw_resp = await verify_ad_credentials(
+        db=db,
+        username=data.username,
+        password=data.password,
+        override_config=override,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"❌ การทดสอบ AD Authen ล้มเหลว: {message}",
+        )
+
+    return {
+        "success": True,
+        "message": f"✅ ทดสอบยืนยันสิทธิ์กับ Active Directory สำเร็จ! ({message})",
+        "raw_response": raw_resp,
+    }

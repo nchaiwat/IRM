@@ -22,6 +22,8 @@ import {
   Cpu,
   FileCode,
   Eye,
+  EyeOff,
+  Building2,
   X,
 } from 'lucide-react';
 
@@ -38,6 +40,14 @@ export default function SettingsPage() {
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPuRemind, setTestingPuRemind] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Active Directory (AD) State
+  const [showAdTestModal, setShowAdTestModal] = useState(false);
+  const [adTestUsername, setAdTestUsername] = useState('');
+  const [adTestPassword, setAdTestPassword] = useState('');
+  const [testingAd, setTestingAd] = useState(false);
+  const [adTestResult, setAdTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
+  const [showSecretKey, setShowSecretKey] = useState(false);
 
   // SAP Agent State
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -196,6 +206,39 @@ export default function SettingsPage() {
       alert(`❌ ${errText}`);
     } finally {
       setTestingPuRemind(false);
+    }
+  };
+
+  const handleTestAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adTestUsername.trim() || !adTestPassword) {
+      alert('⚠️ กรุณากรอก Username และ Password สำหรับทดสอบเข้าสู่ระบบ AD');
+      return;
+    }
+    setTestingAd(true);
+    setAdTestResult(null);
+    try {
+      const res = await api.post('/api/settings/test-ad-connection', {
+        username: adTestUsername.trim(),
+        password: adTestPassword,
+        gateway_url: settings.ad_gateway_url || '',
+        app_id: settings.ad_app_id || '',
+        secret_key: settings.ad_secret_key || '',
+        forwarded_ip: settings.ad_forwarded_ip || '157.173.219.153',
+      });
+      setAdTestResult({
+        success: true,
+        message: res.data.message || 'ทดสอบยืนยันสิทธิ์กับ AD สำเร็จ',
+        data: res.data.raw_response,
+      });
+    } catch (err: any) {
+      setAdTestResult({
+        success: false,
+        message: err.response?.data?.detail || 'การทดสอบเชื่อมต่อ AD ล้มเหลว',
+        data: err.response?.data,
+      });
+    } finally {
+      setTestingAd(false);
     }
   };
 
@@ -934,6 +977,123 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* ================================================================= */}
+        {/* Section 6: Active Directory (AD Sync Agent Gateway) Settings      */}
+        {/* ================================================================= */}
+        <div id="sec-ad-gateway" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+              <Building2 className="w-5 h-5 text-indigo-600" />
+              <span>6. ตั้งค่าการเชื่อมต่อ Active Directory (AD Sync Agent Gateway)</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdTestResult(null);
+                  setShowAdTestModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold text-xs rounded-lg transition cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>ทดสอบการ Authen AD</span>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500">
+            กำหนดค่าการเชื่อมต่อระหว่างระบบ IRM กับ Identity Gateway (AD Sync Agent) เพื่อยืนยันรหัสผ่านของผู้ใช้ผ่าน Active Directory ภายในองค์กร
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                AD Gateway Endpoint URL *
+              </label>
+              <input
+                type="text"
+                value={settings.ad_gateway_url || ''}
+                onChange={(e) => handleChange('ad_gateway_url', e.target.value)}
+                placeholder="เช่น https://192.168.12.11:3100/api/v2/login"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">API Endpoint ตามข้อกำหนด (POST /api/v2/login ผ่าน HTTPS Port 3100)</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                App ID (app_id) *
+              </label>
+              <input
+                type="text"
+                value={settings.ad_app_id || ''}
+                onChange={(e) => handleChange('ad_app_id', e.target.value)}
+                placeholder="Registered ID in registry.json"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">รหัสระบบที่ลงทะเบียนไว้ใน registry.json บนเซิร์ฟเวอร์ AD</span>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Secret Key (secret_key) *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSecretKey(!showSecretKey)}
+                  className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {showSecretKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showSecretKey ? 'ซ่อน' : 'แสดง'}</span>
+                </button>
+              </div>
+              <input
+                type={showSecretKey ? 'text' : 'password'}
+                value={settings.ad_secret_key || ''}
+                onChange={(e) => handleChange('ad_secret_key', e.target.value)}
+                placeholder="Corresponding Secret Key"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Origin IP Header (X-Forwarded-For) *
+              </label>
+              <input
+                type="text"
+                value={settings.ad_forwarded_ip || '157.173.219.153'}
+                onChange={(e) => handleChange('ad_forwarded_ip', e.target.value)}
+                placeholder="157.173.219.153"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">IP ของเซิร์ฟเวอร์ที่อยู่ใน allowed_ips ของ AD Gateway (VPS: 157.173.219.153)</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                <span>เปิดใช้งานระบบ Active Directory (AD Master Switch)</span>
+              </span>
+              <p className="text-[11px] text-indigo-800">
+                เปิดให้ระบบส่งคำขอตรวจสอบรหัสผ่านไปยัง AD Gateway สำหรับผู้ใช้ที่มีการเปิด Checkbox ไว้ใน User Management
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={settings.ad_enabled === 'true'}
+                onChange={(e) => handleChange('ad_enabled', e.target.checked ? 'true' : 'false')}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+        </div>
+
         {/* Save Button */}
         <div className="flex justify-end">
           <button
@@ -985,6 +1145,98 @@ export default function SettingsPage() {
             <div className="p-6 overflow-y-auto font-mono text-xs text-emerald-300 bg-slate-950/80 leading-relaxed whitespace-pre selection:bg-sky-500 selection:text-white">
               {generatedScriptCode}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AD Test Modal */}
+      {showAdTestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-base">ทดสอบการ Authentication กับ AD</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdTestModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              ทดลองส่งคำขอเข้าสู่ระบบไปยัง AD Sync Agent Gateway ตาม Parameter ที่ตั้งค่าไว้ เพื่อตรวจสอบว่าการเชื่อมต่อและสิทธิ์การเข้าใช้งานถูกต้อง
+            </p>
+
+            <form onSubmit={handleTestAd} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  AD Username (sAMAccountName) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น Somchai.P"
+                  value={adTestUsername}
+                  onChange={(e) => setAdTestUsername(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  AD User Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="รหัสผ่านผู้ใช้บน Active Directory"
+                  value={adTestPassword}
+                  onChange={(e) => setAdTestPassword(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {adTestResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs leading-relaxed space-y-1 ${
+                    adTestResult.success
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : 'bg-rose-50 text-rose-900 border-rose-200'
+                  }`}
+                >
+                  <p className="font-bold flex items-center gap-1.5">
+                    {adTestResult.success ? <span>✅ สำเร็จ</span> : <span>❌ ล้มเหลว</span>}
+                  </p>
+                  <p>{adTestResult.message}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdTestModal(false)}
+                  className="px-4 py-2 border rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  ปิด
+                </button>
+                <button
+                  type="submit"
+                  disabled={testingAd}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 cursor-pointer"
+                >
+                  {testingAd ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  )}
+                  <span>{testingAd ? 'กำลังทดสอบ...' : 'เริ่มทดสอบ Authen'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

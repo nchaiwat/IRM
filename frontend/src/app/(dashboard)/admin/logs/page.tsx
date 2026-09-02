@@ -23,6 +23,7 @@ import {
   Settings,
   Copy,
   Check,
+  Key,
   X,
   Eye,
 } from 'lucide-react';
@@ -180,6 +181,13 @@ export default function TransactionLogsPage() {
             <span>System</span>
           </span>
         );
+      case 'user_auth':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200 inline-flex items-center gap-1">
+            <Key className="w-3 h-3 text-violet-600 shrink-0" />
+            <span>User Logon</span>
+          </span>
+        );
       default:
         return (
           <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -269,6 +277,7 @@ export default function TransactionLogsPage() {
 
   const categoryTabs = [
     { id: 'all', label: 'ทั้งหมด', count: stats?.total_logs ?? 0 },
+    { id: 'user_auth', label: '🔐 User Logon' },
     { id: 'sap_sync', label: '🔄 SAP Sync', count: stats?.sap_sync_count ?? 0 },
     { id: 'supplier_email', label: '📧 ส่ง Email', count: stats?.email_sent_count ?? 0 },
     { id: 'qms_export', label: '📤 ส่ง QMS (JSON)', count: stats?.qms_export_count ?? 0 },
@@ -546,7 +555,17 @@ export default function TransactionLogsPage() {
                     {getCategoryBadge(item.category)}
                   </td>
                   <td className="py-2 px-3 font-mono font-bold text-slate-800 text-[11px] whitespace-nowrap">
-                    {item.action}
+                    {item.action === 'login_ad' ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        🏢 login_ad
+                      </span>
+                    ) : item.action === 'login_local' ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        🔑 login_local
+                      </span>
+                    ) : (
+                      item.action
+                    )}
                   </td>
                   <td className="py-2 px-3 text-slate-700 font-medium">
                     <div className="line-clamp-2" title={item.message}>

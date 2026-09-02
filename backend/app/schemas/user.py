@@ -11,6 +11,8 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     email: EmailStr
+    department: str | None = None
+    use_ad_auth: bool = False
     telegram_chat_id: str | None = None
     group_id: int | None = None
     allowed_item_groups: str | None = "*"
@@ -20,6 +22,8 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     full_name: str | None = None
     email: EmailStr | None = None
+    department: str | None = None
+    use_ad_auth: bool | None = None
     telegram_chat_id: str | None = None
     group_id: int | None = None
     allowed_item_groups: str | None = None
@@ -42,6 +46,8 @@ class UserResponse(BaseModel):
     username: str
     full_name: str
     email: str
+    department: str | None = None
+    use_ad_auth: bool = False
     telegram_chat_id: str | None = None
     group_id: int | None
     group: GroupMinimal | None

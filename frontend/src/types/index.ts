@@ -13,6 +13,8 @@ export interface UserMe {
   username: string;
   full_name: string;
   email: string;
+  department?: string | null;
+  use_ad_auth?: boolean;
   group_id: number | null;
   group_name: string | null;
   allowed_item_groups?: string | null;
@@ -35,6 +37,8 @@ export interface User {
   username: string;
   full_name: string;
   email: string;
+  department?: string | null;
+  use_ad_auth?: boolean;
   telegram_chat_id?: string | null;
   group_id: number | null;
   group?: { id: number; name: string };

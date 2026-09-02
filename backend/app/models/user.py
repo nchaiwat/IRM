@@ -20,6 +20,8 @@ class User(Base):
     telegram_chat_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     group_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     allowed_item_groups: Mapped[str | None] = mapped_column(String(200), nullable=True, default="*")
+    department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    use_ad_auth: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

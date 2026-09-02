@@ -25,6 +25,8 @@ export default function UsersPage() {
     password: '',
     full_name: '',
     email: '',
+    department: '',
+    use_ad_auth: false,
     telegram_chat_id: '',
     group_id: '',
     allowed_item_groups: '*',
@@ -56,11 +58,24 @@ export default function UsersPage() {
     try {
       await api.post('/api/users', {
         ...formData,
+        department: formData.department.trim() || null,
+        use_ad_auth: formData.use_ad_auth,
         group_id: formData.group_id ? parseInt(formData.group_id) : null,
         allowed_item_groups: formData.allowed_item_groups || '*',
       });
       setShowCreateModal(false);
-      setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', allowed_item_groups: '*', is_active: true });
+      setFormData({
+        username: '',
+        password: '',
+        full_name: '',
+        email: '',
+        department: '',
+        use_ad_auth: false,
+        telegram_chat_id: '',
+        group_id: '',
+        allowed_item_groups: '*',
+        is_active: true,
+      });
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างผู้ใช้งาน');
@@ -76,6 +91,8 @@ export default function UsersPage() {
       password: '',
       full_name: u.full_name,
       email: u.email,
+      department: u.department || '',
+      use_ad_auth: !!u.use_ad_auth,
       telegram_chat_id: u.telegram_chat_id || '',
       group_id: u.group_id ? u.group_id.toString() : '',
       allowed_item_groups: u.allowed_item_groups || '*',
@@ -91,6 +108,8 @@ export default function UsersPage() {
       await api.put(`/api/users/${showEditModal.id}`, {
         full_name: formData.full_name,
         email: formData.email,
+        department: formData.department.trim() || null,
+        use_ad_auth: formData.use_ad_auth,
         telegram_chat_id: formData.telegram_chat_id,
         group_id: formData.group_id ? parseInt(formData.group_id) : null,
         allowed_item_groups: formData.allowed_item_groups || '*',
@@ -173,7 +192,18 @@ export default function UsersPage() {
 
         <button
           onClick={() => {
-            setFormData({ username: '', password: '', full_name: '', email: '', telegram_chat_id: '', group_id: '', allowed_item_groups: '*', is_active: true });
+            setFormData({
+              username: '',
+              password: '',
+              full_name: '',
+              email: '',
+              department: '',
+              use_ad_auth: false,
+              telegram_chat_id: '',
+              group_id: '',
+              allowed_item_groups: '*',
+              is_active: true,
+            });
             setShowCreateModal(true);
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition cursor-pointer"
@@ -202,21 +232,32 @@ export default function UsersPage() {
         <table className="w-full text-left text-xs text-slate-600">
           <thead className="bg-slate-900 text-slate-200 font-bold uppercase tracking-wider">
             <tr>
-              <th className="py-3.5 px-5">ผู้ใช้งาน (Username)</th>
-              <th className="py-3.5 px-5">ชื่อ-นามสกุล</th>
-              <th className="py-3.5 px-5">อีเมล & Telegram ID</th>
-              <th className="py-3.5 px-5">กลุ่มสิทธิ์ (Group)</th>
-              <th className="py-3.5 px-5">ใช้งานล่าสุด (Last Access)</th>
-              <th className="py-3.5 px-5">สถานะ</th>
-              <th className="py-3.5 px-5 text-right">การจัดการ</th>
+              <th className="py-3.5 px-4">ผู้ใช้งาน (Username)</th>
+              <th className="py-3.5 px-4">ชื่อ-นามสกุล</th>
+              <th className="py-3.5 px-4">แผนก (Dept)</th>
+              <th className="py-3.5 px-4">อีเมล & Telegram ID</th>
+              <th className="py-3.5 px-4">กลุ่มสิทธิ์ (Group)</th>
+              <th className="py-3.5 px-4 text-center">การยืนยันตัวตน</th>
+              <th className="py-3.5 px-4">ใช้งานล่าสุด</th>
+              <th className="py-3.5 px-4 text-center">สถานะ</th>
+              <th className="py-3.5 px-4 text-right">การจัดการ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredUsers.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                <td className="py-3.5 px-5 font-bold text-slate-900">{u.username}</td>
-                <td className="py-3.5 px-5 font-semibold text-slate-800">{u.full_name}</td>
-                <td className="py-3.5 px-5">
+                <td className="py-3.5 px-4 font-bold text-slate-900">{u.username}</td>
+                <td className="py-3.5 px-4 font-semibold text-slate-800">{u.full_name}</td>
+                <td className="py-3.5 px-4">
+                  {u.department ? (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200">
+                      {u.department}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 italic text-[10px]">-</span>
+                  )}
+                </td>
+                <td className="py-3.5 px-4">
                   <div className="text-slate-600">{u.email}</div>
                   {u.telegram_chat_id ? (
                     <div className="text-[11px] text-sky-600 font-mono flex items-center gap-1 mt-0.5">
@@ -227,7 +268,7 @@ export default function UsersPage() {
                     <div className="text-[10px] text-slate-400 italic">ไม่มี Telegram ID</div>
                   )}
                 </td>
-                <td className="py-3.5 px-5">
+                <td className="py-3.5 px-4">
                   <div>
                     {u.group ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
@@ -247,8 +288,22 @@ export default function UsersPage() {
                   )}
                 </td>
 
+                {/* Authen Mode Column */}
+                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                  {u.use_ad_auth ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                      <span>🏢 Active Directory (AD)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      <span>🔑 Local Pass</span>
+                    </span>
+                  )}
+                </td>
+
                 {/* Last Access Column */}
-                <td className="py-3.5 px-5 text-slate-500 whitespace-nowrap">
+                <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                   {u.last_login_at ? (
                     <div className="flex items-center gap-1 text-[11px] font-medium text-slate-700">
                       <Clock className="w-3.5 h-3.5 text-emerald-600" />
@@ -259,7 +314,7 @@ export default function UsersPage() {
                   )}
                 </td>
 
-                <td className="py-3.5 px-5 whitespace-nowrap">
+                <td className="py-3.5 px-4 text-center whitespace-nowrap">
                   <button
                     onClick={() => handleToggleActive(u)}
                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
@@ -273,7 +328,7 @@ export default function UsersPage() {
                   </button>
                 </td>
 
-                <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                <td className="py-3.5 px-4 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1.5">
                     {/* Small Test Telegram DM Button */}
                     {u.telegram_chat_id && (
@@ -358,6 +413,17 @@ export default function UsersPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">แผนก (Department)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น จัดซื้อ (PU), คลังสินค้า (WH), ไอที (IT)"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล *</label>
                 <input
                   type="email"
@@ -366,6 +432,26 @@ export default function UsersPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
                 />
+              </div>
+
+              {/* Active Directory Authentication Checkbox */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.use_ad_auth}
+                    onChange={(e) => setFormData({ ...formData, use_ad_auth: e.target.checked })}
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>🏢 ยืนยันรหัสผ่านผ่าน Active Directory (AD)</span>
+                  </span>
+                </label>
+                <p className="text-[11px] text-slate-500 pl-6 leading-relaxed">
+                  {formData.use_ad_auth
+                    ? 'ผู้ใช้จะต้องใช้ Username บน App แต่ Password จะต้องตรงกับ Active Directory เท่านั้น'
+                    : 'ใช้รหัสผ่านที่ตั้งใน App IRM (ใช้สำหรับผู้ใช้นอก AD หรือใช้สำรองกรณี AD ล่ม)'}
+                </p>
               </div>
 
               <div>
@@ -450,6 +536,17 @@ export default function UsersPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">แผนก (Department)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น จัดซื้อ (PU), คลังสินค้า (WH), ไอที (IT)"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล *</label>
                 <input
                   type="email"
@@ -458,6 +555,26 @@ export default function UsersPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
                 />
+              </div>
+
+              {/* Active Directory Authentication Checkbox */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.use_ad_auth}
+                    onChange={(e) => setFormData({ ...formData, use_ad_auth: e.target.checked })}
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>🏢 ยืนยันรหัสผ่านผ่าน Active Directory (AD)</span>
+                  </span>
+                </label>
+                <p className="text-[11px] text-slate-500 pl-6 leading-relaxed">
+                  {formData.use_ad_auth
+                    ? 'ผู้ใช้จะต้องใช้ Username บน App แต่ Password จะต้องตรงกับ Active Directory เท่านั้น'
+                    : 'ใช้รหัสผ่านที่ตั้งใน App IRM (ใช้สำหรับผู้ใช้นอก AD หรือใช้สำรองกรณี AD ล่ม)'}
+                </p>
               </div>
 
               <div>
