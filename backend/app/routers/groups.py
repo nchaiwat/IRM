@@ -5,11 +5,12 @@ Group Management Router.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.auth_matrix import AuthMatrix
 from app.models.group import Group
 from app.models.user import User
 from app.schemas.group import GroupCreate, GroupResponse, GroupUpdate
@@ -133,13 +134,35 @@ async def delete_group(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Soft delete / deactivate a group."""
+    """Delete a group if there are no active users in it and it's not the Admin group."""
     stmt = select(Group).where(Group.id == group_id)
     result = await db.execute(stmt)
     group = result.scalar_one_or_none()
     if not group:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบกลุ่มที่ต้องการลบ")
 
-    group.is_active = False
+    if group.name.lower() == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ไม่สามารถลบกลุ่มระบบหลัก (Admin) ได้",
+        )
+
+    # Check if any user belongs to this group
+    count_stmt = select(func.count(User.id)).where(User.group_id == group_id)
+    count_res = await db.execute(count_stmt)
+    user_count = count_res.scalar() or 0
+
+    if user_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"ไม่สามารถลบกลุ่ม '{group.name}' ได้ เนื่องจากยังมีผู้ใช้งานในกลุ่มนี้ {user_count} คน กรุณาย้ายผู้ใช้งานไปกลุ่มอื่นก่อน",
+        )
+
+    # Delete related AuthMatrix permissions
+    await db.execute(delete(AuthMatrix).where(AuthMatrix.group_id == group_id))
+
+    # Delete group record
+    await db.delete(group)
     await db.commit()
-    return {"message": f"Group '{group.name}' deactivated successfully"}
+
+    return {"message": f"ลบกลุ่ม '{group.name}' เรียบร้อยแล้ว"}
