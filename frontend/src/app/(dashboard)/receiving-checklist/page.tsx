@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import {
   FileCheck,
   Printer,
@@ -15,6 +16,8 @@ import {
   AlertTriangle,
   Layers,
   UserCheck,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -106,6 +109,7 @@ export default function ReceivingChecklistPage() {
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'estimate' | 'overdue'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [printMode, setPrintMode] = useState<'checklist' | 'report'>('checklist');
 
   // Mask function for DD/MM/YYYY
   const handleDateMask = (val: string) => {
@@ -253,8 +257,63 @@ export default function ReceivingChecklistPage() {
     );
   }, [data?.items, searchQuery]);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrintChecklist = () => {
+    setPrintMode('checklist');
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
+  const handlePrintReport = () => {
+    setPrintMode('report');
+    setTimeout(() => {
+      window.print();
+    }, 50);
+  };
+
+  const handleExportExcel = () => {
+    if (filteredItems.length === 0) return;
+    const rows = filteredItems.map((item, idx) => ({
+      'ลำดับ': idx + 1,
+      'วันที่กำหนดส่ง': formatDisplayDate(item.delivery_date),
+      'เลขที่ PO': item.po_number,
+      'รหัสสินค้า': item.item_code.replace(/^↳\s*/, ''),
+      'ชื่อสินค้า / รายละเอียด': item.item_name,
+      'กลุ่มสินค้า': item.item_group || '-',
+      'จำนวนนัดส่ง': item.quantity,
+      'หน่วย': item.unit,
+      'รหัสผู้ขาย': item.supplier_code,
+      'ชื่อผู้ขาย (Supplier)': item.supplier_name,
+      'ผู้ดูแล': formatBuyerName(item.buyer_name),
+      'สถานะ': item.is_confirmed ? 'ยืนยันแล้ว (Confirmed)' : 'ประมาณการ (Estimate)',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 40 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 8 },
+      { wch: 12 },
+      { wch: 32 },
+      { wch: 18 },
+      { wch: 22 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Receiving_List');
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    XLSX.writeFile(workbook, `IRM_Receiving_List_${yyyy}${mm}${dd}_${hh}${min}.xlsx`);
   };
 
   const formatDisplayDate = (dStr: string) => {
@@ -282,11 +341,11 @@ export default function ReceivingChecklistPage() {
               <span>Receiving Checklist (ใบตรวจรับมอบวัตถุดิบประจำวัน)</span>
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              สร้างรายการเช็คลิสต์สำหรับตรวจรับวัตถุดิบหน้างาน กรองตามกลุ่มสินค้า (Item Group) และสั่งพิมพ์เอกสาร A4
+              สร้างรายการเช็คลิสต์สำหรับตรวจรับวัตถุดิบหน้างาน กรองตามกลุ่มสินค้า (Item Group) สั่งพิมพ์เอกสาร A4 หรือ Export Excel
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={fetchChecklist}
@@ -296,14 +355,40 @@ export default function ReceivingChecklistPage() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-sky-600' : ''}`} />
             </button>
 
+            {/* Export Excel Button */}
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handleExportExcel}
               disabled={filteredItems.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs bg-sky-600 hover:bg-sky-700 text-white transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="ดาวน์โหลดรายการเป็นไฟล์ Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export Excel</span>
+            </button>
+
+            {/* Print Standard Report Button */}
+            <button
+              type="button"
+              onClick={handlePrintReport}
+              disabled={filteredItems.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-900 text-white transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="พิมพ์แบบรายงานสรุปปกติ (ตามหน้าตารางแสดงผล)"
+            >
+              <FileText className="w-4 h-4 text-slate-300" />
+              <span>พิมพ์รายงานปกติ</span>
+            </button>
+
+            {/* Print Checklist Sheet Button */}
+            <button
+              type="button"
+              onClick={handlePrintChecklist}
+              disabled={filteredItems.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs bg-sky-600 hover:bg-sky-700 text-white transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="พิมพ์แบบใบตรวจรับสินค้าพร้อมช่องเช็คและลายเซ็น (Checklist Sheet)"
             >
               <Printer className="w-4 h-4" />
-              <span>พิมพ์ใบตรวจรับสินค้า (A4 Print Sheet)</span>
+              <span>พิมพ์ใบตรวจรับ (Checklist)</span>
             </button>
           </div>
         </div>
@@ -754,152 +839,297 @@ export default function ReceivingChecklistPage() {
 
       {/* ─── PRINT ONLY: A4 Print Layout Sheet ──────────────────────────────── */}
       <div className="hidden print:block font-sans text-slate-900 bg-white p-4">
-        {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-3 mb-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
-                บริษัท วินโดว์ เอเชีย จำกัด (มหาชน)
-              </h1>
-              <h2 className="text-base font-extrabold text-slate-800 mt-0.5">
-                ใบตรวจรับมอบวัตถุดิบประจำวัน (Daily Receiving Inspection Checklist)
-              </h2>
-            </div>
-            <div className="text-right text-xs text-slate-600 space-y-0.5">
-              <div>
-                <strong>วันที่พิมพ์:</strong>{' '}
-                {new Date().toLocaleDateString('th-TH', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+        {printMode === 'report' ? (
+          /* ─────────────────────────────────────────────────────────────────── */
+          /* MODE 1: Standard List Report (Pattern matches screen list exactly!)  */
+          /* ─────────────────────────────────────────────────────────────────── */
+          <div>
+            {/* Document Header */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                    บริษัท วินโดว์ เอเชีย จำกัด (มหาชน)
+                  </h1>
+                  <h2 className="text-base font-extrabold text-slate-800 mt-0.5">
+                    รายงานรายการวัตถุดิบที่ต้องตรวจรับตามเงื่อนไข (Receiving Item List Report)
+                  </h2>
+                </div>
+                <div className="text-right text-xs text-slate-600 space-y-0.5">
+                  <div>
+                    <strong>วันที่พิมพ์:</strong>{' '}
+                    {new Date().toLocaleDateString('th-TH', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                  <div>
+                    <strong>กลุ่มสินค้า:</strong> {selectedGroup === 'all' ? 'ทุกกลุ่มสินค้า' : `กลุ่ม ${selectedGroup}`}
+                  </div>
+                </div>
               </div>
-              <div>
-                <strong>กลุ่มสินค้า:</strong> {selectedGroup === 'all' ? 'ทุกกลุ่มสินค้า' : `กลุ่ม ${selectedGroup}`}
+
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-slate-300 text-xs">
+                <div>
+                  <strong>ช่วงวันที่ตรวจรับ:</strong> {formatDisplayDate(dateFrom)} - {formatDisplayDate(dateTo)}
+                </div>
+                <div>
+                  <strong>สถานะรายการ:</strong>{' '}
+                  {statusFilter === 'all'
+                    ? 'ทั้งหมด (Confirmed & Estimate)'
+                    : statusFilter === 'confirmed'
+                    ? 'เฉพาะยืนยันแล้ว (Confirmed)'
+                    : statusFilter === 'estimate'
+                    ? 'เฉพาะประมาณการ (Estimate)'
+                    : 'เกินกำหนด (Overdue)'}
+                </div>
+                <div className="text-right">
+                  <strong>รวมทั้งหมด:</strong> {filteredItems.length} รายการ (
+                  {filteredItems.reduce((acc, it) => acc + it.quantity, 0).toLocaleString()} หน่วย)
+                </div>
+              </div>
+            </div>
+
+            {/* Printable Standard Report Table */}
+            <table className="w-full text-left text-[10px] border-collapse border border-slate-400">
+              <thead>
+                <tr className="bg-slate-900 text-white font-bold border-b border-slate-900">
+                  <th className="py-1.5 px-1 text-center border-r border-slate-700 w-7">#</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-700 w-20 whitespace-nowrap">กำหนดส่ง</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-700 w-20 whitespace-nowrap">เลขที่ PO</th>
+                  <th className="py-1.5 px-2 border-r border-slate-700">รหัสสินค้า & ชื่อสินค้า</th>
+                  <th className="py-1.5 px-1 text-center border-r border-slate-700 w-16 whitespace-nowrap">กลุ่มสินค้า</th>
+                  <th className="py-1.5 px-2 text-right border-r border-slate-700 w-20 whitespace-nowrap">จำนวนนัดส่ง</th>
+                  <th className="py-1.5 px-2 border-r border-slate-700 w-36 whitespace-nowrap">ผู้ขาย (Supplier)</th>
+                  <th className="py-1.5 px-2 border-r border-slate-700 w-24 whitespace-nowrap">ผู้ดูแล</th>
+                  <th className="py-1.5 px-1 text-center w-18 whitespace-nowrap">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-300">
+                {(() => {
+                  let lastPoNumber = '';
+                  return filteredItems.map((item, idx) => {
+                    const isFirstInPo = item.po_number !== lastPoNumber;
+                    if (isFirstInPo) {
+                      lastPoNumber = item.po_number;
+                    }
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-slate-300 ${
+                          isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
+                        }`}
+                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                      >
+                        <td className="py-1.5 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
+                        <td className="py-1.5 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
+                          {isFirstInPo ? formatDisplayDate(item.delivery_date) : null}
+                        </td>
+                        <td className="py-1.5 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap text-sky-800">
+                          {isFirstInPo ? item.po_number : null}
+                        </td>
+                        <td className="py-1.5 px-2 border-r border-slate-300">
+                          <div className="font-bold text-slate-900">{item.item_code}</div>
+                          <div className="text-[9px] text-slate-600 leading-tight line-clamp-2">{item.item_name}</div>
+                        </td>
+                        <td className="py-1.5 px-1 text-center border-r border-slate-300">
+                          <span className="font-bold text-[9px] px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50 inline-block">
+                            {item.item_group || '-'}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-black border-r border-slate-300 whitespace-nowrap">
+                          {item.quantity.toLocaleString()} <span className="font-normal text-[9px]">{item.unit}</span>
+                        </td>
+                        <td className="py-1.5 px-2 border-r border-slate-300 text-[9px] leading-tight font-medium">
+                          {item.supplier_name}
+                        </td>
+                        <td className="py-1.5 px-2 border-r border-slate-300 text-[9px] leading-tight text-slate-700">
+                          {formatBuyerName(item.buyer_name)}
+                        </td>
+                        <td className="py-1.5 px-1 text-center text-[9px] font-bold">
+                          {item.is_confirmed ? (
+                            <span className="text-emerald-700">Confirmed</span>
+                          ) : item.is_overdue ? (
+                            <span className="text-rose-700">Overdue</span>
+                          ) : (
+                            <span className="text-amber-700">Estimate</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 font-bold border-t-2 border-slate-900 text-[10px]">
+                  <td colSpan={5} className="py-2 px-3 text-right font-extrabold">รวมทั้งสิ้น:</td>
+                  <td className="py-2 px-2 text-right font-black text-slate-900">
+                    {filteredItems.reduce((acc, it) => acc + it.quantity, 0).toLocaleString()}
+                  </td>
+                  <td colSpan={3} className="py-2 px-2 text-slate-600">
+                    ({filteredItems.length} รายการ จาก {new Set(filteredItems.map(i => i.po_number)).size} PO)
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          /* ─────────────────────────────────────────────────────────────────── */
+          /* MODE 2: Physical Inspection Checklist (with Checkboxes & Signatures)*/
+          /* ─────────────────────────────────────────────────────────────────── */
+          <div>
+            {/* Document Header */}
+            <div className="border-b-2 border-slate-900 pb-3 mb-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+                    บริษัท วินโดว์ เอเชีย จำกัด (มหาชน)
+                  </h1>
+                  <h2 className="text-base font-extrabold text-slate-800 mt-0.5">
+                    ใบตรวจรับมอบวัตถุดิบประจำวัน (Daily Receiving Inspection Checklist)
+                  </h2>
+                </div>
+                <div className="text-right text-xs text-slate-600 space-y-0.5">
+                  <div>
+                    <strong>วันที่พิมพ์:</strong>{' '}
+                    {new Date().toLocaleDateString('th-TH', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                  <div>
+                    <strong>กลุ่มสินค้า:</strong> {selectedGroup === 'all' ? 'ทุกกลุ่มสินค้า' : `กลุ่ม ${selectedGroup}`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-slate-300 text-xs">
+                <div>
+                  <strong>ช่วงวันที่ตรวจรับ:</strong> {formatDisplayDate(dateFrom)} - {formatDisplayDate(dateTo)}
+                </div>
+                <div>
+                  <strong>สถานะรายการ:</strong>{' '}
+                  {statusFilter === 'all'
+                    ? 'ทั้งหมด (Confirmed & Estimate)'
+                    : statusFilter === 'confirmed'
+                    ? 'เฉพาะยืนยันแล้ว (Confirmed)'
+                    : statusFilter === 'estimate'
+                    ? 'เฉพาะประมาณการ (Estimate)'
+                    : 'เกินกำหนด (Overdue)'}
+                </div>
+                <div className="text-right">
+                  <strong>รวมทั้งหมด:</strong> {filteredItems.length} รายการ (
+                  {filteredItems.reduce((acc, it) => acc + it.quantity, 0).toLocaleString()} หน่วย)
+                </div>
+              </div>
+            </div>
+
+            {/* Printable Checklist Table */}
+            <table className="w-full text-left text-[10px] border-collapse border border-slate-400">
+              <thead>
+                <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
+                  <th className="py-1 px-1 text-center border-r border-slate-400 w-7">ลำดับ</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 w-18">กำหนดส่ง</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 w-20">เลขที่ PO</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400">รหัสสินค้า / รายละเอียดสินค้า</th>
+                  <th className="py-1 px-1 text-center border-r border-slate-400 w-14">กลุ่ม</th>
+                  <th className="py-1 px-1.5 text-right border-r border-slate-400 w-16">จำนวนนัดส่ง</th>
+                  <th className="py-1 px-1.5 border-r border-slate-400 w-32">ผู้ขาย (Supplier)</th>
+                  <th className="py-1 px-1 text-center border-r border-slate-400 w-20">ผลการตรวจรับ</th>
+                  <th className="py-1 px-1 text-center w-20">หมายเหตุ / เลขที่บิล</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-300">
+                {(() => {
+                  let lastPoNumber = '';
+                  return filteredItems.map((item, idx) => {
+                    const isFirstInPo = item.po_number !== lastPoNumber;
+                    if (isFirstInPo) {
+                      lastPoNumber = item.po_number;
+                    }
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-slate-300 ${
+                          isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
+                        }`}
+                        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+                      >
+                        <td className="py-1 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
+                        <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
+                          {isFirstInPo ? formatDisplayDate(item.delivery_date) : null}
+                        </td>
+                        <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
+                          {isFirstInPo ? item.po_number : null}
+                        </td>
+                        <td className="py-1 px-1.5 border-r border-slate-300">
+                          <div className="font-bold">{item.item_code}</div>
+                          <div className="text-[9px] text-slate-600 leading-tight line-clamp-2">{item.item_name}</div>
+                        </td>
+                        <td className="py-1 px-1 text-center border-r border-slate-300 font-semibold">
+                          {item.item_group || '-'}
+                        </td>
+                        <td className="py-1 px-1.5 text-right font-black border-r border-slate-300 whitespace-nowrap">
+                          {item.quantity.toLocaleString()} {item.unit}
+                        </td>
+                        <td className="py-1 px-1.5 border-r border-slate-300 text-[9px] leading-tight">
+                          {item.supplier_name}
+                        </td>
+                        {/* Physical Checklist Box */}
+                        <td className="py-1 px-1 border-r border-slate-300 text-[9px]">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="flex items-center gap-1">
+                              <span className="inline-block w-2.5 h-2.5 border border-slate-700 rounded-2xs"></span>
+                              <span>ครบถ้วน</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="inline-block w-2.5 h-2.5 border border-slate-700 rounded-2xs"></span>
+                              <span>ขาด: .....</span>
+                            </span>
+                          </div>
+                        </td>
+                        {/* Notes / Invoice */}
+                        <td className="py-1 px-1 text-[9px] text-slate-400"></td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+
+            {/* Guaranteed Signatures Section at the end of Document */}
+            <div
+              className="mt-4 pt-3 border-t-2 border-slate-800"
+              style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+            >
+              <div className="grid grid-cols-3 gap-6 text-center text-[10px] text-slate-800 pt-2 pb-1">
+                <div className="space-y-2.5">
+                  <div>ลงชื่อ ............................................................</div>
+                  <div>( ............................................................ )</div>
+                  <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
+                </div>
+                <div className="space-y-2.5">
+                  <div>ลงชื่อ ............................................................</div>
+                  <div>( ............................................................ )</div>
+                  <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
+                </div>
+                <div className="space-y-2.5">
+                  <div>ลงชื่อ ............................................................</div>
+                  <div>( ............................................................ )</div>
+                  <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-slate-300 text-xs">
-            <div>
-              <strong>ช่วงวันที่ตรวจรับ:</strong> {formatDisplayDate(dateFrom)} - {formatDisplayDate(dateTo)}
-            </div>
-            <div>
-              <strong>สถานะรายการ:</strong>{' '}
-              {statusFilter === 'all'
-                ? 'ทั้งหมด (Confirmed & Estimate)'
-                : statusFilter === 'confirmed'
-                ? 'เฉพาะยืนยันแล้ว (Confirmed)'
-                : statusFilter === 'estimate'
-                ? 'เฉพาะประมาณการ (Estimate)'
-                : 'เกินกำหนด (Overdue)'}
-            </div>
-            <div className="text-right">
-              <strong>รวมทั้งหมด:</strong> {filteredItems.length} รายการ (
-              {filteredItems.reduce((acc, it) => acc + it.quantity, 0).toLocaleString()} หน่วย)
-            </div>
-          </div>
-        </div>
-
-        {/* Printable Checklist Table */}
-        <table className="w-full text-left text-[10px] border-collapse border border-slate-400">
-          <thead>
-            <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-400">
-              <th className="py-1 px-1 text-center border-r border-slate-400 w-7">ลำดับ</th>
-              <th className="py-1 px-1.5 border-r border-slate-400 w-18">กำหนดส่ง</th>
-              <th className="py-1 px-1.5 border-r border-slate-400 w-20">เลขที่ PO</th>
-              <th className="py-1 px-1.5 border-r border-slate-400">รหัสสินค้า / รายละเอียดสินค้า</th>
-              <th className="py-1 px-1 text-center border-r border-slate-400 w-14">กลุ่ม</th>
-              <th className="py-1 px-1.5 text-right border-r border-slate-400 w-16">จำนวนนัดส่ง</th>
-              <th className="py-1 px-1.5 border-r border-slate-400 w-32">ผู้ขาย (Supplier)</th>
-              <th className="py-1 px-1 text-center border-r border-slate-400 w-20">ผลการตรวจรับ</th>
-              <th className="py-1 px-1 text-center w-20">หมายเหตุ / เลขที่บิล</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-300">
-            {(() => {
-              let lastPoNumber = '';
-              return filteredItems.map((item, idx) => {
-                const isFirstInPo = item.po_number !== lastPoNumber;
-                if (isFirstInPo) {
-                  lastPoNumber = item.po_number;
-                }
-
-                return (
-                  <tr
-                    key={item.id}
-                    className={`border-b border-slate-300 ${
-                      isFirstInPo && idx > 0 ? '!border-t-2 !border-t-slate-500' : ''
-                    }`}
-                    style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-                  >
-                    <td className="py-1 px-1 text-center font-semibold border-r border-slate-300">{idx + 1}</td>
-                    <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
-                      {isFirstInPo ? formatDisplayDate(item.delivery_date) : null}
-                    </td>
-                    <td className="py-1 px-1.5 font-bold border-r border-slate-300 whitespace-nowrap">
-                      {isFirstInPo ? item.po_number : null}
-                    </td>
-                    <td className="py-1 px-1.5 border-r border-slate-300">
-                      <div className="font-bold">{item.item_code}</div>
-                      <div className="text-[9px] text-slate-600 leading-tight line-clamp-2">{item.item_name}</div>
-                    </td>
-                    <td className="py-1 px-1 text-center border-r border-slate-300 font-semibold">
-                      {item.item_group || '-'}
-                    </td>
-                    <td className="py-1 px-1.5 text-right font-black border-r border-slate-300 whitespace-nowrap">
-                      {item.quantity.toLocaleString()} {item.unit}
-                    </td>
-                    <td className="py-1 px-1.5 border-r border-slate-300 text-[9px] leading-tight">
-                      {item.supplier_name}
-                    </td>
-                    {/* Physical Checklist Box */}
-                    <td className="py-1 px-1 border-r border-slate-300 text-[9px]">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="flex items-center gap-1">
-                          <span className="inline-block w-2.5 h-2.5 border border-slate-700 rounded-2xs"></span>
-                          <span>ครบถ้วน</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="inline-block w-2.5 h-2.5 border border-slate-700 rounded-2xs"></span>
-                          <span>ขาด: .....</span>
-                        </span>
-                      </div>
-                    </td>
-                    {/* Notes / Invoice */}
-                    <td className="py-1 px-1 text-[9px] text-slate-400"></td>
-                  </tr>
-                );
-              });
-            })()}
-          </tbody>
-        </table>
-
-        {/* Guaranteed Signatures Section at the end of Document */}
-        <div
-          className="mt-4 pt-3 border-t-2 border-slate-800"
-          style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-        >
-          <div className="grid grid-cols-3 gap-6 text-center text-[10px] text-slate-800 pt-2 pb-1">
-            <div className="space-y-2.5">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">ผู้ส่งมอบสินค้า (Supplier / Driver)</div>
-            </div>
-            <div className="space-y-2.5">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">ผู้ตรวจรับสินค้า (Warehouse Inspector)</div>
-            </div>
-            <div className="space-y-2.5">
-              <div>ลงชื่อ ............................................................</div>
-              <div>( ............................................................ )</div>
-              <div className="font-bold text-slate-900">หัวหน้าแผนก / ผู้ตรวจสอบ (Supervisor)</div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
