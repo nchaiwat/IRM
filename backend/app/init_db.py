@@ -26,6 +26,7 @@ async def run_ddl_migrations(conn):
 
         # groups table
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS default_page VARCHAR(100) DEFAULT '/dashboard';",
 
         # po_items table
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS line_num INTEGER DEFAULT 0;",

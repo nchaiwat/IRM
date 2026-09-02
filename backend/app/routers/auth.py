@@ -292,6 +292,13 @@ async def get_me(
     # Determine effective allowed_item_groups (Group restriction with User specific override)
     effective_groups = get_effective_user_allowed_groups(current_user)
 
+    # Determine default landing page from Group
+    default_landing = (
+        current_user.group.default_page
+        if current_user.group and current_user.group.default_page
+        else "/dashboard"
+    )
+
     return UserMeResponse(
         id=current_user.id,
         username=current_user.username,
@@ -300,5 +307,6 @@ async def get_me(
         group_id=current_user.group_id,
         group_name=current_user.group.name if current_user.group else None,
         allowed_item_groups=effective_groups,
+        default_page=default_landing,
         permissions=permissions,
     )

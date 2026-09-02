@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, getLandingPage } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
@@ -132,10 +132,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 กลุ่มผู้ใช้งาน <b className="text-slate-700">{user.group_name || 'ของคุณ'}</b> ไม่ได้รับสิทธิ์ในการเข้าถึงหน้านี้ตามที่กำหนดไว้ในตารางสิทธิ์ (Auth Matrix)
               </p>
               <button
-                onClick={() => router.push('/operation')}
-                className="mt-6 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition"
+                onClick={() => router.push(getLandingPage(user))}
+                className="mt-6 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition cursor-pointer"
               >
-                กลับสู่หน้าหลัก (Operation)
+                กลับสู่หน้าหลักที่ได้รับสิทธิ์
               </button>
             </div>
           ) : (

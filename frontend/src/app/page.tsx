@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, getLandingPage } from '@/lib/auth-context';
 
 export default function HomePage() {
   const router = useRouter();
@@ -11,7 +11,8 @@ export default function HomePage() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.replace('/operation');
+        const landing = getLandingPage(user);
+        router.replace(landing);
       } else {
         router.replace('/login');
       }

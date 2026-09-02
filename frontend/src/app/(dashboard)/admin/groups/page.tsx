@@ -3,7 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Group } from '@/types';
-import { Shield, Plus, Users, CheckCircle2, XCircle, Edit, Trash2 } from 'lucide-react';
+import { Shield, Plus, Users, CheckCircle2, XCircle, Edit, Trash2, Compass } from 'lucide-react';
+
+const LANDING_PAGE_OPTIONS = [
+  { path: '/dashboard', label: '📊 Dashboard (ภาพรวมระบบ - ค่าเริ่มต้น)' },
+  { path: '/calendar', label: '📅 Calendar (ปฏิทินนัดส่งสินค้า)' },
+  { path: '/receiving-checklist', label: '📑 Receiving Checklist (ใบตรวจรับสินค้า)' },
+  { path: '/operation', label: '📋 Operation (จัดการสถานะ PO/สินค้า)' },
+  { path: '/items', label: '📦 Item Master (ข้อมูลสินค้า)' },
+  { path: '/suppliers', label: '🏭 Supplier Master (ข้อมูลผู้ขาย)' },
+  { path: '/history', label: '📜 History (ประวัติการแก้ไข)' },
+];
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -12,6 +22,7 @@ export default function GroupsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [allowedItemGroups, setAllowedItemGroups] = useState('*');
+  const [defaultPage, setDefaultPage] = useState('/dashboard');
   const [submitting, setSubmitting] = useState(false);
 
   // Edit Modal State
@@ -19,6 +30,7 @@ export default function GroupsPage() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editAllowedItemGroups, setEditAllowedItemGroups] = useState('*');
+  const [editDefaultPage, setEditDefaultPage] = useState('/dashboard');
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -40,11 +52,17 @@ export default function GroupsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post('/api/groups', { name, description, allowed_item_groups: allowedItemGroups || '*' });
+      await api.post('/api/groups', {
+        name,
+        description,
+        allowed_item_groups: allowedItemGroups || '*',
+        default_page: defaultPage || '/dashboard',
+      });
       setShowCreateModal(false);
       setName('');
       setDescription('');
       setAllowedItemGroups('*');
+      setDefaultPage('/dashboard');
       fetchGroups();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างกลุ่ม');
@@ -58,6 +76,7 @@ export default function GroupsPage() {
     setEditName(group.name);
     setEditDescription(group.description || '');
     setEditAllowedItemGroups(group.allowed_item_groups || '*');
+    setEditDefaultPage(group.default_page || '/dashboard');
   };
 
   const handleUpdateGroup = async (e: React.FormEvent) => {
@@ -69,6 +88,7 @@ export default function GroupsPage() {
         name: editName,
         description: editDescription,
         allowed_item_groups: editAllowedItemGroups || '*',
+        default_page: editDefaultPage || '/dashboard',
       });
       setShowEditModal(null);
       fetchGroups();
@@ -133,7 +153,7 @@ export default function GroupsPage() {
             <Shield className="w-7 h-7 text-sky-600" />
             <span>กลุ่มผู้ใช้งาน (Group Management)</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">จัดการกลุ่มบทบาทหน้าที่การทำงานและกำหนดสิทธิ์กลุ่มสินค้าที่มองเห็นในระบบ</p>
+          <p className="text-xs text-slate-500 mt-1">จัดการกลุ่มบทบาทหน้าที่ กำหนดสิทธิ์กลุ่มสินค้า และกำหนดหน้าแรกหลังล็อกอิน</p>
         </div>
 
         <button
@@ -150,6 +170,8 @@ export default function GroupsPage() {
         {groups.map((g) => {
           const isAdminGroup = g.name.toLowerCase() === 'admin';
           const hasUsers = g.user_count > 0;
+          const landingOpt = LANDING_PAGE_OPTIONS.find((p) => p.path === g.default_page);
+          const landingTitle = landingOpt ? landingOpt.label.split(' ')[1] : g.default_page || 'Dashboard';
 
           return (
             <div key={g.id} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
@@ -175,9 +197,13 @@ export default function GroupsPage() {
                 </div>
                 <p className="text-xs text-slate-500 mt-2 min-h-[36px]">{g.description || 'ไม่มีคำอธิบาย'}</p>
 
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-1.5 items-center">
                   <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
                     กลุ่มสินค้า: {g.allowed_item_groups === '*' ? 'ทุกกลุ่มสินค้า (*)' : g.allowed_item_groups || 'ทุกกลุ่ม (*)'}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Compass className="w-3 h-3 text-emerald-600" />
+                    <span>หน้าแรก: {landingTitle}</span>
                   </span>
                 </div>
               </div>
@@ -234,7 +260,7 @@ export default function GroupsPage() {
       {/* Modal: Create Group */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-slate-900">เพิ่มกลุ่มผู้ใช้งานใหม่</h3>
             <form onSubmit={handleCreateGroup} className="space-y-3">
               <div>
@@ -244,7 +270,7 @@ export default function GroupsPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="เช่น PU Supervisor"
+                  placeholder="เช่น WH User"
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500"
                 />
               </div>
@@ -276,6 +302,26 @@ export default function GroupsPage() {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  หน้าแรกหลังเข้าสู่ระบบ (Default Landing Page)
+                </label>
+                <select
+                  value={defaultPage}
+                  onChange={(e) => setDefaultPage(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 bg-white"
+                >
+                  {LANDING_PAGE_OPTIONS.map((opt) => (
+                    <option key={opt.path} value={opt.path}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  หน้าที่ผู้ใช้ในกลุ่มนี้จะถูกพาไปทันทีเมื่อเข้าสู่ระบบสำเร็จ
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
@@ -300,7 +346,7 @@ export default function GroupsPage() {
       {/* Modal: Edit Group */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-slate-900">
               แก้ไขกลุ่ม: <span className="text-sky-600">{showEditModal.name}</span>
             </h3>
@@ -345,6 +391,26 @@ export default function GroupsPage() {
                 />
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   ระบุรหัสกลุ่มสินค้า หรือคั่นด้วยจุลภาค เช่น <code>HW,RM-กระจก</code> หรือ <code>*</code> เพื่อดูทั้งหมด
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  หน้าแรกหลังเข้าสู่ระบบ (Default Landing Page)
+                </label>
+                <select
+                  value={editDefaultPage}
+                  onChange={(e) => setEditDefaultPage(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 bg-white"
+                >
+                  {LANDING_PAGE_OPTIONS.map((opt) => (
+                    <option key={opt.path} value={opt.path}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  หน้าที่ผู้ใช้ในกลุ่มนี้จะถูกพาไปทันทีเมื่อเข้าสู่ระบบสำเร็จ
                 </p>
               </div>
 

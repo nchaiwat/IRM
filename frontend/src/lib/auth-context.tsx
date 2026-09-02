@@ -23,6 +23,37 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => {},
 });
 
+export const getLandingPage = (user: UserMe | null): string => {
+  if (!user) return '/login';
+  const isAdmin = user.group_name?.toLowerCase() === 'admin';
+
+  // 1. Group custom landing page if set and valid
+  if (user.default_page && user.default_page.startsWith('/')) {
+    if (isAdmin) return user.default_page;
+    const targetPerm = user.permissions?.find(
+      (p) => p.menu_path && (p.menu_path === user.default_page || user.default_page!.startsWith(p.menu_path))
+    );
+    if (targetPerm && targetPerm.can_view) {
+      return user.default_page;
+    }
+  }
+
+  // 2. Try default dashboard if permitted or admin
+  if (isAdmin) return '/dashboard';
+  const dashPerm = user.permissions?.find((p) => p.menu_path === '/dashboard');
+  if (dashPerm && dashPerm.can_view) return '/dashboard';
+
+  // 3. Smart fallback: find the first accessible menu in user permissions
+  const firstAllowed = user.permissions?.find(
+    (p) => p.can_view && p.menu_path && p.menu_path !== '/'
+  );
+  if (firstAllowed && firstAllowed.menu_path) {
+    return firstAllowed.menu_path;
+  }
+
+  return '/calendar';
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserMe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,8 +87,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (accessToken: string, refreshToken: string) => {
     localStorage.setItem('irm_access_token', accessToken);
     localStorage.setItem('irm_refresh_token', refreshToken);
-    await fetchUser();
-    router.push('/operation');
+    try {
+      const res = await api.get<UserMe>('/api/auth/me');
+      setUser(res.data);
+      const target = getLandingPage(res.data);
+      router.push(target);
+    } catch (err) {
+      console.error('Failed to fetch user during login:', err);
+      await fetchUser();
+      router.push('/dashboard');
+    }
   };
 
   const logout = () => {

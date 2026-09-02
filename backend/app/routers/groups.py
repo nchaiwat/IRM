@@ -41,6 +41,7 @@ async def list_groups(
                 name=g.name,
                 description=g.description,
                 allowed_item_groups=g.allowed_item_groups or "*",
+                default_page=g.default_page or "/dashboard",
                 is_active=g.is_active,
                 user_count=user_count,
                 created_at=g.created_at,
@@ -68,6 +69,7 @@ async def create_group(
         name=data.name,
         description=data.description,
         allowed_item_groups=data.allowed_item_groups or "*",
+        default_page=data.default_page or "/dashboard",
         is_active=data.is_active,
     )
     db.add(group)
@@ -79,6 +81,7 @@ async def create_group(
         name=group.name,
         description=group.description,
         allowed_item_groups=group.allowed_item_groups or "*",
+        default_page=group.default_page or "/dashboard",
         is_active=group.is_active,
         user_count=0,
         created_at=group.created_at,
@@ -106,6 +109,8 @@ async def update_group(
         group.description = data.description
     if data.allowed_item_groups is not None:
         group.allowed_item_groups = data.allowed_item_groups
+    if data.default_page is not None:
+        group.default_page = data.default_page
     if data.is_active is not None:
         group.is_active = data.is_active
 
@@ -121,6 +126,7 @@ async def update_group(
         name=group.name,
         description=group.description,
         allowed_item_groups=group.allowed_item_groups or "*",
+        default_page=group.default_page or "/dashboard",
         is_active=group.is_active,
         user_count=user_count,
         created_at=group.created_at,

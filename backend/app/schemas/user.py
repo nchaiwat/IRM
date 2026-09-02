@@ -38,6 +38,7 @@ class GroupMinimal(BaseModel):
     id: int
     name: str
     allowed_item_groups: str | None = "*"
+    default_page: str | None = "/dashboard"
 
     model_config = {"from_attributes": True}
 
