@@ -37,6 +37,7 @@ class PasswordReset(BaseModel):
 class GroupMinimal(BaseModel):
     id: int
     name: str
+    allowed_item_groups: str | None = "*"
 
     model_config = {"from_attributes": True}
 

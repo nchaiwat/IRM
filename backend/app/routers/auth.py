@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_effective_user_allowed_groups
 from app.models.auth_matrix import AuthMatrix
 from app.models.menu import Menu
 from app.models.transaction_log import TransactionLog
@@ -289,8 +289,8 @@ async def get_me(
             )
         )
 
-    # Determine effective allowed_item_groups (User specific override, or Group fallback, or "*")
-    effective_groups = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+    # Determine effective allowed_item_groups (Group restriction with User specific override)
+    effective_groups = get_effective_user_allowed_groups(current_user)
 
     return UserMeResponse(
         id=current_user.id,

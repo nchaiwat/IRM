@@ -86,6 +86,11 @@ export default function UsersPage() {
 
   const handleOpenEdit = (u: User) => {
     setShowEditModal(u);
+    const initialAllowed =
+      u.allowed_item_groups === '*' && u.group?.allowed_item_groups && u.group.allowed_item_groups !== '*'
+        ? u.group.allowed_item_groups
+        : (u.allowed_item_groups || '*');
+
     setFormData({
       username: u.username,
       password: '',
@@ -95,7 +100,7 @@ export default function UsersPage() {
       use_ad_auth: !!u.use_ad_auth,
       telegram_chat_id: u.telegram_chat_id || '',
       group_id: u.group_id ? u.group_id.toString() : '',
-      allowed_item_groups: u.allowed_item_groups || '*',
+      allowed_item_groups: initialAllowed,
       is_active: u.is_active,
     });
   };
@@ -279,13 +284,19 @@ export default function UsersPage() {
                       <span className="text-slate-400 italic text-[11px]">ไม่ได้กำหนด</span>
                     )}
                   </div>
-                  {u.allowed_item_groups && (
-                    <div className="mt-1">
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
-                        กลุ่มสินค้า: {u.allowed_item_groups === '*' ? 'ทั้งหมด (*)' : u.allowed_item_groups}
-                      </span>
-                    </div>
-                  )}
+                  {(() => {
+                    const effective =
+                      u.allowed_item_groups && u.allowed_item_groups !== '*'
+                        ? u.allowed_item_groups
+                        : u.group?.allowed_item_groups || u.allowed_item_groups || '*';
+                    return (
+                      <div className="mt-1">
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          กลุ่มสินค้า: {effective === '*' ? 'ทั้งหมด (*)' : effective}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </td>
 
                 {/* Authen Mode Column */}
@@ -616,6 +627,18 @@ export default function UsersPage() {
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
                 />
                 <p className="text-[10px] text-slate-400 mt-0.5">ระบุรหัสกลุ่มสินค้า หรือคั่นด้วยจุลภาค เช่น <code>HW,RM-กระจก</code> หรือ <code>*</code> เพื่อดูทั้งหมด</p>
+                {(() => {
+                  const selGroup = groups.find((g) => g.id.toString() === formData.group_id);
+                  if (selGroup && selGroup.allowed_item_groups && selGroup.allowed_item_groups !== '*') {
+                    return (
+                      <p className="text-[10px] text-sky-600 font-semibold mt-1">
+                        📌 กลุ่ม <strong>{selGroup.name}</strong> กำหนดกลุ่มสินค้าไว้คือ:{' '}
+                        <code>{selGroup.allowed_item_groups}</code> (ระบบจะใช้ค่านี้ควบคุมสิทธิ์อัตโนมัติ)
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               <div>

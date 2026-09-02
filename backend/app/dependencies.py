@@ -104,3 +104,63 @@ def require_permission(menu_path: str, action: str = "view"):
         return current_user
 
     return permission_checker
+
+
+def get_effective_user_allowed_groups(user: User) -> str:
+    """
+    Compute effective allowed item groups for a user based on Group and User settings.
+    - Admin always gets "*"
+    - If user belongs to a group with specific restrictions (e.g. "HW"), the group restriction applies!
+    - If user has "*" or empty or None, inherit the Group restriction!
+    """
+    if (user.username and user.username.lower() == "admin") or (
+        user.group and user.group.name.lower() == "admin"
+    ):
+        return "*"
+
+    group_allowed = (user.group.allowed_item_groups or "").strip() if user.group else ""
+    user_allowed = (user.allowed_item_groups or "").strip()
+
+    # 1. If Group has specific restriction (e.g. "HW", "HW, RM-กระจก")
+    if group_allowed and group_allowed != "*":
+        # If user also has specific restriction (not empty and not "*")
+        if user_allowed and user_allowed != "*":
+            return user_allowed
+        # User has "*" or empty -> Strictly inherit Group restriction!
+        return group_allowed
+
+    # 2. Group allows "*" or user has no group
+    if user_allowed:
+        return user_allowed
+    return "*"
+
+
+def is_user_allowed_group(user_allowed: str | None, target_group: str | None) -> bool:
+    """Helper to check if user has permission for a specific item group."""
+    if not user_allowed or user_allowed.strip() == "*":
+        return True
+
+    allowed_list = [g.strip().lower() for g in user_allowed.split(",") if g.strip()]
+    if "*" in allowed_list:
+        return True
+
+    if not target_group:
+        return False
+
+    t = target_group.strip().lower()
+
+    # 1. Exact match
+    if t in allowed_list:
+        return True
+
+    # 2. Sub-group or prefix match
+    for a in allowed_list:
+        if t.startswith(f"{a}-") or t.startswith(f"{a} ") or t.startswith(f"{a}/"):
+            return True
+        # SAP code mapping
+        if a == "hw" and t in ["113", "hw-"]:
+            return True
+        if a in ["fg-upvc", "upvc"] and t in ["115", "upvc-"]:
+            return True
+
+    return False

@@ -41,7 +41,7 @@ export interface User {
   use_ad_auth?: boolean;
   telegram_chat_id?: string | null;
   group_id: number | null;
-  group?: { id: number; name: string };
+  group?: { id: number; name: string; allowed_item_groups?: string | null };
   allowed_item_groups?: string | null;
   is_active: boolean;
   last_login_at?: string | null;

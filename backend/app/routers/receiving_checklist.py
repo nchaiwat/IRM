@@ -10,24 +10,17 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_permission
+from app.dependencies import (
+    get_current_user,
+    require_permission,
+    get_effective_user_allowed_groups,
+    is_user_allowed_group,
+)
 from app.models.master import ItemMaster
 from app.models.po import POHeader, POItem, SubItem
 from app.models.user import User
 
 router = APIRouter(prefix="/api/receiving-checklist", tags=["Receiving Checklist"])
-
-
-def is_user_allowed_group(user_allowed: str | None, target_group: str | None) -> bool:
-    """Helper to check if user has permission for a specific item group."""
-    if not user_allowed or user_allowed.strip() == "*":
-        return True
-    allowed_list = [g.strip().lower() for g in user_allowed.split(",") if g.strip()]
-    if "*" in allowed_list:
-        return True
-    if not target_group:
-        return False
-    return target_group.strip().lower() in allowed_list
 
 
 @router.get("/item-groups")
@@ -47,11 +40,9 @@ async def get_unique_item_groups(
     groups_set.discard("")
 
     # Filter by user permissions if restricted
-    user_allowed = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+    user_allowed = get_effective_user_allowed_groups(current_user)
     if user_allowed != "*":
-        allowed_list = [g.strip().lower() for g in user_allowed.split(",") if g.strip()]
-        if "*" not in allowed_list:
-            groups_set = {g for g in groups_set if g.strip().lower() in allowed_list}
+        groups_set = {g for g in groups_set if is_user_allowed_group(user_allowed, g)}
 
     return sorted(list(groups_set))
 
@@ -70,7 +61,7 @@ async def get_receiving_checklist(
     """
     Fetch deliveries structured for daily receiving checklist with on-site inspection checkboxes and print sheets.
     """
-    user_allowed = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+    user_allowed = get_effective_user_allowed_groups(current_user)
 
     stmt = (
         select(POItem, POHeader)

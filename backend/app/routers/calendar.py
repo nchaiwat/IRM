@@ -9,23 +9,16 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, require_permission
+from app.dependencies import (
+    get_current_user,
+    require_permission,
+    get_effective_user_allowed_groups,
+    is_user_allowed_group,
+)
 from app.models.po import POHeader, POItem, SubItem
 from app.models.user import User
 
 router = APIRouter(prefix="/api/calendar", tags=["Calendar"])
-
-
-def is_user_allowed_group(user_allowed: str | None, target_group: str | None) -> bool:
-    """Check if user has permission for target item group."""
-    if not user_allowed or user_allowed.strip() == "*":
-        return True
-    allowed_list = [g.strip().lower() for g in user_allowed.split(",") if g.strip()]
-    if "*" in allowed_list:
-        return True
-    if not target_group:
-        return False
-    return target_group.strip().lower() in allowed_list
 
 
 @router.get("")
@@ -35,7 +28,7 @@ async def get_calendar_events(
     item_group: str | None = Query(None, description="Filter by Item Group"),
 ):
     """Get all delivery events for Calendar view (Support Main Items, Sub-Items, Confirmed & Estimate status, with Buyer Name)."""
-    user_allowed = current_user.allowed_item_groups or (current_user.group.allowed_item_groups if current_user.group else "*") or "*"
+    user_allowed = get_effective_user_allowed_groups(current_user)
 
     stmt = (
         select(POItem, POHeader)

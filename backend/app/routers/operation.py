@@ -11,7 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, require_permission
+from app.dependencies import (
+    get_current_user,
+    require_permission,
+    get_effective_user_allowed_groups,
+    is_user_allowed_group,
+)
 from app.models.po import POHeader, POItem, POItemAuditLog, SubItem
 from app.models.master import ItemMaster, SupplierMaster
 from app.models.user import User
@@ -52,8 +57,14 @@ async def list_open_po_items(
     sup_rows = (await db.execute(select(SupplierMaster.supplier_code, SupplierMaster.allow_over_delivery))).all()
     sup_over_map = {row[0]: row[1] for row in sup_rows if row[0]}
 
+    user_allowed = get_effective_user_allowed_groups(current_user)
+
     items_response: list[POItemResponse] = []
     for item, header in rows:
+        grp = item.item_group or "-"
+        if not is_user_allowed_group(user_allowed, grp):
+            continue
+
         items_response.append(
             POItemResponse(
                 id=item.id,
