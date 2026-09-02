@@ -400,3 +400,31 @@ async def test_ad_connection(
         "message": f"✅ ทดสอบยืนยันสิทธิ์กับ Active Directory สำเร็จ! ({message})",
         "raw_response": raw_resp,
     }
+
+
+@router.post("/regenerate-management-api-key")
+async def regenerate_management_api_key(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """Generate a new secure Secret Key for Central Identity Management API."""
+    import secrets
+    new_token = f"sec_irm_mgmt_{secrets.token_hex(16)}"
+
+    stmt = select(SystemSetting).where(SystemSetting.key == "management_api_key")
+    res = await db.execute(stmt)
+    setting = res.scalar_one_or_none()
+    if setting:
+        setting.value = new_token
+    else:
+        setting = SystemSetting(
+            key="management_api_key",
+            value=new_token,
+            description="Secret API Key สำหรับ Central Management App เรียกดูและระงับสิทธิ์บัญชีผู้ใช้",
+            category="integration",
+            data_type="string",
+        )
+        db.add(setting)
+
+    await db.commit()
+    return {"management_api_key": new_token, "message": "สร้าง Management API Key ใหม่สำเร็จ"}

@@ -237,6 +237,8 @@ async def seed_data():
                 ("ad_secret_key", "", "Secret Key for AD Sync Agent Gateway", "ad", "string"),
                 ("ad_forwarded_ip", "157.173.219.153", "Client Origin IP header (X-Forwarded-For) whitelisted on AD server", "ad", "string"),
                 ("ad_enabled", "false", "เปิดใช้งานการตรวจสอบสิทธิ์ผ่าน Active Directory (AD Authentication)", "ad", "boolean"),
+                ("management_api_key", "sec_irm_mgmt_9a4f21e8d3b76c501e4a", "Secret API Key สำหรับ Central Management App เรียกดูและระงับสิทธิ์บัญชีผู้ใช้", "integration", "string"),
+                ("management_allowed_ips", "", "รายการ IP ของ Central Management Server ที่อนุญาตให้ยิง API (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "integration", "string"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:

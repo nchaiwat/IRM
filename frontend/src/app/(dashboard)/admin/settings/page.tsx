@@ -60,6 +60,10 @@ export default function SettingsPage() {
 
   const [currentOrigin, setCurrentOrigin] = useState('https://irm.windowasia.com');
 
+  // Central Management API State
+  const [copiedMgmtKey, setCopiedMgmtKey] = useState(false);
+  const [regeneratingMgmtKey, setRegeneratingMgmtKey] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentOrigin(window.location.origin);
@@ -255,6 +259,22 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'สร้าง Ingest Token ล้มเหลว' });
     } finally {
       setRegeneratingToken(false);
+    }
+  };
+
+  const handleRegenerateMgmtKey = async () => {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการสร้าง Central Management API Key ใหม่? (ระบบส่วนกลางจะต้องเปลี่ยน Key ใหม่ตามด้วย)')) {
+      return;
+    }
+    setRegeneratingMgmtKey(true);
+    try {
+      const res = await api.post('/api/settings/regenerate-management-api-key');
+      setSettings((prev) => ({ ...prev, management_api_key: res.data.management_api_key }));
+      setMessage({ type: 'success', text: 'สร้าง Central Management API Key ใหม่สำเร็จแล้ว' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'สร้าง Management API Key ล้มเหลว' });
+    } finally {
+      setRegeneratingMgmtKey(false);
     }
   };
 
@@ -1091,6 +1111,108 @@ export default function SettingsPage() {
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>
+          </div>
+        </div>
+
+        {/* ================================================================= */}
+        {/* Section 7: Centralized Identity Management API                    */}
+        {/* ================================================================= */}
+        <div id="sec-central-iam" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+              <Key className="w-5 h-5 text-emerald-600" />
+              <span>7. Centralized Identity Management API (SCIM-Like Integration)</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Active / Ready
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed">
+            API มาตรฐานสำหรับ Central Management App ยิงเข้ามาเพื่อดึงข้อมูลรายชื่อพนักงานทั้งหมด (Reconciliation) หรือส่งคำสั่งระงับการใช้งานบัญชีผู้ใช้เมื่อพนักงานลาออก (Instant Offboarding / Disable Account)
+          </p>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="font-bold text-slate-800 flex items-center justify-between">
+              <span>Endpoints ให้บริการ:</span>
+              <a
+                href={`${currentOrigin}/docs`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-600 hover:underline text-[11px] font-semibold"
+              >
+                ดู Swagger API Documentation ↗
+              </a>
+            </div>
+            <div className="space-y-1.5 font-mono text-[11px] text-slate-600">
+              <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">GET</span>
+                <span className="text-slate-800">{currentOrigin}/api/v1/directory/accounts</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">PATCH</span>
+                <span className="text-slate-800">{currentOrigin}/api/v1/directory/accounts/&#123;username&#125;/status</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  X-Management-API-Key (Machine-to-Machine Secret Token) *
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(settings.management_api_key || '');
+                      setCopiedMgmtKey(true);
+                      setTimeout(() => setCopiedMgmtKey(false), 2000);
+                    }}
+                    className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    {copiedMgmtKey ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedMgmtKey ? 'คัดลอกแล้ว' : 'คัดลอก Key'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateMgmtKey}
+                    disabled={regeneratingMgmtKey}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${regeneratingMgmtKey ? 'animate-spin' : ''}`} />
+                    <span>สร้าง Key ใหม่</span>
+                  </button>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={settings.management_api_key || ''}
+                onChange={(e) => handleChange('management_api_key', e.target.value)}
+                placeholder="sec_irm_mgmt_..."
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                นำค่านี้ไปใส่ใน Header ของคำขอ: <code>X-Management-API-Key: &lt;Key&gt;</code>
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                IP Whitelist (เครื่องที่ได้รับอนุญาตให้ยิงคำขอ)
+              </label>
+              <input
+                type="text"
+                value={settings.management_allowed_ips || ''}
+                onChange={(e) => handleChange('management_allowed_ips', e.target.value)}
+                placeholder="เช่น 157.173.219.153, 192.168.12.11 (เว้นว่างไว้เพื่อรับทุก IP)"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                ระบุ IP ของ Central Management Server คั่นด้วยจุลภาค หรือเว้นว่างไว้เพื่ออนุญาตทุก IP
+              </span>
+            </div>
           </div>
         </div>
 

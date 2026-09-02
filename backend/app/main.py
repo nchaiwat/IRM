@@ -29,6 +29,7 @@ from app.routers import (
     sap_router,
     qms_integration_router,
     receiving_checklist_router,
+    central_management_router,
 )
 
 settings = get_settings()
@@ -101,6 +102,7 @@ app.include_router(dashboard_router)
 app.include_router(sap_router)
 app.include_router(qms_integration_router)
 app.include_router(receiving_checklist_router)
+app.include_router(central_management_router)
 
 
 @app.get("/", tags=["Health"])
