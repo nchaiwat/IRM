@@ -157,17 +157,22 @@ async def seed_data():
             sub_menus_data = [
                 ("System Setting", "/admin/settings", "Settings", 1),
                 ("User Management", "/admin/users", "Users", 2),
-                ("Auth Matrix", "/admin/auth-matrix", "Lock", 3),
-                ("Transaction Logs", "/admin/logs", "Activity", 4),
+                ("Group Management", "/admin/groups", "Shield", 3),
+                ("Auth Matrix", "/admin/auth-matrix", "Lock", 4),
+                ("Transaction Logs", "/admin/logs", "Activity", 5),
             ]
 
             for name, path, icon, sort_order in sub_menus_data:
-                stmt = select(Menu).where(Menu.name == name, Menu.parent_id == admin_menu_id)
+                stmt = select(Menu).where(Menu.path == path)
                 sub_menu = (await session.execute(stmt)).scalar_one_or_none()
                 if not sub_menu:
                     sub_menu = Menu(name=name, path=path, icon=icon, sort_order=sort_order, parent_id=admin_menu_id)
                     session.add(sub_menu)
                     await session.flush()
+                else:
+                    sub_menu.name = name
+                    sub_menu.sort_order = sort_order
+                    sub_menu.parent_id = admin_menu_id
                 menu_map[name] = sub_menu
 
             all_menus = (await session.execute(select(Menu))).scalars().all()
