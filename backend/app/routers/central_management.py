@@ -29,6 +29,7 @@ class CentralAccountItem(BaseModel):
     full_name: str
     email: EmailStr
     department: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
     group_name: Optional[str] = None
     use_ad_auth: bool
     is_active: bool
@@ -184,6 +185,7 @@ async def list_accounts_for_central_management(
                 full_name=u.full_name,
                 email=u.email,
                 department=u.department,
+                telegram_chat_id=u.telegram_chat_id,
                 group_name=u.group.name if u.group else None,
                 use_ad_auth=getattr(u, "use_ad_auth", False),
                 is_active=u.is_active,

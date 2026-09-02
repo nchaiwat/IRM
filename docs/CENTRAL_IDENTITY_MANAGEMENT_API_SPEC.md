@@ -58,7 +58,7 @@ Application ทุกตัวที่พัฒนาขึ้นในอง�
 * หากมี Reverse Proxy คั่นกลาง ต้องอ่านค่าจาก Header `X-Forwarded-For` อย่างปลอดภัย
 
 ### 2.3 Least Privilege & Zero Data Leakage
-* **ข้อมูลที่อนุญาตให้ส่งกลับ:** `id`, `username`, `full_name`, `email`, `department`, `is_active`, `last_login_at`, `created_at`
+* **ข้อมูลที่อนุญาตให้ส่งกลับ:** `id`, `username`, `full_name`, `email`, `department`, `telegram_chat_id`, `is_active`, `last_login_at`, `created_at`
 * **ข้อมูลที่ห้ามส่งกลับเด็ดขาด (Strictly Forbidden):** 
   * ❌ `password`, `password_hash`, `salt`
   * ❌ ข้อมูลทางธุรกิจ (เช่น ราคาสินค้า, ใบสั่งซื้อ, ข้อมูลลูกค้า, ตัวเลขทางการเงิน)
@@ -112,6 +112,7 @@ Application ทุกตัวที่พัฒนาขึ้นในอง�
       "full_name": "สมชาย พากเพียร",
       "email": "somchai.p@company.com",
       "department": "Purchasing",
+      "telegram_chat_id": "987654321",
       "group_name": "Purchasing Staff",
       "use_ad_auth": true,
       "is_active": true,
@@ -125,6 +126,7 @@ Application ทุกตัวที่พัฒนาขึ้นในอง�
       "full_name": "วิชัย การค้า",
       "email": "wichai.k@company.com",
       "department": "Warehouse",
+      "telegram_chat_id": null,
       "group_name": "Warehouse Operator",
       "use_ad_auth": false,
       "is_active": false,
