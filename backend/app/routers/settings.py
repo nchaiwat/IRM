@@ -350,6 +350,7 @@ async def test_ad_connection(
 ):
     """Test user authentication against Active Directory (AD Gateway)."""
     from app.services.ad_service import verify_ad_credentials
+    from app.services.log_service import record_transaction_log
 
     override = {}
     if data.gateway_url:
@@ -367,6 +368,26 @@ async def test_ad_connection(
         password=data.password,
         override_config=override,
     )
+
+    # Record test result into Transaction Logs so Admin can review audit trail
+    try:
+        await record_transaction_log(
+            category="user_auth",
+            action="test_ad_authen",
+            status="success" if success else "failed",
+            message=f"ทดสอบการยืนยันตัวตน AD สำหรับ '{data.username}': {message}",
+            details={
+                "username": data.username,
+                "gateway_url": data.gateway_url or override.get("ad_gateway_url"),
+                "app_id": data.app_id or override.get("ad_app_id"),
+                "forwarded_ip": data.forwarded_ip or override.get("ad_forwarded_ip"),
+                "success": success,
+                "gateway_response": raw_resp,
+            },
+            triggered_by=f"user:{current_user.username}",
+        )
+    except Exception as log_err:
+        print(f"⚠️ Could not write test_ad_authen log: {log_err}")
 
     if not success:
         raise HTTPException(

@@ -23,6 +23,7 @@ from app.schemas.auth import (
     UserMeResponse,
 )
 from app.services.ad_service import verify_ad_credentials
+from app.services.log_service import record_transaction_log
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -59,21 +60,17 @@ async def login(
 
     if not user:
         print(f"❌ Login attempt failed: User '{username_clean}' not found in DB")
-        # Record failed logon log
         try:
-            db.add(
-                TransactionLog(
-                    category="user_auth",
-                    action="login_unknown",
-                    status="failed",
-                    message=f"เข้าสู่ระบบล้มเหลว: ไม่พบบัญชีผู้ใช้ '{username_clean}'",
-                    details=json.dumps({"username": username_clean, "ip": client_ip}, ensure_ascii=False),
-                    triggered_by=f"user:{username_clean}",
-                )
+            await record_transaction_log(
+                category="user_auth",
+                action="login_unknown",
+                status="failed",
+                message=f"เข้าสู่ระบบล้มเหลว: ไม่พบบัญชีผู้ใช้ '{username_clean}'",
+                details={"username": username_clean, "ip": client_ip},
+                triggered_by=f"user:{username_clean}",
             )
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        except Exception as log_err:
+            print(f"⚠️ Could not write login_unknown log: {log_err}")
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,22 +80,16 @@ async def login(
     if not user.is_active:
         print(f"❌ Login attempt failed: User '{username_clean}' is deactivated")
         try:
-            db.add(
-                TransactionLog(
-                    category="user_auth",
-                    action="login_deactivated",
-                    status="failed",
-                    message=f"เข้าสู่ระบบล้มเหลว: บัญชีผู้ใช้ '{username_clean}' ถูกระงับการใช้งาน",
-                    details=json.dumps(
-                        {"username": username_clean, "department": user.department, "ip": client_ip},
-                        ensure_ascii=False,
-                    ),
-                    triggered_by=f"user:{username_clean}",
-                )
+            await record_transaction_log(
+                category="user_auth",
+                action="login_deactivated",
+                status="failed",
+                message=f"เข้าสู่ระบบล้มเหลว: บัญชีผู้ใช้ '{username_clean}' ถูกระงับการใช้งาน",
+                details={"username": username_clean, "department": user.department, "ip": client_ip},
+                triggered_by=f"user:{username_clean}",
             )
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        except Exception as log_err:
+            print(f"⚠️ Could not write login_deactivated log: {log_err}")
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -121,28 +112,22 @@ async def login(
         if not ad_success:
             print(f"❌ AD Login failed for '{username_clean}': {ad_message}")
             try:
-                db.add(
-                    TransactionLog(
-                        category="user_auth",
-                        action="login_ad",
-                        status="failed",
-                        message=f"เข้าสู่ระบบผ่าน Active Directory (AD) ล้มเหลว: {ad_message}",
-                        details=json.dumps(
-                            {
-                                "username": username_clean,
-                                "auth_method": "AD",
-                                "department": user.department,
-                                "ip": client_ip,
-                                "error": ad_message,
-                            },
-                            ensure_ascii=False,
-                        ),
-                        triggered_by=f"user:{username_clean}",
-                    )
+                await record_transaction_log(
+                    category="user_auth",
+                    action="login_ad",
+                    status="failed",
+                    message=f"เข้าสู่ระบบผ่าน Active Directory (AD) ล้มเหลว: {ad_message}",
+                    details={
+                        "username": username_clean,
+                        "auth_method": "AD",
+                        "department": user.department,
+                        "ip": client_ip,
+                        "error": ad_message,
+                    },
+                    triggered_by=f"user:{username_clean}",
                 )
-                await db.commit()
-            except Exception:
-                await db.rollback()
+            except Exception as log_err:
+                print(f"⚠️ Could not write login_ad fail log: {log_err}")
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -152,54 +137,42 @@ async def login(
         # AD Login Success
         print(f"🔑 AD Login successful for '{username_clean}'")
         try:
-            db.add(
-                TransactionLog(
-                    category="user_auth",
-                    action="login_ad",
-                    status="success",
-                    message=f"เข้าสู่ระบบผ่าน Active Directory (AD) สำเร็จ",
-                    details=json.dumps(
-                        {
-                            "username": username_clean,
-                            "auth_method": "AD",
-                            "department": user.department,
-                            "ip": client_ip,
-                        },
-                        ensure_ascii=False,
-                    ),
-                    triggered_by=f"user:{username_clean}",
-                )
+            await record_transaction_log(
+                category="user_auth",
+                action="login_ad",
+                status="success",
+                message=f"เข้าสู่ระบบผ่าน Active Directory (AD) สำเร็จ",
+                details={
+                    "username": username_clean,
+                    "auth_method": "AD",
+                    "department": user.department,
+                    "ip": client_ip,
+                },
+                triggered_by=f"user:{username_clean}",
             )
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        except Exception as log_err:
+            print(f"⚠️ Could not write login_ad success log: {log_err}")
 
     else:
         # Authenticate via Local App Password
         if not verify_password(req.password, user.password_hash):
             print(f"❌ Local Password mismatch for user '{username_clean}'")
             try:
-                db.add(
-                    TransactionLog(
-                        category="user_auth",
-                        action="login_local",
-                        status="failed",
-                        message="เข้าสู่ระบบผ่าน Local App Password ล้มเหลว: รหัสผ่านไม่ถูกต้อง",
-                        details=json.dumps(
-                            {
-                                "username": username_clean,
-                                "auth_method": "LOCAL",
-                                "department": user.department,
-                                "ip": client_ip,
-                            },
-                            ensure_ascii=False,
-                        ),
-                        triggered_by=f"user:{username_clean}",
-                    )
+                await record_transaction_log(
+                    category="user_auth",
+                    action="login_local",
+                    status="failed",
+                    message="เข้าสู่ระบบผ่าน Local App Password ล้มเหลว: รหัสผ่านไม่ถูกต้อง",
+                    details={
+                        "username": username_clean,
+                        "auth_method": "LOCAL",
+                        "department": user.department,
+                        "ip": client_ip,
+                    },
+                    triggered_by=f"user:{username_clean}",
                 )
-                await db.commit()
-            except Exception:
-                await db.rollback()
+            except Exception as log_err:
+                print(f"⚠️ Could not write login_local fail log: {log_err}")
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -209,27 +182,21 @@ async def login(
         # Local Login Success
         print(f"🔑 Local Login successful for user '{username_clean}'")
         try:
-            db.add(
-                TransactionLog(
-                    category="user_auth",
-                    action="login_local",
-                    status="success",
-                    message="เข้าสู่ระบบผ่าน Local App Password สำเร็จ",
-                    details=json.dumps(
-                        {
-                            "username": username_clean,
-                            "auth_method": "LOCAL",
-                            "department": user.department,
-                            "ip": client_ip,
-                        },
-                        ensure_ascii=False,
-                    ),
-                    triggered_by=f"user:{username_clean}",
-                )
+            await record_transaction_log(
+                category="user_auth",
+                action="login_local",
+                status="success",
+                message="เข้าสู่ระบบผ่าน Local App Password สำเร็จ",
+                details={
+                    "username": username_clean,
+                    "auth_method": "LOCAL",
+                    "department": user.department,
+                    "ip": client_ip,
+                },
+                triggered_by=f"user:{username_clean}",
             )
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        except Exception as log_err:
+            print(f"⚠️ Could not write login_local success log: {log_err}")
 
     # Safely update last_login_at
     try:
