@@ -1,94 +1,116 @@
 # 🧠 IRM Project — MEMORY & WORKFLOW RULES
 
-> **บันทึกข้อตกลงและกฎเหล็กในการทำงานของ AI Assistant กับ User**  
-> **อัปเดตล่าสุด:** 30 สิงหาคม 2026  
+> **บันทึกข้อตกลง กฎเหล็ก และบริบทสำคัญของระบบ IRM (Incoming Raw Material)**  
+> **อัปเดตล่าสุด:** 3 กันยายน 2026  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **Production URL:** `https://irm.windowasia.com`  
 > **VPS Hostinger Path:** `/var/www/Irm`
 
 ---
 
-## 🚨 กฎเหล็กในการทำงาน (Strict Development Rules)
+## 🚨 1. กฎเหล็กในการทำงานกับ User (Strict Protocol)
 
-### 1. กฎการ Deploy และส่งมอบงาน (Deployment Protocol)
-* **ต้องทำครบทุกขั้นตอนเสมอ ห้ามข้ามเด็ดขาด:**
-  1. ทำการแก้ไขโค้ดและทดสอบความถูกต้อง
-  2. สั่ง **Build Next.js Frontend / PyCompile Backend** ให้ผ่าน 100%
-  3. สั่ง **Git Commit & Push** ขึ้น GitHub Repository `origin main` เสมอ
-  4. แสดงคำสั่งสำหรับรันบน **VPS Hostinger** ให้ User อย่างชัดเจน:
-     ```bash
-     cd /var/www/Irm
-     git pull origin main
-     docker compose up -d --build
-     ```
+### 1.1 รูปแบบคำสั่ง VPS (CRITICAL — ห้ามเยิ่นเย้อเด็ดขาด)
+* เมื่อแจ้งคำสั่งสำหรับรันบน VPS ให้แสดงเฉพาะคำสั่งสั้นๆ 3 บรรทัดนี้เท่านั้น ไม่ต้องใส่คำอธิบายยืดยาว:
+  ```bash
+  cd /var/www/Irm
+  git pull origin main
+  docker compose up -d --build
+  ```
 
-### 2. กฎ Routing ของ FastAPI (Route Precedence Rule)
-* ใน FastAPI ต้องประกาศ Route ที่เป็น **Literal Path** (เช่น `/bulk-update`, `/send-all-portal-emails`, `/sync-sap`, `/inbound-deliveries`) **ก่อน (Before)** Route ที่มี **Path Parameter** (เช่น `/{supplier_id}`, `/{item_id}`, `/{user_id}`) เสมอ เพื่อป้องกันไม่ให้ FastAPI ตีความคำเฉพาะเป็น ID ที่ไม่ใช่ Integer จนเกิด Error 422
+### 1.2 สไตล์การสื่อสาร (Communication Style)
+* **กระชับ ชัดเจน ตรงประเด็น ไม่เยิ่นเย้อ:** สรุปสาระสำคัญเป็นข้อๆ หลีกเลี่ยงคำบรรยายที่เวิ่นเว้อ
+* ทุกคำตอบต้องสะท้อนโค้ดจริงในระบบเสมอ
 
----
+### 1.3 กฎการส่งมอบโค้ด (Delivery Protocol)
+* ตรวจสอบความถูกต้องเสมอ:
+  1. Backend: รัน `python -m py_compile` ตรวจสอบ Syntax ให้ผ่าน 100%
+  2. Frontend: รัน `npm run build` ตรวจสอบ Next.js Type Check & Build ให้ผ่าน (18/18 static pages)
+  3. Git: ทำการ `git add`, `git commit`, และ `git push origin main` ให้เรียบร้อยก่อนตอบสรุปงาน
 
-## 🔑 สรุปข้อตกลง Business Logic & System Standards
-
-### 1. การซิงค์ SAP (One-Way Sync & No Write-Back)
-* IRM อ่านข้อมูลทางเดียวจาก SAP MS SQL Server (Report 8) วันละ 1 ครั้ง (08:00 น. ตาม System Settings)
-* **ไม่มีการเขียนข้อมูลกลับไปที่ SAP เด็ดขาด**
-* ทุก Item ที่เข้าใหม่จะมีค่า Default เสมอ (`Estimate Date = PO Date + Lead Time`, `Estimate Qty = Remaining Qty`) จึงไม่มีสถานะ Unscheduled
-
-### 2. หน้า Operation (10 Filter Tabs & Over-Delivery)
-* แถบปุ่ม Filter 10 ปุ่ม (Pill Buttons with Badge Counts): `ทั้งหมด`, `✨ มาใหม่วันนี้`, `⏱️ ยังไม่ยืนยัน`, `✔️ ยืนยันแล้ว`, `↳ แบ่งการส่ง`, `⚡ ส่งเกิน PO`, `🔴 เกินกำหนด`, `🟡 ถึงใน 7 วัน`, `🟠 ถึงใน 3 วัน`, `💬 รอ Sup ยืนยัน`
-* **Over-Delivery Logic:** รายการจะถูกนับว่าส่งเกิน PO ก็ต่อเมื่อมีการแตกงวดส่ง (`sub_items`) รวมเกิน หรือ ผู้ใช้/Supplier ได้มีการระบุ/ยืนยันแผนส่งมอบจริง (`Confirmed / Modified`) เกินยอดค้างรับหรือยอดสั่งซื้อ
-
-### 3. หน้า History (2 Filter Tabs & Plan vs Actual)
-* แถบปุ่ม Filter 2 ปุ่ม: `ทั้งหมด [จำนวน]` และ `✨ ปิดเมื่อวาน [จำนวน]`
-* `ปิดเมื่อวาน` กรองจาก `closed_at` ที่ตรวจจับและซิงค์เข้ามาใหม่ในเช้าวันนี้
-* มีการวิเคราะห์ผลต่าง Plan vs Actual (`ตรงตามแผน`, `+ เกินแผน`, `- ขาดแผน`) พร้อม Lazy Loading Audit Trail
-
-### 4. การแจ้งเตือน Telegram Notification Suite
-* **Morning Summary Report (08:00 น.):** สรุป 4 หมวด: Dashboard, Item Master, Supplier Master, History
-* **QMS Inbound Pull:** แจ้งเตือนทันทีเมื่อ QMS ยิงดึงข้อมูล Confirmed Deliveries (พร้อมสรุปรายการ, IP, ช่วงวันที่)
-* **Mon/Thu Supplier Email Broadcast:** แจ้งเตือนรอบส่งเมล์อัตโนมัติเช้าวันจันทร์และวันพฤหัสบดี (08:00 น.)
-* **SAP Sync:** แจ้งผลสรุปการซิงค์ทุกรอบ
-
-### 5. การนำเข้า/ส่งออก Master (Supplier Master & Item Master)
-* ใช้ไฟล์ **`.xlsx` (Excel Native)** แทน CSV เพื่อรองรับภาษาไทย 100%
-* **Supplier Master XLSX:** รองรับ 7 คอลัมน์ (Code, Name, Email, Telephone, Contact Person, Over Delivery, Accept)
-* **Item Master XLSX:** รองรับ 7 กลุ่มสินค้า, Lead Time, Notify Alert Days, Description, Group, Accept
-
-### 6. กลไก Supplier Portal Token & Auto-Revocation
-* **One-Time Token:** ลิงก์ Portal มีการเข้ารหัสเฉพาะตัว
-* **Auto-Revocation:** เมื่อจัดซื้อกดส่งอีเมลรอบใหม่ หรือกด Copy Link ใหม่ ระบบจะ **สั่งยกเลิก (Revoke & Expire) Token เก่าทั้งหมดของ Supplier รายนั้นทันที**
-* **One-Time Submit Lock:** เมื่อกดยืนยันแล้ว ลิงก์จะถูกล็อคเป็น Read-Only ทันที
-
-### 7. QMS Integration API Channel
-* **Endpoint:** `GET /api/external/qms/inbound-deliveries`
-* **Authentication:** ส่งผ่าน Header `X-API-Key: irm_qms_secure_key_2026` (หรือ Bearer Token)
-* **Data Scope:** คืนเฉพาะข้อมูลที่ **Confirmed** แล้วเท่านั้น
-* **Audit Trail & Telegram:** บันทึก Transaction Log และส่ง Telegram Alert ทุกครั้ง
+### 1.4 กฎ Route Precedence ของ FastAPI
+* ใน FastAPI ต้องประกาศ Route ที่เป็น **Literal Path** (เช่น `/bulk-update`, `/send-all-portal-emails`, `/sync-sap`, `/inbound-deliveries`) **ก่อน (Before)** Route ที่มี **Path Parameter** (เช่น `/{supplier_id}`, `/{item_id}`, `/{user_id}`) เสมอ เพื่อป้องกัน Error 422
 
 ---
 
-## 🛠️ รายการคำสั่งสำคัญ (Essential Commands)
+## 📌 2. ลำดับเมนูที่เป็นทางการของระบบ (Official Menu Order)
 
-### บนเครื่อง Local (Windows PowerShell):
+เมนูในระบบถูกกำหนดลำดับและจัดเรียงไว้ดังนี้:
+1. **Dashboard** (`/dashboard`)
+2. **Operation** (`/operation`)
+3. **Calendar** (`/calendar`)
+4. **Receiving Checklist** (`/receiving-checklist`) *(ต่อจาก Calendar)*
+5. **Item Master** (`/items`)
+6. **Supplier Master** (`/suppliers`)
+7. **History** (`/history`)
+8. **System Blueprint** (`/system-blueprint`) *(ต่อจาก History)*
+9. **Admin** (System Setting, User Management, Group Management, Auth Matrix, Logs)
+
+---
+
+## 🔑 3. สรุป Business Logic และกลไกหลักของระบบ
+
+### 3.1 การซิงค์ SAP B1 (One-Way Inbound)
+* ซิงค์ข้อมูล PO สถานะ Open (O) จาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 04:00 น.
+* **ไม่มีการเขียนข้อมูลกลับไปแก้ไขที่ SAP เด็ดขาด (Zero Write-Back)**
+* รายการที่รับครบใน SAP (`LineStatus = 'C'`) จะถูกย้ายเข้าหน้า History อัตโนมัติ
+
+### 3.2 กฎความปลอดภัยและการสะสม Master (Append-Only Masters)
+* **Item Master และ Supplier Master:** ข้อมูลมีแต่เพิ่มขึ้นเรื่อยๆ **ไม่มีการลบออกหรือลดลงเด็ดขาด**
+* **เมื่อข้อมูลจาก SAP ตรงกับรายการเดิมใน Item Master:**
+  * **ห้ามแตะต้องและห้ามแก้ไขทับ** ทั้ง `lead_time_days` และ `notify_alert_days` (คงค่าเดิมที่จัดซื้อตั้งไว้ 100%)
+  * กำหนด `is_new = False` ถือว่าข้อมูลนั้นไม่ใหม่ ไม่ต้องแสดงป้ายเตือนสินค้าใหม่
+* **Supplier Master:** คงค่าการติดต่อและสิทธิ์ `allow_over_delivery` เดิมไว้เสมอ
+
+### 3.3 กลไก Supplier Portal Token & Reuse Logic
+* **รอบเวลาหมดอายุตาม PRD:**
+  * รอบวันจันทร์ 08:00 น. ➔ หมดอายุ **คืนวันพุธ เวลา 23:59:59 น.**
+  * รอบวันพฤหัสบดี 08:00 น. ➔ หมดอายุ **คืนวันอาทิตย์ เวลา 23:59:59 น.**
+* **Reuse Active Token:** การส่งอีเมลซ้ำ หรือการ Copy Link ในรอบเดียวกัน จะ **ใช้ Token และ URL เดิม** ไม่ตัดสิทธิ์หรือทำให้ลิงก์เดิมในอีเมลเสีย
+* **Single-PO Token:** ลิงก์ด่วนราย PO สำหรับส่งทาง Line มีอายุ 1 ชั่วโมง (และ Reuse เช่นกัน)
+* **One-Time Submit Lock:** เมื่อ Supplier กด Submit แล้ว ลิงก์จะถูกล็อค (Expired) ทันที
+
+### 3.4 ฟังก์ชันหน้า Calendar: โหมดรายปี & Universal Search
+* **โหมดรายเดือน vs รายปี:** สลับดูตารางเดือน หรือการ์ดสรุป 12 เดือนของทั้งปี
+* **Universal Search:** ช่องค้นหาคำค้นด่วนแบบ Real-time ค้นหาได้ทุกคำ (PO, รหัสสินค้า, ชื่อสินค้า, ชื่อคู่ค้า) ข้ามปี พร้อมปุ่ม "ไปที่วัน" เปิดดูรายละเอียดทันที
+
+### 3.5 หน้า Receiving Checklist (ใบตรวจรับสินค้าจริง)
+* สรุปรายการสินค้าที่มีนัดส่งมอบในวันที่เลือกสำหรับคลังสินค้า, รปภ., และ QC
+* มีช่องกรอกผลตรวจรับ, ทะเบียนรถ, จำนวนรับจริง พร้อมปุ่มสั่งพิมพ์ A4 แนวนอน (Print-Ready)
+
+### 3.6 หน้า System Blueprint (พิมพ์เขียวระบบ)
+* หน้ารวมสถาปัตยกรรมระบบ 5 ขั้นตอน, กฎเงื่อนไข (Conditions), ตารางสิทธิ์ User Roles, กลไกความปลอดภัย Token, ไทม์ไลน์เวลาอัตโนมัติ
+* มีปุ่มคัดลอก **AI Prompts ภาษาไทย** สำหรับนำไปสร้าง Presentation และ Infographic
+
+### 3.7 Central Identity Management API (SCIM-Like Integration)
+* ให้บริการ Endpoint มาตรฐานสำหรับเชื่อมต่อกับระบบ Central IAM ของบริษัท:
+  * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปตรวจสอบ (Reconciliation)
+  * `PATCH /api/v1/directory/accounts/{username}/status` — ระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
+* ควบคุมความปลอดภัยด้วย `X-Management-API-Key` และ IP Whitelisting
+* เอกสารข้อกำหนดสำหรับแอปพลิเคชันส่วนกลาง: `D:\Python\Central-IAM\PRD.md`
+
+### 3.8 การเชื่อมต่อ Active Directory (AD Authentication)
+* เชื่อมต่อตรวจสอบรหัสผ่านพนักงานกับ Active Directory Server (`192.168.12.11`) ผ่าน AD Sync Agent Gateway พอร์ต `3100`
+
+---
+
+## 🛠️ 4. คำสั่งสำคัญในการดูแลระบบ
+
+### บนเครื่อง Local (Windows):
 ```powershell
-# รันระบบ Local ทั้งหมด
+# รันระบบ Local ผ่าน Docker
 docker-compose up -d --build
 
-# ตรวจสอบ TypeScript & Build Frontend
+# ตรวจสอบการ Build Frontend
 cd frontend; npm run build
 
 # ตรวจสอบ Python Syntax Backend
 python -m py_compile backend/app/services/*.py backend/app/routers/*.py
 ```
 
-### บนเซิร์ฟเวอร์ VPS Hostinger (`/var/www/Irm`):
+### บน VPS Hostinger (`/var/www/Irm`):
 ```bash
-# อัปเดตและ Rebuild ทันที
 cd /var/www/Irm
 git pull origin main
 docker compose up -d --build
-
-# ล้างข้อมูล Transaction & Masters เพื่อทดสอบจากศูนย์:
-docker compose exec irm-db psql -U irm -d irm -c "TRUNCATE TABLE item_masters, supplier_masters, sub_items, po_item_audit_logs, po_items, po_headers, supplier_portal_tokens, transaction_logs RESTART IDENTITY CASCADE;"
-docker compose exec irm-redis redis-cli flushall
 ```
