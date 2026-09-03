@@ -67,16 +67,37 @@ def calculate_prd_expiry_date(now_dt: datetime) -> datetime:
 
 async def get_or_create_supplier_token(db: AsyncSession, supplier_code: str) -> SupplierPortalToken:
     """
-    Invalidate all previous active tokens for this supplier and create a fresh cryptographic token.
-    Enforces that opening an older email link will be rejected / expired immediately.
+    Reuse existing active, unsubmitted token if still within the current round window.
+    Only create a new token if no active valid token exists, or previous token was already submitted / expired.
     """
     now_dt = datetime.now(timezone.utc)
     target_expiry = calculate_prd_expiry_date(now_dt)
 
-    # 1. Invalidate / Revoke all old active tokens for this supplier
+    # 1. Check for an existing valid, unsubmitted supplier token in current round
+    stmt_active = (
+        select(SupplierPortalToken)
+        .where(
+            SupplierPortalToken.supplier_code == supplier_code,
+            SupplierPortalToken.po_number.is_(None),
+            SupplierPortalToken.is_submitted == False,
+            SupplierPortalToken.expires_at > now_dt,
+        )
+        .order_by(SupplierPortalToken.id.desc())
+    )
+    existing_token = (await db.execute(stmt_active)).scalars().first()
+    if existing_token:
+        # Keep existing token and ensure expiry aligns with current round target
+        if existing_token.expires_at != target_expiry:
+            existing_token.expires_at = target_expiry
+            await db.commit()
+            await db.refresh(existing_token)
+        return existing_token
+
+    # 2. Invalidate / Revoke all stale active tokens for this supplier
     stmt_revoke = (
         select(SupplierPortalToken)
         .where(SupplierPortalToken.supplier_code == supplier_code)
+        .where(SupplierPortalToken.po_number.is_(None))
         .where(SupplierPortalToken.is_submitted == False)
     )
     old_tokens = (await db.execute(stmt_revoke)).scalars().all()
@@ -85,7 +106,7 @@ async def get_or_create_supplier_token(db: AsyncSession, supplier_code: str) -> 
         old_tok.is_submitted = True
         db.add(old_tok)
 
-    # 2. Generate a brand new cryptographic token
+    # 3. Generate a brand new cryptographic token
     raw_token = f"tok_{secrets.token_hex(20)}"
     token_obj = SupplierPortalToken(
         token=raw_token,

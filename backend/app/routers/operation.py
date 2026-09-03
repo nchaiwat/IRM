@@ -728,40 +728,48 @@ async def get_item_portal_link(
 
     header = (await db.execute(select(POHeader).where(POHeader.id == item.po_header_id))).scalar_one()
     
-    # 1. Invalidate / Revoke previous tokens for this PO
+    # 1. Check if an active unsubmitted token already exists for this PO
     now_dt = datetime.now(timezone(timedelta(hours=7)))
     expires_at = now_dt + timedelta(hours=1)
-    
-    stmt_revoke = (
+
+    stmt_active = (
         select(SupplierPortalToken)
-        .where(SupplierPortalToken.supplier_code == header.supplier_code)
-        .where(SupplierPortalToken.po_number == header.po_number)
-        .where(SupplierPortalToken.is_submitted == False)
+        .where(
+            SupplierPortalToken.supplier_code == header.supplier_code,
+            SupplierPortalToken.po_number == header.po_number,
+            SupplierPortalToken.is_submitted == False,
+            SupplierPortalToken.expires_at > now_dt,
+        )
+        .order_by(SupplierPortalToken.id.desc())
     )
-    old_tokens = (await db.execute(stmt_revoke)).scalars().all()
-    for old_tok in old_tokens:
-        old_tok.expires_at = now_dt - timedelta(seconds=1)
-        old_tok.is_submitted = True
-        db.add(old_tok)
+    existing_tok = (await db.execute(stmt_active)).scalars().first()
 
-    token_str = f"tok_po_{secrets.token_hex(16)}"
-    token_obj = SupplierPortalToken(
-        token=token_str,
-        supplier_code=header.supplier_code,
-        po_number=header.po_number,
-        is_submitted=False,
-        expires_at=expires_at,
-    )
-    stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
-    base_setting = (await db.execute(stmt_base)).scalar_one_or_none()
-    base_url = (base_setting.value if base_setting and base_setting.value else (getattr(settings, "FRONTEND_URL", None) or getattr(settings, "APP_BASE_URL", None) or "https://irm.windowasia.com")).strip().rstrip("/")
-    if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
-        base_url = base_url.replace("http://", "https://")
-    elif not base_url.startswith("http"):
-        base_url = f"https://{base_url}"
+    if existing_tok:
+        token_obj = existing_tok
+    else:
+        stmt_revoke = (
+            select(SupplierPortalToken)
+            .where(SupplierPortalToken.supplier_code == header.supplier_code)
+            .where(SupplierPortalToken.po_number == header.po_number)
+            .where(SupplierPortalToken.is_submitted == False)
+        )
+        old_tokens = (await db.execute(stmt_revoke)).scalars().all()
+        for old_tok in old_tokens:
+            old_tok.expires_at = now_dt - timedelta(seconds=1)
+            old_tok.is_submitted = True
+            db.add(old_tok)
 
-    db.add(token_obj)
-    await db.commit()
+        token_str = f"tok_po_{secrets.token_hex(16)}"
+        token_obj = SupplierPortalToken(
+            token=token_str,
+            supplier_code=header.supplier_code,
+            po_number=header.po_number,
+            is_submitted=False,
+            expires_at=expires_at,
+        )
+        db.add(token_obj)
+        await db.commit()
+        await db.refresh(token_obj)
 
     portal_url = f"{base_url}/supplier/portal/{token_obj.token}"
 
