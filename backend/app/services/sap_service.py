@@ -347,7 +347,8 @@ async def _process_and_save_sap_records(
             db.add(sup)
             new_suppliers_count += 1
         else:
-            if rec["supplier_name"] and sup.supplier_name != rec["supplier_name"]:
+            # Existing Supplier: Never overwrite custom configs, preserve existing data
+            if rec["supplier_name"] and not sup.supplier_name:
                 sup.supplier_name = rec["supplier_name"]
             if rec.get("supplier_phone") and not sup.telephone:
                 sup.telephone = rec["supplier_phone"]
@@ -356,7 +357,11 @@ async def _process_and_save_sap_records(
             if rec.get("supplier_contact") and not sup.contact_person:
                 sup.contact_person = rec["supplier_contact"]
 
-        # 2. Automatic Insert/Update into Item Master (Preserve existing groups and lead times)
+        # 2. Automatic Insert/Update into Item Master
+        # Rules:
+        # - Records must accumulate (never deleted or reduced)
+        # - If item already exists: DO NOT update lead_time_days and DO NOT update notify_alert_days
+        # - Existing item is considered NOT new (is_new = False)
         stmt_item = select(ItemMaster).where(ItemMaster.item_code == rec["item_code"])
         itm_master = (await db.execute(stmt_item)).scalar_one_or_none()
         if not itm_master:
@@ -371,11 +376,14 @@ async def _process_and_save_sap_records(
             db.add(itm_master)
             new_items_count += 1
         else:
+            # Existing item: keep current lead_time_days and notify_alert_days untouched
             if rec["item_name"] and not itm_master.description:
                 itm_master.description = rec["item_name"]
             if not itm_master.item_group or itm_master.item_group in ["113", "115"]:
                 if rec.get("item_group") and rec["item_group"] not in ["113", "115"]:
                     itm_master.item_group = rec["item_group"]
+            # Consider existing record as not new
+            itm_master.is_new = False
 
         # 3. Upsert PO Header
         stmt_po = select(POHeader).where(POHeader.po_number == rec["po_number"])
