@@ -141,7 +141,8 @@ async def seed_data():
                 ("Item Master", "/items", "Package", 5),
                 ("Supplier Master", "/suppliers", "Factory", 6),
                 ("History", "/history", "ScrollText", 7),
-                ("Admin", None, "Shield", 8),
+                ("System Blueprint", "/system-blueprint", "Compass", 8),
+                ("Admin", None, "Shield", 9),
             ]
 
             menu_map: dict[str, Menu] = {}

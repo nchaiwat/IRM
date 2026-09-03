@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   PanelLeftClose,
+  Compass,
   LucideIcon,
 } from 'lucide-react';
 import { MenuNode } from '@/types';
@@ -40,6 +41,7 @@ const iconMap: Record<string, LucideIcon> = {
   Lock,
   Activity,
   FileText,
+  Compass,
 };
 
 interface SidebarProps {
@@ -170,6 +172,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </Link>
         );
       })}
+
+      {/* System Blueprint Link (Accessible to everyone) */}
+      <div className="pt-2 mt-2 border-t border-slate-800/80">
+        <Link
+          href="/system-blueprint"
+          onClick={() => {
+            if (isMobileView && onCloseMobile) {
+              onCloseMobile();
+            }
+          }}
+          className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+            pathname.startsWith('/system-blueprint')
+              ? 'bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/30'
+              : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <Compass className={`w-5 h-5 ${pathname.startsWith('/system-blueprint') ? 'text-white' : 'text-sky-400'}`} />
+            <span>System Blueprint</span>
+          </div>
+          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-400/30">
+            ผังระบบ
+          </span>
+        </Link>
+      </div>
     </nav>
   );
 
