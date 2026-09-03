@@ -88,4 +88,8 @@ async def get_menu_tree(
             # Top-level standalone menu with permission -> keep it
             final_top_menus.append(m)
 
+    for m in final_top_menus:
+        m.children.sort(key=lambda c: c.sort_order)
+    final_top_menus.sort(key=lambda m: m.sort_order)
+
     return final_top_menus

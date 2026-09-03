@@ -83,7 +83,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const renderNavContent = (isMobileView = false) => (
     <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto">
-      {menus.map((menu) => {
+      {[...menus]
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        .map((menu) => {
         const Icon = getIcon(menu.icon);
         const hasChildren = menu.children && menu.children.length > 0;
         const isOpen = !!openParents[menu.id];

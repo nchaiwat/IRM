@@ -153,6 +153,10 @@ async def seed_data():
                     menu = Menu(name=name, path=path, icon=icon, sort_order=sort_order, parent_id=None)
                     session.add(menu)
                     await session.flush()
+                else:
+                    menu.sort_order = sort_order
+                    menu.path = path
+                    menu.icon = icon
                 menu_map[name] = menu
 
             admin_menu_id = menu_map["Admin"].id
