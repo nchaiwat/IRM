@@ -1298,14 +1298,9 @@ export default function SettingsPage() {
         {/* Section 7: Centralized Identity Management API                    */}
         {/* ================================================================= */}
         <div id="sec-central-iam" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
-              <Key className="w-5 h-5 text-emerald-600" />
-              <span>7. Centralized Identity Management API (SCIM-Like Integration)</span>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Active / Ready
-            </span>
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-800 font-bold text-base">
+            <Key className="w-5 h-5 text-emerald-600" />
+            <span>7. Centralized Identity Management API (SCIM-Like Integration)</span>
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -1400,15 +1395,9 @@ export default function SettingsPage() {
         {/* Section 8: QMS Inbound Deliveries Integration API                */}
         {/* ================================================================= */}
         <div id="sec-qms-api" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
-              <FileJson className="w-5 h-5 text-teal-600" />
-              <span>8. QMS Inbound Deliveries Integration API (ระบบดึงข้อมูลสำหรับ QMS)</span>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-ping"></span>
-              <span>Active / Ready</span>
-            </span>
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-800 font-bold text-base">
+            <FileJson className="w-5 h-5 text-teal-600" />
+            <span>8. QMS Inbound Deliveries Integration API (ระบบดึงข้อมูลสำหรับ QMS)</span>
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
