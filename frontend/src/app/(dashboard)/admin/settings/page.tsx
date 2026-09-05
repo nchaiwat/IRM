@@ -1439,65 +1439,45 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-700">
-                  X-API-Key สำหรับ QMS (Secret Header Token) *
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(settings.qms_api_key || 'irm_qms_secure_key_2026');
-                      setCopiedQmsKey(true);
-                      setTimeout(() => setCopiedQmsKey(false), 2000);
-                    }}
-                    className="text-[11px] text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium cursor-pointer"
-                  >
-                    {copiedQmsKey ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedQmsKey ? 'คัดลอกแล้ว' : 'คัดลอก Key'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRegenerateQmsKey}
-                    disabled={regeneratingQmsKey}
-                    className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${regeneratingQmsKey ? 'animate-spin' : ''}`} />
-                    <span>สร้าง Key ใหม่</span>
-                  </button>
-                </div>
-              </div>
-              <input
-                type="text"
-                value={settings.qms_api_key || 'irm_qms_secure_key_2026'}
-                onChange={(e) => handleChange('qms_api_key', e.target.value)}
-                placeholder="irm_qms_..."
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none font-mono text-xs"
-              />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                นำค่านี้ไปใส่ใน Header ของ QMS: <code>X-API-Key: &lt;Key&gt;</code> หรือ <code>Authorization: Bearer &lt;Key&gt;</code>
-              </span>
-            </div>
-
-            <div className="bg-teal-50/60 border border-teal-200/80 rounded-xl p-3.5 flex flex-col justify-between text-xs text-teal-950">
-              <div className="space-y-1">
-                <span className="font-bold text-teal-900 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-teal-600" />
-                  <span>สถิติการเชื่อมต่อของ QMS</span>
-                </span>
-                <p className="text-[11px] text-teal-800/90 leading-relaxed">
-                  เมื่อระบบ QMS เรียกเข้ามาดึงข้อมูล ระบบ IRM จะบันทึก Audit Trail ลงใน Transaction Logs อัตโนมัติทุกครั้ง
-                </p>
-              </div>
-              <div className="pt-2 border-t border-teal-200/60 flex items-center justify-between text-[11px]">
-                <span className="text-teal-800">ดึงข้อมูลล่าสุด:</span>
-                <span className="font-bold text-teal-950">
-                  {apiStatus?.qms?.last_call_at ? formatDateThai(apiStatus.qms.last_call_at) : 'พร้อมรับคำขอ'}
-                </span>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                X-API-Key สำหรับ QMS (Secret Header Token) *
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(settings.qms_api_key || 'irm_qms_secure_key_2026');
+                    setCopiedQmsKey(true);
+                    setTimeout(() => setCopiedQmsKey(false), 2000);
+                  }}
+                  className="text-[11px] text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {copiedQmsKey ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedQmsKey ? 'คัดลอกแล้ว' : 'คัดลอก Key'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRegenerateQmsKey}
+                  disabled={regeneratingQmsKey}
+                  className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${regeneratingQmsKey ? 'animate-spin' : ''}`} />
+                  <span>สร้าง Key ใหม่</span>
+                </button>
               </div>
             </div>
+            <input
+              type="text"
+              value={settings.qms_api_key || 'irm_qms_secure_key_2026'}
+              onChange={(e) => handleChange('qms_api_key', e.target.value)}
+              placeholder="irm_qms_..."
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none font-mono text-xs"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">
+              นำค่านี้ไปใส่ใน Header ของ QMS: <code>X-API-Key: &lt;Key&gt;</code> หรือ <code>Authorization: Bearer &lt;Key&gt;</code>
+            </span>
           </div>
         </div>
 
