@@ -37,7 +37,7 @@
   3. กฎและเงื่อนไขธุรกิจ (Conditions): สูตรคำนวณวันเตือน $\text{Estimate} - \text{Notify Alert}$, การตัดยอดแบบ FIFO จาก SAP, สิทธิ์ส่งเกิน PO, การ Auto-Archive
   4. ตารางสิทธิ์ผู้ใช้งาน (User Roles Matrix: Admin, PU User, Viewer, Supplier)
   5. ระบบความปลอดภัยของ Token (Weekly Windows, Reuse Logic, 1-Hour Single PO)
-  6. ตารางเวลาทำงานอัตโนมัติ (04:00 SAP Sync, 08:00 Mail & Telegram, 08:30 PU Reminder)
+  6. ตารางเวลาทำงานอัตโนมัติ (06:45 SAP Sync, 08:00 Mail & Telegram, 08:30 PU Reminder)
   7. กล่อง Prompt ภาษาไทย สำหรับนำไปสร้าง Slide Presentation และ Infographic ผ่าน AI
 
 ### 4) 🔐 ปรับปรุงระบบ Token Portal: Reuse Token ในรอบเดียวกัน

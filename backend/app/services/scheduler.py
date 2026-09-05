@@ -1,6 +1,6 @@
 """
 Automated Scheduler Service — Background Cron Jobs for Supplier Portal Emails (Mon & Thu 08:00)
-and Daily SAP Open PO Ingestion (04:00 AM) using APScheduler.
+and Daily SAP Open PO Ingestion (06:45 AM) using APScheduler.
 """
 
 import logging
@@ -58,11 +58,11 @@ async def job_send_portal_emails_round2():
 
 
 async def job_sync_sap_daily():
-    """Daily SAP Open PO Sync at 04:00 AM"""
-    logger.info("⏰ [Scheduler] Executing Daily SAP Open PO Sync (04:00 AM)...")
+    """Daily SAP Open PO Sync at 06:45 AM"""
+    logger.info("⏰ [Scheduler] Executing Daily SAP Open PO Sync (06:45 AM)...")
     try:
         async with AsyncSessionLocal() as session:
-            res = await sync_sap_open_pos(session, triggered_by="Daily Scheduler (04:00)")
+            res = await sync_sap_open_pos(session, triggered_by="Daily Scheduler (06:45)")
             logger.info(f"✅ [Scheduler] SAP Sync Completed: {res.get('message')}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error during SAP Daily Sync: {e}")
@@ -154,12 +154,12 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Job 3: Daily 04:00 AM SAP Sync
+    # Job 3: Daily 06:45 AM SAP Sync
     scheduler.add_job(
         job_sync_sap_daily,
-        trigger=CronTrigger(hour=4, minute=0, timezone="Asia/Bangkok"),
-        id="sap_sync_daily_0400",
-        name="Daily 04:00 AM SAP Open PO Sync",
+        trigger=CronTrigger(hour=6, minute=45, timezone="Asia/Bangkok"),
+        id="sap_sync_daily_0645",
+        name="Daily 06:45 AM SAP Open PO Sync",
         replace_existing=True,
     )
 
@@ -182,7 +182,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 04:00 SAP Sync, Dynamic Telegram Morning Summary Dispatcher, and PU Reminder Dispatcher.")
+    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 06:45 SAP Sync, Dynamic Telegram Morning Summary Dispatcher, and PU Reminder Dispatcher.")
 
 
 def stop_scheduler():

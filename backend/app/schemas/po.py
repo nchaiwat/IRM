@@ -64,6 +64,7 @@ class POItemResponse(BaseModel):
     allow_over_delivery: bool = False
     status: str
     is_new: bool = True
+    created_at: datetime | None = None
     closed_at: datetime | None = None
     locked_by: str | None = None
     lock_expires_at: datetime | None = None

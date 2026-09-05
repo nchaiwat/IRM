@@ -11,7 +11,7 @@ import httpx
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -319,6 +319,14 @@ async def _process_and_save_sap_records(
     from app.services.telegram_service import send_telegram_sap_sync
     bkk_tz = timezone(timedelta(hours=7))
     now_dt = datetime.now(bkk_tz)
+    today_start = now_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Reset is_new = False for items created before today (only items newly imported today are marked as NEW)
+    await db.execute(
+        update(POItem)
+        .where(POItem.is_new == True, or_(POItem.created_at == None, POItem.created_at < today_start))
+        .values(is_new=False)
+    )
 
     new_items_count = 0
     new_suppliers_count = 0
@@ -430,12 +438,17 @@ async def _process_and_save_sap_records(
                 estimate_qty=rec["remaining_qty"],
                 status="pending",
                 is_new=True,
+                created_at=now_dt,
                 closed_at=None,
                 updated_by_name=None,
                 updated_by_type=None,
             )
             db.add(po_item)
+            new_items_count += 1
         else:
+            if po_item.created_at and po_item.created_at < today_start:
+                po_item.is_new = False
+
             old_received = float(po_item.received_qty or 0.0)
             new_received = float(rec["received_qty"] or 0.0)
             new_remaining = float(rec["remaining_qty"] or 0.0)

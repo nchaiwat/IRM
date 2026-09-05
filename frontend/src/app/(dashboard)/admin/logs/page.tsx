@@ -47,8 +47,6 @@ export default function TransactionLogsPage() {
   // Modals & Actions
   const [selectedLog, setSelectedLog] = useState<TransactionLogItem | null>(null);
   const [copiedJson, setCopiedJson] = useState(false);
-  const [triggeringQms, setTriggeringQms] = useState(false);
-  const [qmsResultModal, setQmsResultModal] = useState<any | null>(null);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -73,7 +71,7 @@ export default function TransactionLogsPage() {
       setTotal(logsRes.data.total);
       setStats(statsRes.data);
     } catch (err) {
-      console.error('Failed to load transaction logs:', err);
+      console.error('Failed to fetch transaction logs:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -87,19 +85,6 @@ export default function TransactionLogsPage() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchLogs();
-  };
-
-  const handleTriggerQms = async () => {
-    setTriggeringQms(true);
-    try {
-      const res = await api.post('/api/logs/trigger-qms-export');
-      setQmsResultModal(res.data);
-      fetchLogs();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการส่งข้อมูลไป QMS');
-    } finally {
-      setTriggeringQms(false);
-    }
   };
 
   // Date Mask & Parsing Helpers (System Constraint: dd/mm/yyyy with Calendar Picker)
@@ -313,26 +298,12 @@ export default function TransactionLogsPage() {
             <span>Transaction Logs (บันทึกการทำงานของระบบ)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            ตรวจสอบประวัติการซิงค์ SAP, การส่ง Email Supplier, การส่ง JSON ให้ QMS และการตอบกลับของ Supplier
+            ตรวจสอบประวัติการซิงค์ SAP, การส่ง Email Supplier, การดึงข้อมูลของ QMS และการตอบกลับของ Supplier
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            onClick={handleTriggerQms}
-            disabled={triggeringQms}
-            className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition disabled:opacity-50"
-            title="ทดสอบยิงส่ง JSON แพลนส่งสินค้าไปยังระบบ QMS ทันที"
-          >
-            {triggeringQms ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <FileJson className="w-4 h-4" />
-            )}
-            <span>{triggeringQms ? 'กำลังส่ง QMS...' : 'ทดสอบส่ง JSON ไป QMS'}</span>
-          </button>
-
           <button
             onClick={handleExportCSV}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-sm flex items-center gap-1.5 transition"
@@ -697,39 +668,6 @@ export default function TransactionLogsPage() {
                 className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
               >
                 ปิดหน้าต่าง
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* QMS Export Result Modal */}
-      {qmsResultModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 text-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-6 h-6 text-teal-600" />
-                <h3 className="font-bold text-sm text-slate-800">ส่งข้อมูล JSON ไปยังระบบ QMS สำเร็จ</h3>
-              </div>
-              <button onClick={() => setQmsResultModal(null)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-teal-50 border border-teal-200 p-3 rounded-xl space-y-1 text-teal-900">
-              <div><strong>Endpoint:</strong> {qmsResultModal.endpoint}</div>
-              <div><strong>HTTP Status:</strong> {qmsResultModal.http_code} OK</div>
-              <div><strong>จำนวนรายการที่ส่ง:</strong> {qmsResultModal.total_items} รายการ</div>
-              <div><strong>เวลาที่ใช้:</strong> {qmsResultModal.duration_ms} ms</div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setQmsResultModal(null)}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition"
-              >
-                ตกลง
               </button>
             </div>
           </div>

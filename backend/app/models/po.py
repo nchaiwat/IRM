@@ -20,6 +20,7 @@ class POHeader(Base):
     buyer_name: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="O", index=True)  # O = Open, C = Closed
 
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     items = relationship("POItem", back_populates="header", cascade="all, delete-orphan")
 
 
@@ -45,6 +46,7 @@ class POItem(Base):
     # Status: 'pending', 'estimate', 'supplier_responded', 'confirmed', 'delay', 'closed'
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     is_new: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Ownership Lock & Conflict Management ('user' | 'supplier' | None)

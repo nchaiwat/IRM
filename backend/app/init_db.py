@@ -35,7 +35,9 @@ async def run_ddl_migrations(conn):
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS locked_by VARCHAR(20);",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS lock_expires_at TIMESTAMPTZ;",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();",
         "ALTER TABLE po_items ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;",
+        "ALTER TABLE po_headers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();",
 
         # item_masters table
         "ALTER TABLE item_masters ADD COLUMN IF NOT EXISTS item_group VARCHAR(50);",
@@ -222,7 +224,7 @@ async def seed_data():
                 ("mail_send_days", '["monday", "thursday"]', "Days to send supplier notification emails", "schedule", "json"),
                 ("mail_send_time", "08:00", "Daily automated email batch dispatch time", "email", "string"),
                 ("mail_schedule_enabled", "false", "Enable automated scheduled email dispatch to suppliers (Safety locked during implementation)", "email", "boolean"),
-                ("sap_sync_time", "04:00", "Time of day to sync open POs from SAP (HH:MM)", "schedule", "time"),
+                ("sap_sync_time", "06:45", "Time of day to sync open POs from SAP (HH:MM)", "schedule", "time"),
                 ("scheduler_enabled", "true", "Enable background email and SAP sync scheduler", "schedule", "boolean"),
                 ("history_retention_days", "7", "Days to retain closed PO history (7-15 days)", "general", "integer"),
                 ("date_format", "dd/MM/yyyy", "System date display format", "general", "string"),

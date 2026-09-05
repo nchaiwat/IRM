@@ -16,7 +16,7 @@
      (หรือ: pip install pymssql requests)
   2. สั่งรันด้วยตนเอง:
        python sap_agent_sync.py
-  3. ตั้งเวลาใน Windows Task Scheduler / Linux Cron (เช่น รันทุกวัน 04:00 น.)
+  3. ตั้งเวลาใน Windows Task Scheduler / Linux Cron (เช่น รันทุกวัน 06:45 น.)
 ================================================================================
 """
 

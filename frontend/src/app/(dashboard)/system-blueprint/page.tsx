@@ -58,7 +58,7 @@ export default function SystemBlueprintPage() {
 • สไลด์ที่ 5: หน้า Calendar & Universal Search — การดูรอบส่งรายเดือนและภาพรวมทั้งปี (รายปี 12 เดือน) พร้อมระบบค้นหาด่วน
 • สไลด์ที่ 6: กลไกความปลอดภัย Supplier Portal & Token — ระบบ One-Time Cryptographic Token, การ Reuse Token ในรอบสัปดาห์ (จันทร์-พุธ / พฤหัส-อาทิตย์) และลิงก์ด่วน 1 ชม.
 • สไลด์ที่ 7: กฎและเงื่อนไขทางธุรกิจ (Business Rules) — การคำนวณวันเตือน (Notify Alert Days), Lead Time, การตัดยอดแบบ FIFO จาก SAP และสิทธิ์ส่งเกิน PO
-• สไลด์ที่ 8: ระบบอัตโนมัติ 24 ชม. (Automation Schedules) — 04:00 SAP Sync, 08:00 Mail & Telegram Briefing, 08:30 PU Reminder Excel
+• สไลด์ที่ 8: ระบบอัตโนมัติ 24 ชม. (Automation Schedules) — 06:45 SAP Sync, 08:00 Mail & Telegram Briefing, 08:30 PU Reminder Excel
 • สไลด์ที่ 9: การเชื่อมต่อระบบคุณภาพ (QMS Integration) & ใบตรวจรับสินค้า (Receiving Checklist)
 • สไลด์ที่ 10: สรุปผลลัพธ์และประโยชน์ที่ได้รับ (Business Value) — ความแม่นยำ 100%, ลดงานเอกสาร, วางแผนผลิตล่วงหน้าได้อย่างมีประสิทธิภาพ`;
 
@@ -66,11 +66,11 @@ export default function SystemBlueprintPage() {
   const infographicPromptThai = `สร้างแผนภาพ Infographic ภาษาไทย แสดงผังกระบวนการทำงานของระบบ "IRM (Incoming Raw Material Management System)" สไตล์ Modern Industrial Minimal โทนสี Slate-900, Sky-600 และ Emerald-600
 
 ให้แบ่งผังออกเป็น 5 ขั้นตอนหลัก (Step-by-Step Pipeline Flow):
-ขั้นตอนที่ 1 [04:00 น.]: "ดึงข้อมูลจาก SAP B1" ➔ ระบบ IRM Background Worker ดึงข้อมูล PO เปิด (Open PO) เฉพาะกลุ่มวัตถุดิบหลัก (กระจก, อลูมิเนียม, UPVC, ฮาร์ดแวร์) เข้าสู่ฐานข้อมูล
+ขั้นตอนที่ 1 [06:45 น.]: "ดึงข้อมูลจาก SAP B1" ➔ ระบบ IRM ดึงข้อมูล PO เปิด (Open PO) เฉพาะกลุ่มวัตถุดิบหลัก (กระจก, อลูมิเนียม, UPVC, ฮาร์ดแวร์) เข้าสู่ฐานข้อมูล
 ขั้นตอนที่ 2 [08:00 น.]: "เชิญ Supplier ระบุวันส่ง" ➔ ระบบส่งอีเมลอัตโนมัติพร้อมลิงก์ Cryptographic Portal ที่ปลอดภัย (รอบจันทร์-พุธ และรอบพฤหัส-อาทิตย์)
 ขั้นตอนที่ 3 [Operation]: "จัดซื้อตรวจสอบและยืนยัน" ➔ ฝ่ายจัดซื้อดูข้อมูลที่ Supplier ตอบกลับ, ปรับวันส่งหรือแตกงวดส่ง (Sub-items) และกดยืนยัน (Confirm)
 ขั้นตอนที่ 4 [Calendar]: "แสดงผลรอบส่งทั้งปี" ➔ แสดงบนปฏิทินรายเดือนและรายปี พร้อมระบบ Universal Search ค้นหาได้ทุกคำ
-ขั้นตอนที่ 5 [QMS & คลังสินค้า]: "ตรวจรับสินค้าจริง" ➔ ส่งข้อมูล JSON ไปยังระบบ QMS เพื่อวางแผนตรวจคุณภาพ และพิมพ์ใบ Receiving Checklist ให้สโตร์/รปภ. ตรวจของจริงที่หน้าโรงงาน
+ขั้นตอนที่ 5 [QMS & คลังสินค้า]: "ตรวจรับสินค้าจริง" ➔ เปิด API ให้ระบบ QMS เข้ามาดึงข้อมูลเพื่อวางแผนตรวจคุณภาพ และพิมพ์ใบ Receiving Checklist ให้สโตร์/รปภ. ตรวจของจริงที่หน้าโรงงาน
 
 ในภาพต้องมีไอคอนประจำแต่ละขั้นตอน, มีลูกศรเชื่อมต่อทิศทางการไหลของข้อมูลชัดเจน, และมีกล่องสรุปเกณฑ์สำคัญ:
 - วันแจ้งเตือน = Estimate Date - Notify Alert Days
@@ -172,7 +172,7 @@ export default function SystemBlueprintPage() {
             <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 flex flex-col justify-between space-y-2 relative">
               <div className="flex items-center justify-between">
                 <span className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs flex items-center justify-center">1</span>
-                <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded">04:00 น.</span>
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded">06:45 น.</span>
               </div>
               <div>
                 <div className="font-extrabold text-slate-900">SAP B1 Report 8</div>
@@ -631,7 +631,7 @@ export default function SystemBlueprintPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <div className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="font-extrabold text-sky-400 text-base">04:00 น.</span>
+                <span className="font-extrabold text-sky-400 text-base">06:45 น.</span>
                 <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">ทุกวัน</span>
               </div>
               <div>

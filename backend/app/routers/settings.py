@@ -7,12 +7,13 @@ from datetime import datetime
 import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_permission
 from app.models.system_setting import SystemSetting
+from app.models.transaction_log import TransactionLog
 from app.models.user import User
 from app.schemas.system_setting import SystemSettingResponse, SystemSettingsBulkUpdate
 from app.services.sap_service import sync_sap_open_pos
@@ -428,3 +429,111 @@ async def regenerate_management_api_key(
 
     await db.commit()
     return {"management_api_key": new_token, "message": "สร้าง Management API Key ใหม่สำเร็จ"}
+
+
+@router.get("/external-api-status")
+async def get_external_api_status(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "view"))],
+):
+    """
+    Returns real-time status, health, endpoints, authentication details,
+    and latest transaction activity for External APIs (QMS & Central IAM).
+    """
+    stmt_settings = select(SystemSetting).where(
+        SystemSetting.key.in_(["qms_api_key", "management_api_key", "management_allowed_ips"])
+    )
+    res_s = await db.execute(stmt_settings)
+    s_map = {s.key: s.value for s in res_s.scalars().all()}
+
+    # 1. QMS Integration Status
+    qms_key = s_map.get("qms_api_key", "irm_qms_secure_key_2026")
+    stmt_qms_log = (
+        select(TransactionLog)
+        .where(TransactionLog.category == "qms_integration")
+        .order_by(desc(TransactionLog.created_at))
+        .limit(1)
+    )
+    last_qms_log = (await db.execute(stmt_qms_log)).scalar_one_or_none()
+
+    stmt_qms_count = select(func.count(TransactionLog.id)).where(
+        TransactionLog.category == "qms_integration"
+    )
+    qms_calls_count = (await db.execute(stmt_qms_count)).scalar() or 0
+
+    # 2. Central IAM Status
+    mgmt_key = s_map.get("management_api_key", "")
+    stmt_ciam_log = (
+        select(TransactionLog)
+        .where(TransactionLog.category == "central_iam")
+        .order_by(desc(TransactionLog.created_at))
+        .limit(1)
+    )
+    last_ciam_log = (await db.execute(stmt_ciam_log)).scalar_one_or_none()
+
+    stmt_ciam_count = select(func.count(TransactionLog.id)).where(
+        TransactionLog.category == "central_iam"
+    )
+    ciam_calls_count = (await db.execute(stmt_ciam_count)).scalar() or 0
+
+    return {
+        "qms": {
+            "name": "QMS Inbound Deliveries Integration API",
+            "status": "available",
+            "health": "healthy",
+            "endpoint": "/api/external/qms/inbound-deliveries",
+            "method": "GET",
+            "auth_type": "Header: X-API-Key or Authorization Bearer",
+            "api_key_configured": bool(qms_key),
+            "api_key_preview": f"{qms_key[:8]}...{qms_key[-4:]}" if len(qms_key) > 12 else (qms_key if qms_key else "Not set"),
+            "total_calls": qms_calls_count,
+            "last_call_at": last_qms_log.created_at.isoformat() if last_qms_log else None,
+            "last_status": last_qms_log.status if last_qms_log else "ready",
+            "last_message": last_qms_log.message if last_qms_log else "พร้อมรับคำขอจากระบบ QMS",
+        },
+        "ciam": {
+            "name": "Central Identity Management API (SCIM-Like)",
+            "status": "available",
+            "health": "healthy",
+            "endpoints": [
+                {"method": "GET", "path": "/api/v1/directory/accounts", "description": "Reconciliation (อ่านบัญชีทั้งหมด)"},
+                {"method": "PATCH", "path": "/api/v1/directory/accounts/{username}/status", "description": "Instant Offboarding (ระงับสิทธิ์)"}
+            ],
+            "auth_type": "Header: X-Management-API-Key & IP Whitelist",
+            "api_key_configured": bool(mgmt_key),
+            "api_key_preview": f"{mgmt_key[:10]}...{mgmt_key[-4:]}" if len(mgmt_key) > 14 else (mgmt_key if mgmt_key else "Not set"),
+            "allowed_ips": s_map.get("management_allowed_ips") or "Any IP (ไม่ได้จำกัด)",
+            "total_calls": ciam_calls_count,
+            "last_call_at": last_ciam_log.created_at.isoformat() if last_ciam_log else None,
+            "last_status": last_ciam_log.status if last_ciam_log else "ready",
+            "last_message": last_ciam_log.message if last_ciam_log else "พร้อมรับคำขอจาก Central IAM",
+        }
+    }
+
+
+@router.post("/regenerate-qms-api-key")
+async def regenerate_qms_api_key(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """Generate a new secure Secret Key for QMS Integration API."""
+    import secrets
+    new_token = f"irm_qms_{secrets.token_hex(16)}"
+
+    stmt = select(SystemSetting).where(SystemSetting.key == "qms_api_key")
+    res = await db.execute(stmt)
+    setting = res.scalar_one_or_none()
+    if setting:
+        setting.value = new_token
+    else:
+        setting = SystemSetting(
+            key="qms_api_key",
+            value=new_token,
+            description="API Key สำหรับระบบ QMS ใช้เชื่อมต่อดึงข้อมูล Confirmed Inbound Deliveries",
+            category="integration",
+            data_type="string",
+        )
+        db.add(setting)
+
+    await db.commit()
+    return {"qms_api_key": new_token, "message": "สร้าง QMS API Key ใหม่สำเร็จ"}

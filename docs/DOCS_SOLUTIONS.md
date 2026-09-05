@@ -99,11 +99,11 @@
 
 - **การทำงาน:**
   - นำคำสั่ง SQL Query Report 8 ที่เชื่อมระหว่าง `POR1`, `OPOR`, `OITM`, `PDN1`, `PCH1`, `OCRD`, `OSLP`, `OITB` กรองเฉพาะ `LineStatus = 'O'` และ `ItmsGrpCod IN (113, 115)`
-  - ตั้งเป็น **Background Worker Sync** ดึงข้อมูลจาก SAP มาลงฐานข้อมูล IRM ทุกวันเวลา 04:00 น. หรือกดปุ่ม **"Sync Now"** ในหน้าตั้งค่าระบบ
+  - ตั้งเป็น **Background Worker Sync** ดึงข้อมูลจาก SAP มาลงฐานข้อมูล IRM ทุกวันเวลา 06:45 น. หรือกดปุ่ม **"Sync Now"** ในหน้าตั้งค่าระบบ
 
 ---
 
-## 11. รูปแบบ JSON Payload ที่ส่งไปหา QMS (Hostinger VPS)
+## 11. รูปแบบ JSON Payload สำหรับระบบ QMS เข้ามาดึง (Pull API)
 
 ```json
 {

@@ -25,7 +25,26 @@ import {
   EyeOff,
   Building2,
   X,
+  Activity,
+  FileJson,
+  ExternalLink,
 } from 'lucide-react';
+
+function formatDateThai(dateStr?: string | null) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -64,12 +83,31 @@ export default function SettingsPage() {
   const [copiedMgmtKey, setCopiedMgmtKey] = useState(false);
   const [regeneratingMgmtKey, setRegeneratingMgmtKey] = useState(false);
 
+  // External APIs Health & Status State
+  const [apiStatus, setApiStatus] = useState<any>(null);
+  const [checkingApiStatus, setCheckingApiStatus] = useState(false);
+  const [copiedQmsKey, setCopiedQmsKey] = useState(false);
+  const [regeneratingQmsKey, setRegeneratingQmsKey] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentOrigin(window.location.origin);
     }
     fetchSettings();
+    fetchApiStatus();
   }, []);
+
+  const fetchApiStatus = async () => {
+    setCheckingApiStatus(true);
+    try {
+      const res = await api.get('/api/settings/external-api-status');
+      setApiStatus(res.data);
+    } catch (err) {
+      console.error('Failed to fetch external API status:', err);
+    } finally {
+      setCheckingApiStatus(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -271,10 +309,28 @@ export default function SettingsPage() {
       const res = await api.post('/api/settings/regenerate-management-api-key');
       setSettings((prev) => ({ ...prev, management_api_key: res.data.management_api_key }));
       setMessage({ type: 'success', text: 'สร้าง Central Management API Key ใหม่สำเร็จแล้ว' });
+      fetchApiStatus();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'สร้าง Management API Key ล้มเหลว' });
     } finally {
       setRegeneratingMgmtKey(false);
+    }
+  };
+
+  const handleRegenerateQmsKey = async () => {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการสร้าง QMS API Key ใหม่? (ระบบ QMS จะต้องเปลี่ยน Key ในการเชื่อมต่อตามด้วย)')) {
+      return;
+    }
+    setRegeneratingQmsKey(true);
+    try {
+      const res = await api.post('/api/settings/regenerate-qms-api-key');
+      setSettings((prev) => ({ ...prev, qms_api_key: res.data.qms_api_key }));
+      setMessage({ type: 'success', text: 'สร้าง QMS API Key ใหม่สำเร็จแล้ว' });
+      fetchApiStatus();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'สร้าง QMS API Key ล้มเหลว' });
+    } finally {
+      setRegeneratingQmsKey(false);
     }
   };
 
@@ -409,6 +465,125 @@ export default function SettingsPage() {
           <Server className="w-4 h-4 text-emerald-600" />
           <span>5. SAP B1 MS SQL Connection</span>
         </a>
+        <a
+          href="#sec-central-iam"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Key className="w-4 h-4 text-emerald-600" />
+          <span>7. Central IAM API</span>
+        </a>
+        <a
+          href="#sec-qms-api"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <FileJson className="w-4 h-4 text-teal-600" />
+          <span>8. QMS Integration API</span>
+        </a>
+      </div>
+
+      {/* External APIs Real-Time Status & Health Monitor */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-5 text-white shadow-xl border border-slate-700/80 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+          <div className="flex items-center gap-2.5">
+            <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
+            <div>
+              <h2 className="font-bold text-sm tracking-wide text-white">
+                สถานะความพร้อมของ API ให้บริการภายนอก (External APIs Status & Health)
+              </h2>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                ตรวจสอบความพร้อมของ API สำหรับระบบ QMS และระบบ Central IAM ในการเชื่อมต่อแบบ Machine-to-Machine
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchApiStatus}
+            disabled={checkingApiStatus}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700/80 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-600 transition shadow-sm self-start sm:self-auto cursor-pointer disabled:opacity-50"
+            title="รีเฟรชตรวจเช็คสถานะ API"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${checkingApiStatus ? 'animate-spin text-sky-400' : 'text-slate-300'}`} />
+            <span>{checkingApiStatus ? 'กำลังตรวจเช็ค...' : 'เช็คสถานะ API'}</span>
+          </button>
+        </div>
+
+        {/* Status Grid Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: QMS Integration API */}
+          <div className="bg-slate-800/80 rounded-xl p-4 border border-teal-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileJson className="w-4 h-4 text-teal-400" />
+                <span className="font-bold text-xs text-teal-200">QMS Inbound Deliveries Integration API</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>AVAILABLE</span>
+              </span>
+            </div>
+
+            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 font-bold text-[9px]">GET</span>
+                <span className="text-slate-200 truncate">{currentOrigin}/api/external/qms/inbound-deliveries</span>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Auth: <span className="text-slate-300 font-semibold">Header: X-API-Key</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1">
+              <span>ประวัติการดึงข้อมูลล่าสุด:</span>
+              <span className="font-semibold text-teal-300">
+                {apiStatus?.qms?.last_call_at
+                  ? formatDateThai(apiStatus.qms.last_call_at)
+                  : 'พร้อมรับคำขอจาก QMS'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>สถิติเรียกใช้งานทั้งหมด:</span>
+              <span className="font-bold text-slate-200">{apiStatus?.qms?.total_calls ?? 0} ครั้ง</span>
+            </div>
+          </div>
+
+          {/* Card 2: Central IAM API */}
+          <div className="bg-slate-800/80 rounded-xl p-4 border border-emerald-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-emerald-400" />
+                <span className="font-bold text-xs text-emerald-200">Central Identity Management API (SCIM-Like)</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>AVAILABLE</span>
+              </span>
+            </div>
+
+            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px]">GET</span>
+                <span className="text-slate-200 truncate">{currentOrigin}/api/v1/directory/accounts</span>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Auth: <span className="text-slate-300 font-semibold">Header: X-Management-API-Key</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1">
+              <span>เชื่อมต่อ Reconcile ล่าสุด:</span>
+              <span className="font-semibold text-emerald-300">
+                {apiStatus?.ciam?.last_call_at
+                  ? formatDateThai(apiStatus.ciam.last_call_at)
+                  : 'พร้อมรับคำขอจาก Central IAM'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>สถิติเรียกใช้งานทั้งหมด:</span>
+              <span className="font-bold text-slate-200">{apiStatus?.ciam?.total_calls ?? 0} ครั้ง</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Alert Message */}
@@ -557,7 +732,7 @@ export default function SettingsPage() {
                 <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
                 <span>รอบเวลาแนะนำสำหรับตั้ง Task Scheduler (Reference Schedule):</span>
                 <span className="px-2.5 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-extrabold text-xs font-mono">
-                  {settings.sap_sync_time || '04:00'} น.
+                  {settings.sap_sync_time || '06:45'} น.
                 </span>
               </div>
               <p className="text-amber-800/90 text-[11px] leading-relaxed">
@@ -885,7 +1060,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-semibold text-slate-700 mb-1">เวลา Sync ข้อมูล SAP (HH:MM)</label>
               <input
                 type="text"
-                value={settings.sap_sync_time || '04:00'}
+                value={settings.sap_sync_time || '06:45'}
                 onChange={(e) => handleChange('sap_sync_time', e.target.value)}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none"
               />
@@ -1212,6 +1387,111 @@ export default function SettingsPage() {
               <span className="text-[10px] text-slate-400 mt-1 block">
                 ระบุ IP ของ Central Management Server คั่นด้วยจุลภาค หรือเว้นว่างไว้เพื่ออนุญาตทุก IP
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ================================================================= */}
+        {/* Section 8: QMS Inbound Deliveries Integration API                */}
+        {/* ================================================================= */}
+        <div id="sec-qms-api" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+              <FileJson className="w-5 h-5 text-teal-600" />
+              <span>8. QMS Inbound Deliveries Integration API (ระบบดึงข้อมูลสำหรับ QMS)</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-ping"></span>
+              <span>Active / Ready</span>
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed">
+            API มาตรฐานสำหรับระบบ <strong>Quality Management System (QMS)</strong> ในการเข้ามาดึงข้อมูลรอบนัดหมายส่งมอบวัตถุดิบ (Confirmed Inbound Deliveries) ที่ผ่านการยืนยันจากจัดซื้อ/คู่ค้าแล้ว เพื่อนำไปเตรียมแผนการสุ่มตรวจคุณภาพสินค้า
+          </p>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="font-bold text-slate-800 flex items-center justify-between">
+              <span>Endpoint ให้บริการสำหรับระบบ QMS:</span>
+              <a
+                href={`${currentOrigin}/docs#/QMS%20Integration%20API`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-teal-600 hover:underline text-[11px] font-semibold flex items-center gap-1"
+              >
+                <span>ดู API Spec ใน Swagger</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="font-mono text-[11px] text-slate-600 space-y-1.5">
+              <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-bold text-[10px]">GET</span>
+                <span className="text-slate-800 font-semibold">{currentOrigin}/api/external/qms/inbound-deliveries</span>
+              </div>
+              <div className="text-[10px] text-slate-500 px-1">
+                Query Parameters: <code>?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD</code> (กรองช่วงวันส่งมอบ หรือเว้นว่างเพื่อดึงทั้งหมด)
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  X-API-Key สำหรับ QMS (Secret Header Token) *
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(settings.qms_api_key || 'irm_qms_secure_key_2026');
+                      setCopiedQmsKey(true);
+                      setTimeout(() => setCopiedQmsKey(false), 2000);
+                    }}
+                    className="text-[11px] text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    {copiedQmsKey ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedQmsKey ? 'คัดลอกแล้ว' : 'คัดลอก Key'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateQmsKey}
+                    disabled={regeneratingQmsKey}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center gap-1 font-medium cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${regeneratingQmsKey ? 'animate-spin' : ''}`} />
+                    <span>สร้าง Key ใหม่</span>
+                  </button>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={settings.qms_api_key || 'irm_qms_secure_key_2026'}
+                onChange={(e) => handleChange('qms_api_key', e.target.value)}
+                placeholder="irm_qms_..."
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-teal-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                นำค่านี้ไปใส่ใน Header ของ QMS: <code>X-API-Key: &lt;Key&gt;</code> หรือ <code>Authorization: Bearer &lt;Key&gt;</code>
+              </span>
+            </div>
+
+            <div className="bg-teal-50/60 border border-teal-200/80 rounded-xl p-3.5 flex flex-col justify-between text-xs text-teal-950">
+              <div className="space-y-1">
+                <span className="font-bold text-teal-900 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-teal-600" />
+                  <span>สถิติการเชื่อมต่อของ QMS</span>
+                </span>
+                <p className="text-[11px] text-teal-800/90 leading-relaxed">
+                  เมื่อระบบ QMS เรียกเข้ามาดึงข้อมูล ระบบ IRM จะบันทึก Audit Trail ลงใน Transaction Logs อัตโนมัติทุกครั้ง
+                </p>
+              </div>
+              <div className="pt-2 border-t border-teal-200/60 flex items-center justify-between text-[11px]">
+                <span className="text-teal-800">ดึงข้อมูลล่าสุด:</span>
+                <span className="font-bold text-teal-950">
+                  {apiStatus?.qms?.last_call_at ? formatDateThai(apiStatus.qms.last_call_at) : 'พร้อมรับคำขอ'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

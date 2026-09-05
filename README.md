@@ -100,7 +100,7 @@ docker-compose up -d --build
 ## 🔑 ฟังก์ชันและกลไกสำคัญของระบบ (Key Features & Logic)
 
 ### 1. การซิงค์ข้อมูลจาก SAP B1 (One-Way Sync & Zero Write-Back)
-* ดึงข้อมูล PO เปิด (Open PO) เฉพาะกลุ่มวัตถุดิบจาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 04:00 น.
+* ดึงข้อมูล PO เปิด (Open PO) เฉพาะกลุ่มวัตถุดิบจาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 06:45 น.
 * **ไม่มีการเขียนข้อมูลกลับไปแก้ไขใน SAP เด็ดขาด**
 * ตรวจจับรายการที่ปิดยอดใน SAP เพื่อย้ายเข้าหน้า History อัตโนมัติ
 

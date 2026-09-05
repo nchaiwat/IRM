@@ -430,8 +430,8 @@ async def run_all_tests():
         # =====================================================================
         print(f"\n{BOLD}🔹 SUITE 7: Background Scheduled Jobs (TC-SCHED){RESET}")
 
-        # TC-SCHED-01: SAP Daily 04:00 Sync Job
-        record_result("TC-SCHED-01", "Daily SAP Sync Job (04:00 UTC+7)", "TC-SCHED", True, 0.5, "APScheduler Cron Registered")
+        # TC-SCHED-01: SAP Daily 06:45 Sync Job
+        record_result("TC-SCHED-01", "Daily SAP Sync Job (06:45 UTC+7)", "TC-SCHED", True, 0.5, "APScheduler Cron Registered")
 
         # TC-SCHED-02: Monday 08:00 Email Batch Job
         record_result("TC-SCHED-02", "Monday Email Batch Job (Expires Wed 23:59)", "TC-SCHED", True, 0.5, "APScheduler Cron Registered")

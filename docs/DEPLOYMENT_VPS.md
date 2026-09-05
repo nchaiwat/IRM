@@ -169,6 +169,6 @@ sudo certbot --nginx -d irm.windowasia.com
 5. นำไฟล์ที่ได้ไปวางบน On-Premise Server ในโรงงาน (เช่น `C:\IRM_Agent\`)
 6. รันคำสั่ง Windows Task Scheduler ตามที่ระบบแนะนำ:
    ```cmd
-   schtasks /create /tn "IRM_SAP_Sync_Daily" /tr "python C:\IRM_Agent\irm_agent_sync_v1.py" /sc daily /st 04:00 /ru "SYSTEM" /f
+   schtasks /create /tn "IRM_SAP_Sync_Daily" /tr "python C:\IRM_Agent\irm_agent_sync_v1.py" /sc daily /st 06:45 /ru "SYSTEM" /f
    ```
 7. เมื่อสคริปต์ทำงาน มันจะยิงข้อมูลมาที่ `https://irm.windowasia.com/api/sap/inbound-push` อัตโนมัติอย่างปลอดภัย 100%!

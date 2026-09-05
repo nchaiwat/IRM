@@ -51,7 +51,7 @@
 ## 🔑 3. สรุป Business Logic และกลไกหลักของระบบ
 
 ### 3.1 การซิงค์ SAP B1 (One-Way Inbound)
-* ซิงค์ข้อมูล PO สถานะ Open (O) จาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 04:00 น.
+* ซิงค์ข้อมูล PO สถานะ Open (O) จาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 06:45 น.
 * **ไม่มีการเขียนข้อมูลกลับไปแก้ไขที่ SAP เด็ดขาด (Zero Write-Back)**
 * รายการที่รับครบใน SAP (`LineStatus = 'C'`) จะถูกย้ายเข้าหน้า History อัตโนมัติ
 

@@ -225,11 +225,11 @@
 3. **การตั้งเวลารันอัตโนมัติบน On-Premise Server (Task Scheduler):**
    * ไฟล์ Python ที่ดาวน์โหลดเป็นแบบ Single-run (รันครั้งเดียวจบ) โดย Admin สามารถนำคำสั่งจากหน้าจอไปตั้งเวลาใน Windows Task Scheduler ได้เอง:
      ```cmd
-     schtasks /create /tn "IRM_SAP_Sync_Daily" /tr "python C:\IRM_Agent\irm_agent_sync_v1.py" /sc daily /st 04:00 /ru "SYSTEM" /f
+     schtasks /create /tn "IRM_SAP_Sync_Daily" /tr "python C:\IRM_Agent\irm_agent_sync_v1.py" /sc daily /st 06:45 /ru "SYSTEM" /f
      ```
    * **Linux Crontab:**
      ```cron
-     0 4 * * * /usr/bin/python3 /opt/irm/irm_agent_sync_v1.py >> /var/log/sap_sync.log 2>&1
+     45 6 * * * /usr/bin/python3 /opt/irm/irm_agent_sync_v1.py >> /var/log/sap_sync.log 2>&1
      ```
 
 ---
