@@ -8,13 +8,15 @@ import secrets
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.group import Group
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.services.log_service import record_transaction_log
+from app.utils.security import hash_password
 
 router = APIRouter(prefix="/api/v1/directory", tags=["Central Identity Management"])
 
@@ -22,6 +24,25 @@ router = APIRouter(prefix="/api/v1/directory", tags=["Central Identity Managemen
 # ──────────────────────────────────────────────────────────────────────────────
 # Pydantic Schemas
 # ──────────────────────────────────────────────────────────────────────────────
+
+class CreateCentralAccountRequest(BaseModel):
+    username: str
+    full_name: str
+    email: Optional[str] = None
+    department: Optional[str] = None
+    group_name: Optional[str] = None
+    use_ad_auth: bool = True
+    created_by: Optional[str] = "Central-IAM-Service"
+
+
+class CreateCentralAccountResponse(BaseModel):
+    success: bool
+    id: int
+    username: str
+    message: str
+    group_name: Optional[str] = None
+    is_active: bool
+    created_at: datetime
 
 class CentralAccountItem(BaseModel):
     id: int
@@ -215,6 +236,109 @@ async def list_accounts_for_central_management(
         active_accounts=active_count,
         inactive_accounts=inactive_count,
         accounts=account_items,
+    )
+
+
+@router.post("/accounts", response_model=CreateCentralAccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_account_for_central_management(
+    payload: CreateCentralAccountRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    access_info: Annotated[dict, Depends(verify_central_management_access)],
+):
+    """
+    Provision a new user account remotely from Central Identity Management service.
+    """
+    username_clean = payload.username.strip()
+    full_name_clean = payload.full_name.strip()
+
+    if not username_clean or not full_name_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Validation error: username and full_name are required.",
+        )
+
+    # 1. Check if user already exists
+    stmt = select(User).where(func.lower(User.username) == username_clean.lower())
+    res = await db.execute(stmt)
+    existing_user = res.scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User account already exists.",
+        )
+
+    # 2. Resolve Group
+    group_id = None
+    assigned_group_name = None
+    if payload.group_name and payload.group_name.strip():
+        g_stmt = select(Group).where(func.lower(Group.name) == payload.group_name.strip().lower())
+        g_res = await db.execute(g_stmt)
+        matched_group = g_res.scalar_one_or_none()
+        if matched_group:
+            group_id = matched_group.id
+            assigned_group_name = matched_group.name
+
+    if not group_id:
+        # Fallback to default/first active group
+        g_stmt = select(Group).where(Group.is_active == True).order_by(Group.id.asc()).limit(1)
+        g_res = await db.execute(g_stmt)
+        default_group = g_res.scalar_one_or_none()
+        if default_group:
+            group_id = default_group.id
+            assigned_group_name = default_group.name
+
+    # 3. Secure dummy password hash for AD auth
+    dummy_secret = secrets.token_urlsafe(32)
+    pwd_hash = hash_password(dummy_secret)
+
+    email_val = (
+        payload.email.strip()
+        if payload.email and payload.email.strip()
+        else f"{username_clean.lower()}@windowasia.com"
+    )
+
+    new_user = User(
+        username=username_clean,
+        password_hash=pwd_hash,
+        full_name=full_name_clean,
+        email=email_val,
+        department=payload.department.strip() if payload.department else None,
+        group_id=group_id,
+        allowed_item_groups="*",
+        use_ad_auth=payload.use_ad_auth,
+        is_active=True,
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    client_ip = access_info.get("client_ip", "unknown")
+    await record_transaction_log(
+        category="central_management",
+        action="create_account",
+        status="success",
+        message=f"Central Management สั่งสร้างบัญชีผู้ใช้ใหม่ '{new_user.username}' (กลุ่มสิทธิ์: {assigned_group_name or 'Default'})",
+        details={
+            "username": new_user.username,
+            "full_name": new_user.full_name,
+            "email": new_user.email,
+            "department": new_user.department,
+            "group_name": assigned_group_name,
+            "use_ad_auth": new_user.use_ad_auth,
+            "created_by": payload.created_by,
+            "client_ip": client_ip,
+        },
+        triggered_by=f"central_service:{payload.created_by}",
+    )
+
+    return CreateCentralAccountResponse(
+        success=True,
+        id=new_user.id,
+        username=new_user.username,
+        message=f"Account '{new_user.username}' created successfully.",
+        group_name=assigned_group_name,
+        is_active=new_user.is_active,
+        created_at=new_user.created_at or datetime.now(),
     )
 
 

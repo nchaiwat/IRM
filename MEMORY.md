@@ -37,6 +37,9 @@
 ### 1.3 กฎ Route Precedence ของ FastAPI
 * ใน FastAPI ต้องประกาศ Route ที่เป็น **Literal Path** (เช่น `/bulk-update`, `/send-all-portal-emails`, `/sync-sap`, `/inbound-deliveries`) **ก่อน (Before)** Route ที่มี **Path Parameter** (เช่น `/{supplier_id}`, `/{item_id}`, `/{user_id}`) เสมอ เพื่อป้องกัน Error 422
 
+### 1.4 กฎการแก้ไขเฉพาะจุดและห้ามกระทบ Logic UX/UI เดิม (Surgical Edits & Preserve Existing Logic/UI)
+* **แก้เฉพาะจุดที่ต้องการเท่านั้น (Surgical Modifications Only):** แก้ไขตรงจุดที่ได้รับมอบหมาย ห้ามแก้ลามไปยังโมดูลหรือฟังก์ชันอื่นที่ไม่เกี่ยวข้องโดยเด็ดขาด
+* **ห้ามเปลี่ยนแปลง Logic หรือ UX/UI เดิมที่ใช้งานได้ดีอยู่แล้ว:** รักษาพฤติกรรมการทำงานเดิม, โครงสร้างหน้าตา, และ Workflow เดิมที่ทำงานถูกต้องไว้ 100% ห้ามรื้อหรือปรับแต่งส่วนอื่นโดยพลการ
 
 ---
 

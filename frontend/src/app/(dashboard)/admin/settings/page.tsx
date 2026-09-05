@@ -560,10 +560,15 @@ export default function SettingsPage() {
               </span>
             </div>
 
-            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1">
+            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px]">GET</span>
+                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold text-[9px]">POST</span>
                 <span className="text-slate-200 truncate">{currentOrigin}/api/v1/directory/accounts</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold text-[9px]">PATCH</span>
+                <span className="text-slate-200 truncate">{currentOrigin}/api/v1/directory/accounts/:user/status</span>
               </div>
               <div className="text-[10px] text-slate-400">
                 Auth: <span className="text-slate-300 font-semibold">Header: X-Management-API-Key</span>

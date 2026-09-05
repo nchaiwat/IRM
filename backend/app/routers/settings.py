@@ -465,14 +465,14 @@ async def get_external_api_status(
     mgmt_key = s_map.get("management_api_key", "")
     stmt_ciam_log = (
         select(TransactionLog)
-        .where(TransactionLog.category == "central_iam")
-        .order_by(desc(TransactionLog.created_at))
+        .where(TransactionLog.category.in_(["central_management", "central_iam"]))
+        .order_by(TransactionLog.created_at.desc())
         .limit(1)
     )
     last_ciam_log = (await db.execute(stmt_ciam_log)).scalar_one_or_none()
 
     stmt_ciam_count = select(func.count(TransactionLog.id)).where(
-        TransactionLog.category == "central_iam"
+        TransactionLog.category.in_(["central_management", "central_iam"])
     )
     ciam_calls_count = (await db.execute(stmt_ciam_count)).scalar() or 0
 
@@ -497,6 +497,7 @@ async def get_external_api_status(
             "health": "healthy",
             "endpoints": [
                 {"method": "GET", "path": "/api/v1/directory/accounts", "description": "Reconciliation (อ่านบัญชีทั้งหมด)"},
+                {"method": "POST", "path": "/api/v1/directory/accounts", "description": "Provisioning (สร้างบัญชีผู้ใช้ใหม่)"},
                 {"method": "PATCH", "path": "/api/v1/directory/accounts/{username}/status", "description": "Instant Offboarding (ระงับสิทธิ์)"}
             ],
             "auth_type": "Header: X-Management-API-Key & IP Whitelist",

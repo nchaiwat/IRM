@@ -175,6 +175,55 @@ Application ทุกตัวที่พัฒนาขึ้นในอง�
 
 ---
 
+### 3.3 Endpoint 3: สร้างบัญชีผู้ใช้งานใหม่ (Account Provisioning)
+
+ใช้สำหรับให้ Central Management App สั่งสร้างบัญชีผู้ใช้ใหม่ใน Application ปลายทางแบบ Real-time เมื่อมีพนักงาน Onboard หรือได้รับสิทธิ์ใช้งานระบบเพิ่มเติม
+
+* **HTTP Method:** `POST`
+* **Path:** `/api/v1/directory/accounts`
+* **Request Headers:**
+  | Header Name | Type | Required | Description |
+  | :--- | :--- | :--- | :--- |
+  | `X-Management-API-Key` | String | **Yes** | Secret Token ประจำ Application |
+  | `Content-Type` | String | Yes | `application/json` |
+
+* **Request Body (JSON):**
+```json
+{
+  "username": "somchai.p",
+  "full_name": "สมชาย พากเพียร",
+  "email": "somchai.p@company.com",
+  "department": "Purchasing",
+  "group_name": "PU User",
+  "use_ad_auth": true,
+  "created_by": "Central-IAM-Service"
+}
+```
+
+* **Field Specifications:**
+  * `username` *(String, Required)*: ชื่อบัญชีผู้ใช้งาน (sAMAccountName เดียวกับ AD)
+  * `full_name` *(String, Required)*: ชื่อ-นามสกุลจริง
+  * `email` *(String, Optional)*: อีเมลองค์กรของพนักงาน
+  * `department` *(String, Optional)*: แผนกงาน
+  * `group_name` *(String, Optional)*: สิทธิ์/Role ในระบบปลายทาง (เช่น `PU User`, `Admin`, `QA Inspector`)
+  * `use_ad_auth` *(Boolean, Optional, Default: `true`)*: ยืนยันตัวตนผ่าน AD หรือไม่
+  * `created_by` *(String, Optional, Default: `"Central-IAM-Service"`)*: ชื่อผู้สั่งสร้าง
+
+#### Response Format (201 Created):
+```json
+{
+  "success": true,
+  "id": 26,
+  "username": "somchai.p",
+  "message": "Account 'somchai.p' created successfully.",
+  "group_name": "PU User",
+  "is_active": true,
+  "created_at": "2026-09-05T09:00:00.000000Z"
+}
+```
+
+---
+
 ## 4. มาตรฐาน HTTP Status Codes และ Error Handling
 
 เมื่อเกิดข้อผิดพลาด Application ปลายทางต้องส่ง HTTP Status Code ตามมาตรฐานดังนี้:
@@ -182,10 +231,12 @@ Application ทุกตัวที่พัฒนาขึ้นในอง�
 | Status Code | ความหมาย | สาเหตุที่เกิดขึ้น | JSON Body ที่ต้องส่งกลับ |
 | :--- | :--- | :--- | :--- |
 | **200 OK** | สำเร็จ | ดึงข้อมูลหรืออัปเดตสถานะสำเร็จ | ส่งข้อมูลผลลัพธ์ตาม Spec |
-| **400 Bad Request** | Request ผิดพลาด | ข้อมูลใน Body ไม่ถูกต้อง หรือขาดฟิลด์บังคับ | `{"detail": "Validation error: is_active is required"}` |
+| **201 Created** | สร้างสำเร็จ | สร้างบัญชีผู้ใช้ใหม่สำเร็จ | ส่งข้อมูลบัญชีที่สร้างใหม่ |
+| **400 Bad Request** | Request ผิดพลาด | ข้อมูลใน Body ไม่ถูกต้อง หรือขาดฟิลด์บังคับ | `{"detail": "Validation error: username and full_name are required"}` |
 | **401 Unauthorized** | ไม่มีสิทธิ์ยืนยันตัวตน | ไม่มี Header `X-Management-API-Key` หรือ Key ไม่ถูกต้อง | `{"detail": "Invalid or missing X-Management-API-Key header."}` |
 | **403 Forbidden** | ปฏิเสธการเข้าถึง | IP ไม่อยู่ใน Whitelist หรือระบบปิด API ไว้ | `{"detail": "Origin IP '...' is not permitted."}` |
 | **404 Not Found** | ไม่พบข้อมูล | ไม่พบบัญชี `{username}` ที่ระบุในระบบนี้ | `{"detail": "User account '...' does not exist."}` |
+| **409 Conflict** | ข้อมูลซ้ำซ้อน | บัญชี `{username}` มีอยู่แล้วในระบบ | `{"detail": "User account already exists."}` |
 | **500 Server Error** | เซิร์ฟเวอร์มีปัญหา | Database Error ภายในระบบปลายทาง | `{"detail": "Internal server error: ..."}` |
 
 ---
@@ -208,6 +259,20 @@ curl -X PATCH "https://irm.windowasia.com/api/v1/directory/accounts/somchai.p/st
     "is_active": false,
     "reason": "Resigned - HR Ticket #9901",
     "updated_by": "Central-Admin"
+  }'
+
+# 3. สั่งสร้างบัญชีผู้ใช้ใหม่ (Provision Account)
+curl -X POST "https://irm.windowasia.com/api/v1/directory/accounts" \
+  -H "X-Management-API-Key: sec_irm_mgmt_9a4f21e8d3b76c501e4a" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "somchai.p",
+    "full_name": "สมชาย พากเพียร",
+    "email": "somchai.p@company.com",
+    "department": "Purchasing",
+    "group_name": "PU User",
+    "use_ad_auth": true,
+    "created_by": "Central-IAM-Service"
   }'
 ```
 
