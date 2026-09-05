@@ -481,116 +481,6 @@ export default function SettingsPage() {
         </a>
       </div>
 
-      {/* External APIs Real-Time Status & Health Monitor */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-5 text-white shadow-xl border border-slate-700/80 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
-          <div className="flex items-center gap-2.5">
-            <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
-            <div>
-              <h2 className="font-bold text-sm tracking-wide text-white">
-                สถานะความพร้อมของ API ให้บริการภายนอก (External APIs Status & Health)
-              </h2>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                ตรวจสอบความพร้อมของ API สำหรับระบบ QMS และระบบ Central IAM ในการเชื่อมต่อแบบ Machine-to-Machine
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={fetchApiStatus}
-            disabled={checkingApiStatus}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700/80 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-600 transition shadow-sm self-start sm:self-auto cursor-pointer disabled:opacity-50"
-            title="รีเฟรชตรวจเช็คสถานะ API"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${checkingApiStatus ? 'animate-spin text-sky-400' : 'text-slate-300'}`} />
-            <span>{checkingApiStatus ? 'กำลังตรวจเช็ค...' : 'เช็คสถานะ API'}</span>
-          </button>
-        </div>
-
-        {/* Status Grid Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Card 1: QMS Integration API */}
-          <div className="bg-slate-800/80 rounded-xl p-4 border border-teal-500/30 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileJson className="w-4 h-4 text-teal-400" />
-                <span className="font-bold text-xs text-teal-200">QMS Inbound Deliveries Integration API</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>AVAILABLE</span>
-              </span>
-            </div>
-
-            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 font-bold text-[9px]">GET</span>
-                <span className="text-slate-200 truncate">{currentOrigin}/api/external/qms/inbound-deliveries</span>
-              </div>
-              <div className="text-[10px] text-slate-400">
-                Auth: <span className="text-slate-300 font-semibold">Header: X-API-Key</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1">
-              <span>ประวัติการดึงข้อมูลล่าสุด:</span>
-              <span className="font-semibold text-teal-300">
-                {apiStatus?.qms?.last_call_at
-                  ? formatDateThai(apiStatus.qms.last_call_at)
-                  : 'พร้อมรับคำขอจาก QMS'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
-              <span>สถิติเรียกใช้งานทั้งหมด:</span>
-              <span className="font-bold text-slate-200">{apiStatus?.qms?.total_calls ?? 0} ครั้ง</span>
-            </div>
-          </div>
-
-          {/* Card 2: Central IAM API */}
-          <div className="bg-slate-800/80 rounded-xl p-4 border border-emerald-500/30 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-emerald-400" />
-                <span className="font-bold text-xs text-emerald-200">Central Identity Management API (SCIM-Like)</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>AVAILABLE</span>
-              </span>
-            </div>
-
-            <div className="bg-slate-900/90 rounded-lg p-2.5 font-mono text-[11px] text-slate-300 border border-slate-700 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px]">GET</span>
-                <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold text-[9px]">POST</span>
-                <span className="text-slate-200 truncate">{currentOrigin}/api/v1/directory/accounts</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold text-[9px]">PATCH</span>
-                <span className="text-slate-200 truncate">{currentOrigin}/api/v1/directory/accounts/:user/status</span>
-              </div>
-              <div className="text-[10px] text-slate-400">
-                Auth: <span className="text-slate-300 font-semibold">Header: X-Management-API-Key</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1">
-              <span>เชื่อมต่อ Reconcile ล่าสุด:</span>
-              <span className="font-semibold text-emerald-300">
-                {apiStatus?.ciam?.last_call_at
-                  ? formatDateThai(apiStatus.ciam.last_call_at)
-                  : 'พร้อมรับคำขอจาก Central IAM'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
-              <span>สถิติเรียกใช้งานทั้งหมด:</span>
-              <span className="font-bold text-slate-200">{apiStatus?.ciam?.total_calls ?? 0} ครั้ง</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Alert Message */}
       {message && (
         <div
@@ -1298,9 +1188,15 @@ export default function SettingsPage() {
         {/* Section 7: Centralized Identity Management API                    */}
         {/* ================================================================= */}
         <div id="sec-central-iam" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-800 font-bold text-base">
-            <Key className="w-5 h-5 text-emerald-600" />
-            <span>7. Centralized Identity Management API (SCIM-Like Integration)</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+              <Key className="w-5 h-5 text-emerald-600" />
+              <span>7. Centralized Identity Management API (SCIM-Like Integration)</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Active / Ready</span>
+            </span>
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -1322,6 +1218,10 @@ export default function SettingsPage() {
             <div className="space-y-1.5 font-mono text-[11px] text-slate-600">
               <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
                 <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">GET</span>
+                <span className="text-slate-800">{currentOrigin}/api/v1/directory/accounts</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">POST</span>
                 <span className="text-slate-800">{currentOrigin}/api/v1/directory/accounts</span>
               </div>
               <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
@@ -1395,9 +1295,15 @@ export default function SettingsPage() {
         {/* Section 8: QMS Inbound Deliveries Integration API                */}
         {/* ================================================================= */}
         <div id="sec-qms-api" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4 scroll-mt-6">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-800 font-bold text-base">
-            <FileJson className="w-5 h-5 text-teal-600" />
-            <span>8. QMS Inbound Deliveries Integration API (ระบบดึงข้อมูลสำหรับ QMS)</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+              <FileJson className="w-5 h-5 text-teal-600" />
+              <span>8. QMS Inbound Deliveries Integration API (ระบบดึงข้อมูลสำหรับ QMS)</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1.5 self-start sm:self-auto">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+              <span>Active / Ready</span>
+            </span>
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
