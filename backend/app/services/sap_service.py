@@ -12,11 +12,12 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.system_setting import SystemSetting
 from app.models.master import ItemMaster, SupplierMaster
-from app.models.po import POHeader, POItem, POItemAuditLog
+from app.models.po import POHeader, POItem, POItemAuditLog, SubItem
 
 logger = logging.getLogger(__name__)
 
@@ -407,8 +408,10 @@ async def _process_and_save_sap_records(
         lead_days = itm_master.lead_time_days if (itm_master and itm_master.lead_time_days) else 60
         initial_est_date = rec["po_date"] + timedelta(days=lead_days)
 
-        stmt_po_item = select(POItem).where(
-            POItem.po_header_id == po_header.id, POItem.line_num == line_num_val
+        stmt_po_item = (
+            select(POItem)
+            .options(selectinload(POItem.sub_items))
+            .where(POItem.po_header_id == po_header.id, POItem.line_num == line_num_val)
         )
         po_item = (await db.execute(stmt_po_item)).scalar_one_or_none()
         if not po_item:
@@ -433,13 +436,89 @@ async def _process_and_save_sap_records(
             )
             db.add(po_item)
         else:
+            old_received = float(po_item.received_qty or 0.0)
+            new_received = float(rec["received_qty"] or 0.0)
+            new_remaining = float(rec["remaining_qty"] or 0.0)
+            delta_received = new_received - old_received
+
             po_item.quantity = rec["quantity"]
-            po_item.received_qty = rec["received_qty"]
-            po_item.remaining_qty = rec["remaining_qty"]
+            po_item.received_qty = new_received
+            po_item.remaining_qty = new_remaining
             po_item.due_date = rec.get("due_date", rec["po_date"] + timedelta(days=30))
             po_item.item_group = rec.get("item_group", "113")
-            if po_item.status != "confirmed" and not po_item.updated_by_name:
-                po_item.estimate_qty = rec["remaining_qty"]
+
+            # FIFO Sub-items Reconcile on Goods Receipt
+            if delta_received > 0:
+                if po_item.sub_items:
+                    # Sort sub-items: earliest estimate date first, then by ID
+                    sorted_subs = sorted(
+                        po_item.sub_items,
+                        key=lambda s: (
+                            1 if s.estimate_date is None else 0,
+                            s.estimate_date.timestamp() if s.estimate_date else 0.0,
+                            s.id or 0,
+                        ),
+                    )
+                    rem_delta = delta_received
+                    reconcile_actions = []
+
+                    for sub in sorted_subs:
+                        if rem_delta <= 0:
+                            break
+                        sub_dt_str = sub.estimate_date.strftime("%d/%m/%Y") if sub.estimate_date else "-"
+                        current_sub_qty = float(sub.quantity or 0.0)
+
+                        if rem_delta >= current_sub_qty:
+                            rem_delta -= current_sub_qty
+                            reconcile_actions.append(f"ปิดงวด {sub_dt_str} ({current_sub_qty:,.0f} {po_item.unit})")
+                            await db.delete(sub)
+                            if sub in po_item.sub_items:
+                                po_item.sub_items.remove(sub)
+                        else:
+                            new_sub_qty = current_sub_qty - rem_delta
+                            reconcile_actions.append(f"ปรับงวด {sub_dt_str} เหลือ {new_sub_qty:,.0f} {po_item.unit}")
+                            sub.quantity = new_sub_qty
+                            rem_delta = 0
+
+                    # Recompute parent estimate_qty & earliest estimate_date
+                    if po_item.sub_items:
+                        po_item.estimate_qty = sum(float(s.quantity or 0.0) for s in po_item.sub_items)
+                        valid_subs = [s for s in po_item.sub_items if s.estimate_date]
+                        if valid_subs:
+                            earliest_sub = min(valid_subs, key=lambda s: s.estimate_date.timestamp())
+                            po_item.estimate_date = earliest_sub.estimate_date
+                    else:
+                        po_item.estimate_qty = new_remaining
+
+                    detail_msg = f"SAP Sync FIFO: ตัดรับเข้าคลัง +{delta_received:,.0f} {po_item.unit} — " + (
+                        ", ".join(reconcile_actions) if reconcile_actions else "ตัดยอดครบทุกงวด"
+                    )
+                    audit_log = POItemAuditLog(
+                        po_item_id=po_item.id,
+                        action="sap_fifo_sync",
+                        changes_detail=detail_msg,
+                        changed_by_name="SAP B1 Sync",
+                        changed_by_type="system",
+                    )
+                    db.add(audit_log)
+                else:
+                    # Single item (no sub-items)
+                    if po_item.estimate_qty is not None and po_item.estimate_qty > new_remaining:
+                        old_est = po_item.estimate_qty
+                        po_item.estimate_qty = new_remaining
+                        audit_log = POItemAuditLog(
+                            po_item_id=po_item.id,
+                            action="sap_sync_qty",
+                            changes_detail=f"SAP Sync: รับเข้าคลัง +{delta_received:,.0f} {po_item.unit} (ปรับยอดแผนคงเหลือ {old_est:,.0f} -> {new_remaining:,.0f} {po_item.unit})",
+                            changed_by_name="SAP B1 Sync",
+                            changed_by_type="system",
+                        )
+                        db.add(audit_log)
+            else:
+                # No new delivery from SAP: preserve estimate_qty if already modified/confirmed, otherwise sync with remaining
+                if po_item.status != "confirmed" and not po_item.updated_by_name:
+                    po_item.estimate_qty = new_remaining
+
             if po_item.status == "closed":
                 po_item.status = "pending"
                 po_item.closed_at = None
