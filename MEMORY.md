@@ -8,28 +8,35 @@
 
 ---
 
-## 🚨 1. กฎเหล็กในการทำงานกับ User (Strict Protocol)
+## 🚨 1. กฎเหล็กในการทำงานกับ User (Strict Protocol — ห้ามลืมเด็ดขาด)
 
-### 1.1 รูปแบบคำสั่ง VPS (CRITICAL — ห้ามเยิ่นเย้อเด็ดขาด)
-* เมื่อแจ้งคำสั่งสำหรับรันบน VPS ให้แสดงเฉพาะคำสั่งสั้นๆ 3 บรรทัดนี้เท่านั้น ไม่ต้องใส่คำอธิบายยืดยาว:
-  ```bash
-  cd /var/www/Irm
-  git pull origin main
-  docker compose up -d --build
-  ```
+### 1.1 กระบวนการจบงานทุกครั้งหลัง Modify เสร็จ (CRITICAL Mandatory Workflow)
+**เมื่อทำงานแก้ไขโค้ด (Modify) เสร็จสิ้นในทุกๆ รอบ ให้ปฏิบัติตามลำดับขั้นตอนนี้เสมอโดยอัตโนมัติ โดยที่ User ไม่จำเป็นต้องทักหรือร้องขอ:**
+1. **Compile & ตรวจสอบความถูกต้องบน Local ให้เรียบร้อย 100%:**
+   - **Backend:** ตรวจสอบ Syntax และการทำงานของ API
+   - **Frontend:** ตรวจสอบ Next.js Type Check & Build ให้ผ่านสมบูรณ์
+2. **รายงานสรุปสถานะให้ User ทราบ:**
+   - แจ้งให้ชัดเจนว่าระบบ Compile ผ่านเรียบร้อยดี หรือมีจุดใดติดขัดหรือไม่
+3. **Auto Git Push:**
+   - ทำการ `git add .`, `git commit -m "..."`, และ `git push origin main` ขึ้น GitHub ให้เรียบร้อยก่อนส่งมอบงานทุกครั้ง
+4. **ปิดท้ายคำตอบด้วยชุดคำสั่งรันบน VPS เสมอ (ห้ามลืมเด็ดขาด):**
+   ```bash
+   # 1. ไปที่โฟลเดอร์โปรเจกต์ IRM บน VPS
+   cd /var/www/Irm
+   # 2. ดึงโค้ดล่าสุดจาก GitHub
+   git pull origin main
+   # 3. สั่ง Rebuild คอนเทนเนอร์ Backend และ Frontend (รันเฉพาะตัวที่แก้ ไม่กระทบ DB และ Redis เดิม)
+   docker compose up -d --build
+   ```
+   *(หากมีการเปลี่ยนแปลงโครงสร้าง Database ให้แนบคำสั่ง `docker exec -i irm-backend python backend/scripts/...` ตามความจำเป็น)*
 
 ### 1.2 สไตล์การสื่อสาร (Communication Style)
 * **กระชับ ชัดเจน ตรงประเด็น ไม่เยิ่นเย้อ:** สรุปสาระสำคัญเป็นข้อๆ หลีกเลี่ยงคำบรรยายที่เวิ่นเว้อ
 * ทุกคำตอบต้องสะท้อนโค้ดจริงในระบบเสมอ
 
-### 1.3 กฎการส่งมอบโค้ด (Delivery Protocol)
-* ตรวจสอบความถูกต้องเสมอ:
-  1. Backend: รัน `python -m py_compile` ตรวจสอบ Syntax ให้ผ่าน 100%
-  2. Frontend: รัน `npm run build` ตรวจสอบ Next.js Type Check & Build ให้ผ่าน (18/18 static pages)
-  3. Git: ทำการ `git add`, `git commit`, และ `git push origin main` ให้เรียบร้อยก่อนตอบสรุปงาน
-
-### 1.4 กฎ Route Precedence ของ FastAPI
+### 1.3 กฎ Route Precedence ของ FastAPI
 * ใน FastAPI ต้องประกาศ Route ที่เป็น **Literal Path** (เช่น `/bulk-update`, `/send-all-portal-emails`, `/sync-sap`, `/inbound-deliveries`) **ก่อน (Before)** Route ที่มี **Path Parameter** (เช่น `/{supplier_id}`, `/{item_id}`, `/{user_id}`) เสมอ เพื่อป้องกัน Error 422
+
 
 ---
 
