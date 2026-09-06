@@ -65,12 +65,19 @@
 8. **System Blueprint** (`/system-blueprint`)
 9. **Admin** (`/admin/settings`, `/admin/users`, `/admin/groups`, `/admin/auth-matrix`, `/admin/logs`)
 
-### 7) 🔑 Central Identity Management API (SCIM-Like) & PRD
-* วางระบบ API สำหรับ Central IAM App เข้ามาควบคุมผู้ใช้:
-  * `GET /api/v1/directory/accounts` (Reconciliation)
-  * `PATCH /api/v1/directory/accounts/{username}/status` (Instant Offboarding)
-* เอกสารมาตรฐาน API: [docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md)
-* จัดทำเอกสารข้อกำหนดระบบกลางไว้ที่: `D:\Python\Central-IAM\PRD.md`
+### 7) 🔑 Central Identity Management API (SCIM-Like) & Account Provisioning
+* พัฒนาระบบ API สำหรับ Central IAM App เข้ามาควบคุมผู้ใช้งานในระบบ IRM ครบทั้ง 3 Endpoint:
+  * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปทำ Inventory / Reconciliation
+  * `PATCH /api/v1/directory/accounts/{username}/status` — สั่งระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
+  * `POST /api/v1/directory/accounts` — สั่งสร้างบัญชีผู้ใช้งานใหม่แบบ Real-time (Account Provisioning)
+* เอกสารมาตรฐานระดับองค์กร: [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md)
+* พิมพ์เขียวและข้อกำหนดระบบกลาง: `D:\Python\Central-IAM\PRD.md`
+
+### 8) 🎯 ปรับปรุง UI/UX หน้า System Setting: ตัดความซ้ำซ้อนและคุมโทนสีให้เป็นหนึ่งเดียว
+* **ตัดการ์ดพื้นหลังสีเข้ม (Dark Health Widget) ออกทั้งหมด:** เนื่องจากโดดเด่นเกินจำเป็นและดึงสายตาผิดทิศทาง และข้อมูลประวัติการดึงซ้ำซ้อนกับหน้า Transaction Logs
+* **ย้ายสถานะความพร้อมแสดงเป็น Subtle Pill Badges:** แสดง `[ 🟢 Active / Ready ]` เรียบหรูที่หัวข้อการ์ดของแต่ละส่วนโดยตรง (Section 7 Central IAM และ Section 8 QMS)
+* **QMS Inbound Deliveries Integration (Pull Model):** ยึดหลักการให้ QMS เป็นฝ่ายเข้ามาดึงข้อมูล (`GET /api/external/qms/inbound-deliveries`) ตัดปุ่มทดสอบส่ง JSON สีเขียวออกเพื่อไม่ให้เกิดความสับสน และรวมศูนย์ Logs ทั้งหมดไว้ที่ Transaction Logs หน้าเดียว
+* **การซิงค์ข้อมูลจาก SAP B1:** ปรับเวลาซิงค์ประจำวันเป็น 06:45 น. (แก้ไขและเคลียร์ 04:00 น. เดิมออกทั้งหมด)
 
 ---
 
@@ -78,15 +85,17 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
+| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | หน้า System Setting ดีไซน์ Clean Corporate Light Theme พร้อม Status Badge ในหัวข้อข้อ 7 และ 8 |
 | [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | ปฏิทินรอบส่งของ โหมดรายเดือน, รายปี (12 เดือน), และ Universal Search |
 | [`frontend/src/app/(dashboard)/receiving-checklist/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/receiving-checklist/page.tsx) | ใบตรวจรับสินค้าประจำวันสำหรับสโตร์/รปภ. พร้อมโหมดสั่งพิมพ์ A4 แนวนอน |
 | [`frontend/src/app/(dashboard)/system-blueprint/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/system-blueprint/page.tsx) | พิมพ์เขียวระบบ IRM ครบวงจร พร้อมกล่องคัดลอก AI Prompts ภาษาไทย |
 | [`frontend/src/components/layout/Sidebar.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Sidebar.tsx) | แถบเมนูด้านซ้าย เรียงลำดับเมนูตามมาตรฐานทางการ |
 | [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ระบบส่งอีเมลคู่ค้า และคำนวณอายุ Token ตามรอบสัปดาห์พร้อมกลไก Reuse |
 | [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | หน้า Operation, การแตกงวดส่ง, Single-PO Token อายุ 1 ชม. พร้อมกลไก Reuse |
-| [`backend/app/services/sap_service.py`](file:///d:/Python/IRM/backend/app/services/sap_service.py) | ซิงค์ข้อมูล SAP B1 และคงค่าเดิมของ ItemMaster (Lead Time, Notify Alert) |
-| [`backend/app/routers/central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) | Central Identity Management API (SCIM-Like) สำหรับ Reconcile และ Instant Offboard |
-| [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md) | ข้อกำหนดมาตรฐาน API สำหรับการเชื่อมต่อ Central IAM |
+| [`backend/app/services/sap_service.py`](file:///d:/Python/IRM/backend/app/services/sap_service.py) | ซิงค์ข้อมูล SAP B1 เวลา 06:45 น. และคงค่าเดิมของ ItemMaster (Lead Time, Notify Alert) |
+| [`backend/app/routers/central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) | Central Identity Management API (SCIM-Like) รองรับ `GET`, `PATCH`, และ `POST /accounts` |
+| [`backend/app/routers/external_qms.py`](file:///d:/Python/IRM/backend/app/routers/external_qms.py) | QMS Inbound Deliveries Integration API (`GET /api/external/qms/inbound-deliveries`) |
+| [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md) | ข้อกำหนดมาตรฐาน API ระดับองค์กรสำหรับการเชื่อมต่อ Central IAM |
 | `D:\Python\Central-IAM\PRD.md` | พิมพ์เขียวและข้อกำหนดความต้องการระบบของแอปพลิเคชัน Central IAM |
 
 ---

@@ -40,6 +40,11 @@
 ### 1.4 กฎการแก้ไขเฉพาะจุดและห้ามกระทบ Logic UX/UI เดิม (Surgical Edits & Preserve Existing Logic/UI)
 * **แก้เฉพาะจุดที่ต้องการเท่านั้น (Surgical Modifications Only):** แก้ไขตรงจุดที่ได้รับมอบหมาย ห้ามแก้ลามไปยังโมดูลหรือฟังก์ชันอื่นที่ไม่เกี่ยวข้องโดยเด็ดขาด
 * **ห้ามเปลี่ยนแปลง Logic หรือ UX/UI เดิมที่ใช้งานได้ดีอยู่แล้ว:** รักษาพฤติกรรมการทำงานเดิม, โครงสร้างหน้าตา, และ Workflow เดิมที่ทำงานถูกต้องไว้ 100% ห้ามรื้อหรือปรับแต่งส่วนอื่นโดยพลการ
+* **ทิศทางและโทนสีของ UI/UX ต้องกลมกลืนและสอดคล้องกัน (Design Tone Consistency):**
+  * หน้าการตั้งค่า (System Settings) และหน้าจอทำงานหลัก ต้องเน้นความสะอาด คลีน เรียบหรูในโทนเดียวกัน (Corporate Light Theme)
+  * **ไม่มีอะไรให้โดดเด่นเป็นพิเศษเกินความจำเป็น:** ห้ามใช้ Dark Background หรือ Widget สีตัดที่ดึงสายตาและสร้างความซ้ำซ้อน
+  * สถานะความพร้อมการทำงาน (Health/Active Status) ให้แสดงเป็น **ไอคอนหรือ Status Pill Badge เล็กๆ เรียบหรู** กำกับข้างหัวข้อในแต่ละการ์ด (เช่น `[ 🟢 Active / Ready ]`)
+  * **ไม่ทำข้อมูลหรือสถิติกระจัดกระจาย:** ข้อมูลการเชื่อมต่อหรือ Logs ทุกชนิดต้องรวมศูนย์ไว้ที่ **Transaction Logs (`/admin/logs`)** เท่านั้น ไม่สร้างกล่องสถิติยิบย่อยซ้ำซ้อนในหน้า Settings
 
 ---
 
@@ -61,15 +66,18 @@
 ## 🔑 3. สรุป Business Logic และกลไกหลักของระบบ
 
 ### 3.1 การซิงค์ SAP B1 (One-Way Inbound)
-* ซิงค์ข้อมูล PO สถานะ Open (O) จาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 06:45 น.
+* ซิงค์ข้อมูล PO สถานะ Open (O) จาก SAP MS SQL Server (`Report 8`) ทุกวันเวลา 06:45 น. (ไม่มี 04:00 น. ในระบบแล้ว)
 * **ไม่มีการเขียนข้อมูลกลับไปแก้ไขที่ SAP เด็ดขาด (Zero Write-Back)**
 * รายการที่รับครบใน SAP (`LineStatus = 'C'`) จะถูกย้ายเข้าหน้า History อัตโนมัติ
 
 ### 3.2 กฎความปลอดภัยและการสะสม Master (Append-Only Masters)
 * **Item Master และ Supplier Master:** ข้อมูลมีแต่เพิ่มขึ้นเรื่อยๆ **ไม่มีการลบออกหรือลดลงเด็ดขาด**
-* **เมื่อข้อมูลจาก SAP ตรงกับรายการเดิมใน Item Master:**
-  * **ห้ามแตะต้องและห้ามแก้ไขทับ** ทั้ง `lead_time_days` และ `notify_alert_days` (คงค่าเดิมที่จัดซื้อตั้งไว้ 100%)
-  * กำหนด `is_new = False` ถือว่าข้อมูลนั้นไม่ใหม่ ไม่ต้องแสดงป้ายเตือนสินค้าใหม่
+* **คำจำกัดความของ "สินค้าใหม่" (Item `is_new` Logic):**
+  * ข้อมูลดึงมาจาก SAP มีทั้งเพิ่มขึ้นและลดลงจากเมื่อวาน
+  * **เฉพาะ Item ที่เพิ่งปรากฏเพิ่มขึ้นใหม่จากรอบเมื่อวานเท่านั้นที่จะถือว่าเป็นสินค้าใหม่ (`is_new = True`)**
+  * เมื่อข้ามวัน หรือมีอยู่ใน Master เดิมอยู่แล้ว จะถือว่า **"ไม่ใหม่" (`is_new = False`)** ทันที
+  * เมื่อข้อมูลจาก SAP ตรงกับรายการเดิมใน Item Master:
+    * **ห้ามแตะต้องและห้ามแก้ไขทับ** ทั้ง `lead_time_days` และ `notify_alert_days` (คงค่าเดิมที่จัดซื้อตั้งไว้ 100%)
 * **Supplier Master:** คงค่าการติดต่อและสิทธิ์ `allow_over_delivery` เดิมไว้เสมอ
 
 ### 3.3 กลไก Supplier Portal Token & Reuse Logic
@@ -96,10 +104,16 @@
 * ให้บริการ Endpoint มาตรฐานสำหรับเชื่อมต่อกับระบบ Central IAM ของบริษัท:
   * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปตรวจสอบ (Reconciliation)
   * `PATCH /api/v1/directory/accounts/{username}/status` — ระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
+  * `POST /api/v1/directory/accounts` — สร้างบัญชีผู้ใช้งานใหม่แบบ Real-time (Instant Provisioning)
 * ควบคุมความปลอดภัยด้วย `X-Management-API-Key` และ IP Whitelisting
-* เอกสารข้อกำหนดสำหรับแอปพลิเคชันส่วนกลาง: `D:\Python\Central-IAM\PRD.md`
+* จัดทำเอกสารข้อกำหนดระดับองค์กร: [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md) และพิมพ์เขียวแอปพลิเคชันส่วนกลาง: `D:\Python\Central-IAM\PRD.md`
 
-### 3.8 การเชื่อมต่อ Active Directory (AD Authentication)
+### 3.8 การเชื่อมต่อ QMS Inbound Deliveries Integration API
+* QMS เป็นฝ่ายดึงข้อมูลเข้าหาตัวเอง (Pull Model): `GET /api/external/qms/inbound-deliveries`
+* IRM ไม่เป็นผู้ยิงส่งข้อมูลออกไป ไม่มีปุ่มทดสอบส่ง JSON
+* ทุกคำขอจาก QMS ถูกบันทึกลงใน **Transaction Logs** โดยตรง และแจ้งเตือนผ่าน Telegram แบบ Real-time
+
+### 3.9 การเชื่อมต่อ Active Directory (AD Authentication)
 * เชื่อมต่อตรวจสอบรหัสผ่านพนักงานกับ Active Directory Server (`192.168.12.11`) ผ่าน AD Sync Agent Gateway พอร์ต `3100`
 
 ---

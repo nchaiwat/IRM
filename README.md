@@ -117,12 +117,20 @@ docker-compose up -d --build
 * **Existing Items:** หากมีข้อมูลจาก SAP ตรงกับรหัสสินค้าที่มีอยู่แล้ว ระบบจะ **ไม่แตะต้อง Lead Time และ Notify Alert Days** (คงค่าเดิมที่จัดซื้อตั้งไว้ 100%) และถือว่าข้อมูลนั้นไม่ใหม่ (`is_new = False`)
 
 ### 4. Central Identity Management API (SCIM-Like Integration)
-* ให้บริการ Endpoint มาตรฐานสำหรับ Central IAM ในการควบคุมสิทธิ์พนักงาน:
-  * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปทำ Reconciliation
-  * `PATCH /api/v1/directory/accounts/{username}/status` — คำสั่งระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
+* ให้บริการ Endpoint มาตรฐานระดับองค์กรสำหรับระบบ Central IAM ควบคุมสิทธิ์พนักงาน:
+  * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปทำ Inventory / Reconciliation
+  * `PATCH /api/v1/directory/accounts/{username}/status` — สั่งระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
+  * `POST /api/v1/directory/accounts` — สั่งสร้างบัญชีผู้ใช้งานใหม่แบบ Real-time (Account Provisioning)
 * ควบคุมความปลอดภัยด้วย `X-Management-API-Key` และ IP Whitelisting
+* เอกสารมาตรฐาน API: [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md)
 
-### 5. Telegram Notification Suite
+### 5. QMS Inbound Deliveries Integration API (Pull Model)
+* ระบบ **QMS (Quality Management System)** เป็นผู้เชื่อมต่อเข้ามาดึงข้อมูลรอบนัดส่งมอบวัตถุดิบที่ยืนยันแล้วด้วยตนเอง:
+  * `GET /api/external/qms/inbound-deliveries`
+* IRM ไม่เป็นฝ่ายส่งข้อมูลออกไปเพื่อป้องกันความซ้ำซ้อน
+* ทุกการเชื่อมต่อจะถูกบันทึกลงในระบบ **Transaction Logs** กลางและแจ้งเตือนผ่าน Telegram ทันที
+
+### 6. Telegram Notification Suite
 * `08:00 น. ทุกวัน` ➔ สรุปภาพรวมเช้า (Morning Briefing)
 * `08:00 น. จันทร์ & พฤหัสบดี` ➔ สรุปผลการส่งอีเมลเชิญ Supplier
 * `08:30 น. ทุกวัน` ➔ ส่งอีเมลแจ้งเตือนจัดซื้อพร้อมแนบ Excel 2 Sheet
