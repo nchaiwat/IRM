@@ -52,6 +52,7 @@ async def create_user(
         department=data.department,
         use_ad_auth=data.use_ad_auth,
         telegram_chat_id=data.telegram_chat_id,
+        telegram_inbound_notify=data.telegram_inbound_notify,
         group_id=data.group_id,
         allowed_item_groups=data.allowed_item_groups or "*",
         is_active=data.is_active,
@@ -101,6 +102,8 @@ async def update_user(
         user.use_ad_auth = data.use_ad_auth
     if data.telegram_chat_id is not None:
         user.telegram_chat_id = data.telegram_chat_id
+    if data.telegram_inbound_notify is not None:
+        user.telegram_inbound_notify = data.telegram_inbound_notify
     if data.group_id is not None:
         user.group_id = data.group_id
     if data.allowed_item_groups is not None:

@@ -89,13 +89,29 @@ export default function SettingsPage() {
   const [copiedQmsKey, setCopiedQmsKey] = useState(false);
   const [regeneratingQmsKey, setRegeneratingQmsKey] = useState(false);
 
+  // Telegram Inbound DM State
+  const [userList, setUserList] = useState<{ id: number; username: string; full_name: string; telegram_chat_id?: string | null; allowed_item_groups?: string | null }[]>([]);
+  const [selectedTestUserId, setSelectedTestUserId] = useState<number | ''>('');
+  const [testInboundChatId, setTestInboundChatId] = useState('');
+  const [testingInboundDm, setTestingInboundDm] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentOrigin(window.location.origin);
     }
     fetchSettings();
     fetchApiStatus();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/api/users');
+      setUserList(res.data);
+    } catch (err) {
+      console.error('Failed to fetch users for test simulation:', err);
+    }
+  };
 
   const fetchApiStatus = async () => {
     setCheckingApiStatus(true);
@@ -190,6 +206,26 @@ export default function SettingsPage() {
       alert(`❌ ${errText}`);
     } finally {
       setTestingMorningSummary(false);
+    }
+  };
+
+  const handleTestInboundDm = async () => {
+    setTestingInboundDm(true);
+    setMessage(null);
+    try {
+      const res = await api.post<{ message: string; details?: any }>('/api/settings/test-telegram-inbound-dm', {
+        user_id: selectedTestUserId ? Number(selectedTestUserId) : null,
+        test_chat_id: testInboundChatId.trim() || null,
+      });
+      const successText = res.data.message || 'ส่งทดสอบ Telegram DM สำเร็จแล้ว!';
+      setMessage({ type: 'success', text: successText });
+      alert(`✅ ${successText}`);
+    } catch (err: any) {
+      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการทดสอบส่ง Telegram DM';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
+    } finally {
+      setTestingInboundDm(false);
     }
   };
 
@@ -925,6 +961,118 @@ export default function SettingsPage() {
                     className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none font-mono font-bold text-slate-800"
                   />
                   <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">น. (เวลาไทย)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-Card 2: Telegram Daily Inbound DM for Non-PU Staff (NEW FEATURE) */}
+          <div className="bg-gradient-to-br from-sky-50/80 via-indigo-50/40 to-slate-50/80 border border-sky-200/90 rounded-xl p-4 mt-4 space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-sky-200/60">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <span className="text-base">🚚</span>
+                  <span>แจ้งเตือนยอดวัตถุดิบขาเข้าประจำวันรายบุคคล (Daily Inbound Telegram DM for Non-PU)</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  ส่งสรุปสินค้าเข้าวันนี้ และ 7 วันข้างหน้า ตรงเข้า Telegram Chat ID ของแต่ละคนที่ดูแลกลุ่มสินค้านั้นๆ (กรองตาม Group ที่ตั้งใน User Management)
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Master Switch: เปิด/ปิดการส่ง Telegram DM รายบุคคล (Safeguard ช่วง Implement)
+                </label>
+                <div className="flex items-center gap-2 p-2 bg-white border border-slate-300 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="telegram_inbound_dm_enabled"
+                    checked={settings.telegram_inbound_dm_enabled === 'true'}
+                    onChange={(e) => handleChange('telegram_inbound_dm_enabled', e.target.checked ? 'true' : 'false')}
+                    className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                  />
+                  <label htmlFor="telegram_inbound_dm_enabled" className="text-xs font-bold text-slate-800 cursor-pointer">
+                    {settings.telegram_inbound_dm_enabled === 'true'
+                      ? '🟢 เปิดใช้งานส่ง Telegram DM อัตโนมัติ'
+                      : '⚪ ปิดใช้งาน (Disabled - Safeguard ช่วง Implement)'}
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  เวลากำหนดส่ง Telegram DM ประจำวัน (HH:MM)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={settings.telegram_inbound_dm_time || '07:30'}
+                    onChange={(e) => handleChange('telegram_inbound_dm_time', e.target.value)}
+                    placeholder="07:30"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500 outline-none font-mono font-bold text-slate-800"
+                  />
+                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">น. (เวลาไทย)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Inbound DM Simulation Bar */}
+            <div className="mt-3 pt-3 border-t border-sky-100 bg-white/80 p-3 rounded-xl border border-sky-200/60 space-y-2">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5 text-sky-600" />
+                <span>จำลองการส่งทดสอบ (Test Simulation)</span>
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-semibold mb-1">เลือกผู้ใช้เพื่อดึงกลุ่มสินค้า:</label>
+                  <select
+                    value={selectedTestUserId}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : '';
+                      setSelectedTestUserId(val);
+                      const found = userList.find((u) => u.id === val);
+                      if (found?.telegram_chat_id) {
+                        setTestInboundChatId(found.telegram_chat_id);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-sky-500"
+                  >
+                    <option value="">-- ตัวฉันเอง (Admin) --</option>
+                    {userList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.allowed_item_groups || '*'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-semibold mb-1">Chat ID ผู้รับทดสอบ:</label>
+                  <input
+                    type="text"
+                    value={testInboundChatId}
+                    onChange={(e) => setTestInboundChatId(e.target.value)}
+                    placeholder="เช่น 123456789"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleTestInboundDm}
+                    disabled={testingInboundDm}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg transition disabled:opacity-50 shadow-2xs cursor-pointer h-[32px]"
+                  >
+                    {testingInboundDm ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span>🚀 ทดสอบส่ง DM จำลอง</span>
+                  </button>
                 </div>
               </div>
             </div>

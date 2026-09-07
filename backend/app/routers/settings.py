@@ -283,6 +283,60 @@ async def test_telegram_morning_summary(
         )
 
 
+class TestTelegramInboundDMRequest(BaseModel):
+    user_id: int | None = None
+    test_chat_id: str | None = None
+
+
+@router.post("/test-telegram-inbound-dm")
+async def test_telegram_inbound_dm(
+    data: TestTelegramInboundDMRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """Manually test triggering the Daily Inbound Telegram DM simulation."""
+    from app.services.telegram_service import send_user_inbound_daily_dm
+    from app.models.user import User
+
+    target_user = None
+    if data.user_id:
+        target_user = (await db.execute(select(User).where(User.id == data.user_id))).scalar_one_or_none()
+
+    if not target_user:
+        target_user = current_user
+
+    original_chat_id = target_user.telegram_chat_id
+    if data.test_chat_id and data.test_chat_id.strip():
+        target_user.telegram_chat_id = data.test_chat_id.strip()
+
+    if not target_user.telegram_chat_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"ผู้ใช้ '{target_user.full_name}' ยังไม่มี Telegram Chat ID กรุณาระบุในช่อง Chat ID สำหรับทดสอบ"
+        )
+
+    try:
+        res = await send_user_inbound_daily_dm(db, target_user)
+        if not res.get("success"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=res.get("message", "ไม่สามารถส่งข้อความ Telegram DM ได้")
+            )
+        return {
+            "message": f"ทดสอบส่งสรุปยอดวัตถุดิบรายบุคคลไปยัง Telegram ({target_user.telegram_chat_id}) สำเร็จแล้ว!",
+            "details": res
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"เกิดข้อผิดพลาดในการส่งทดสอบ Telegram DM: {str(e)}"
+        )
+    finally:
+        target_user.telegram_chat_id = original_chat_id
+
+
 @router.post("/test-sap-connection")
 async def test_sap_connection(
     db: Annotated[AsyncSession, Depends(get_db)],

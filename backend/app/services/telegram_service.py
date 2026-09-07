@@ -42,25 +42,31 @@ def format_telegram_header(topic: str) -> str:
     return header
 
 
-async def send_telegram_message(db: AsyncSession, message_text: str, category: str = "telegram_alert") -> bool:
-    """Send message to configured Telegram Group with fallback and transaction logging."""
+async def send_telegram_message(
+    db: AsyncSession,
+    message_text: str,
+    category: str = "telegram_alert",
+    chat_id: str | None = None
+) -> bool:
+    """Send message to configured Telegram Group or specific user DM with fallback and transaction logging."""
     try:
         settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
         s_map = {s.key: s.value for s in settings_rows}
 
         bot_token = s_map.get("telegram_bot_token") or "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw"
-        group_id = s_map.get("telegram_group_id") or "-5394050672"
+        target_chat = (chat_id or "").strip() or s_map.get("telegram_group_id") or "-5394050672"
         api_url = s_map.get("telegram_api_url") or "https://api.telegram.org"
 
-        if not bot_token or not group_id:
-            print("Telegram Bot Token or Group ID is not configured.")
+        if not bot_token or not target_chat:
+            print("Telegram Bot Token or Target Chat ID is not configured.")
             return False
 
         endpoint = f"{api_url}/bot{bot_token}/sendMessage"
         payload = {
-            "chat_id": group_id,
+            "chat_id": target_chat,
             "text": message_text,
             "parse_mode": "HTML",
+            "disable_web_page_preview": True,
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -68,10 +74,10 @@ async def send_telegram_message(db: AsyncSession, message_text: str, category: s
             if res.status_code == 200:
                 await record_transaction_log(
                     category=category,
-                    action="telegram_broadcast",
+                    action="telegram_broadcast" if not chat_id else "telegram_dm",
                     status="SUCCESS",
                     message="ส่งแจ้งเตือน Telegram สำเร็จ",
-                    details=message_text[:300],
+                    details=f"To: {target_chat} | {message_text[:250]}",
                     db=db,
                 )
                 return True
@@ -475,5 +481,197 @@ async def send_telegram_qms_pull(
         )
     full_msg = f"{format_telegram_header(topic)}\n\n{body}"
     await send_telegram_message(db, full_msg, category="qms_export")
+
+
+# ----------------------------------------------------
+# 9. Daily Inbound Direct Message (DM) to Non-PU Staff per Assigned Item Groups
+# ----------------------------------------------------
+async def send_user_inbound_daily_dm(
+    db: AsyncSession,
+    user: Any,
+    target_date: datetime | None = None
+) -> dict:
+    """
+    Generates and sends a personalized Daily Inbound Summary DM to a specific user
+    filtered by their assigned item groups (user.allowed_item_groups).
+    """
+    if not user.telegram_chat_id:
+        return {"success": False, "message": f"ผู้ใช้ {user.username} ยังไม่ได้ระบุ Telegram Chat ID"}
+
+    bkk_tz = ZoneInfo("Asia/Bangkok")
+    now_bkk = target_date.astimezone(bkk_tz) if target_date else datetime.now(bkk_tz)
+    today_date_str = now_bkk.strftime("%d/%m/%Y")
+    thai_weekdays = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+    weekday_thai = thai_weekdays[now_bkk.weekday()]
+
+    # Time boundaries in UTC
+    start_today_bkk = now_bkk.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_today_bkk = now_bkk.replace(hour=23, minute=59, second=59, microsecond=999999)
+    end_7days_bkk = start_today_bkk + timedelta(days=7, hours=23, minutes=59, seconds=59)
+
+    start_today_utc = start_today_bkk.astimezone(timezone.utc)
+    end_today_utc = end_today_bkk.astimezone(timezone.utc)
+    end_7days_utc = end_7days_bkk.astimezone(timezone.utc)
+
+    # Determine assigned item groups
+    raw_groups = (user.allowed_item_groups or "*").strip()
+    is_all_groups = raw_groups in ("*", "", "all", "ALL")
+    allowed_list = [g.strip() for g in raw_groups.split(",") if g.strip()] if not is_all_groups else []
+
+    # Query active items: open in SAP (POHeader.status == 'O') and not closed in IRM
+    stmt = (
+        select(POItem, POHeader)
+        .join(POHeader, POItem.po_header_id == POHeader.id)
+        .where(POHeader.status == "O", POItem.status != "closed")
+    )
+
+    if not is_all_groups and allowed_list:
+        stmt = stmt.where(POItem.item_group.in_(allowed_list))
+
+    rows = (await db.execute(stmt)).all()
+
+    today_inbounds = []
+    next_7d_inbounds = []
+    overdue_items = []
+
+    for po_item, po_header in rows:
+        eff_date = po_item.estimate_date or po_item.due_date
+        if not eff_date:
+            continue
+
+        # normalize timezone for comparison
+        if eff_date.tzinfo is None:
+            eff_date_utc = eff_date.replace(tzinfo=timezone.utc)
+        else:
+            eff_date_utc = eff_date.astimezone(timezone.utc)
+
+        # Check today
+        if start_today_utc <= eff_date_utc <= end_today_utc:
+            today_inbounds.append((po_item, po_header))
+        # Check next 7 days (from tomorrow to +7 days)
+        elif end_today_utc < eff_date_utc <= end_7days_utc:
+            next_7d_inbounds.append((po_item, po_header))
+        # Check overdue (before today and not confirmed / not closed)
+        elif eff_date_utc < start_today_utc and po_item.status != "confirmed":
+            overdue_items.append((po_item, po_header))
+
+    group_display_name = "ทุกกลุ่มสินค้า (Overall)" if is_all_groups else ", ".join(allowed_list)
+
+    # Build Message
+    topic = "🌅 <b>สรุปยอดวัตถุดิบขาเข้าประจำวัน</b>"
+    msg_lines = [
+        format_telegram_header(topic),
+        "",
+        f"👤 <b>เรียน:</b> คุณ{user.full_name} ({user.department or 'ผู้ดูแลกลุ่มสินค้า'})",
+        f"🏷️ <b>กลุ่มสินค้า:</b> <code>{group_display_name}</code>",
+        f"📅 <b>ประจำวัน{weekday_thai}ที่ {today_date_str}</b>",
+        "────────────────────────────",
+        "",
+        f"🚚 <b>สินค้ามีนัดส่งเข้า \"วันนี้\": {len(today_inbounds):,} รายการ</b>",
+    ]
+
+    if today_inbounds:
+        for it, hdr in today_inbounds[:6]:
+            unit_str = it.unit or "หน่วย"
+            est_qty = it.estimate_qty or it.remaining_qty or it.quantity
+            sup_name = hdr.supplier_name or it.supplier_code or "ไม่ระบุผู้ขาย"
+            if len(sup_name) > 22:
+                sup_name = sup_name[:20] + ".."
+            msg_lines.append(f"• 📦 <code>{it.item_code}</code> ({est_qty:,} {unit_str})\n   └ {it.item_name}\n   └ 🏢 <i>{sup_name}</i>")
+        if len(today_inbounds) > 6:
+            msg_lines.append(f"• <i>...และรายการอื่นๆ อีก {len(today_inbounds) - 6} รายการ</i>")
+    else:
+        msg_lines.append("• <i>ไม่มีรายการวัตถุดิบนัดส่งมอบเข้าโรงงานในวันนี้</i>")
+
+    msg_lines.append("")
+    total_qty_7d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_7d_inbounds)
+    msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_7d:,} หน่วย)")
+
+    if overdue_items:
+        msg_lines.append(f"⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> <b>{len(overdue_items):,} รายการ</b>")
+        for it, hdr in overdue_items[:3]:
+            msg_lines.append(f"• ⚠️ <code>{it.item_code}</code> (PO {hdr.po_number}) — {it.item_name[:25]}")
+        if len(overdue_items) > 3:
+            msg_lines.append(f"• <i>...และค้างส่งอื่นๆ อีก {len(overdue_items) - 3} รายการ</i>")
+    else:
+        msg_lines.append("⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> 0 รายการ (สถานะปกติ)")
+
+    msg_lines.append("")
+    msg_lines.append("────────────────────────────")
+    msg_lines.append("📋 <a href=\"https://irm.windowasia.com/receiving-checklist\">เปิดใบตรวจรับสินค้า (Receiving Checklist)</a>")
+    msg_lines.append("📅 <a href=\"https://irm.windowasia.com/calendar\">เปิดดูปฏิทินรอบส่ง (Calendar)</a>")
+
+    full_text = "\n".join(msg_lines)
+
+    success = await send_telegram_message(
+        db=db,
+        message_text=full_text,
+        category="telegram_inbound_dm",
+        chat_id=user.telegram_chat_id
+    )
+
+    return {
+        "success": success,
+        "user_id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "chat_id": user.telegram_chat_id,
+        "group_display": group_display_name,
+        "today_count": len(today_inbounds),
+        "next_7d_count": len(next_7d_inbounds),
+        "overdue_count": len(overdue_items),
+        "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else "ส่งข้อความไม่สำเร็จ กรุณาตรวจสอบ Chat ID หรือ Bot Token"
+    }
+
+
+async def send_batch_inbound_daily_dms(db: AsyncSession) -> dict:
+    """
+    Sends personalized Inbound Daily DMs to all active users who have
+    telegram_chat_id and telegram_inbound_notify enabled.
+    Checks master safeguard setting 'telegram_inbound_dm_enabled'.
+    """
+    # Check safeguard
+    stmt_setting = select(SystemSetting).where(SystemSetting.key == "telegram_inbound_dm_enabled")
+    setting_row = (await db.execute(stmt_setting)).scalar_one_or_none()
+    is_enabled = setting_row and setting_row.value.lower() in ("true", "1", "yes")
+
+    if not is_enabled:
+        return {
+            "status": "skipped",
+            "message": "Telegram Inbound DM is disabled (telegram_inbound_dm_enabled=false). Safeguard locked during implementation."
+        }
+
+    from app.models.user import User
+    stmt_users = (
+        select(User)
+        .where(
+            User.is_active == True,
+            User.telegram_chat_id.isnot(None),
+            User.telegram_chat_id != "",
+            User.telegram_inbound_notify == True
+        )
+    )
+    users = (await db.execute(stmt_users)).scalars().all()
+
+    sent_count = 0
+    fail_count = 0
+    results = []
+
+    for u in users:
+        res = await send_user_inbound_daily_dm(db, u)
+        if res.get("success"):
+            sent_count += 1
+        else:
+            fail_count += 1
+        results.append(res)
+
+    return {
+        "status": "success",
+        "total_users": len(users),
+        "sent": sent_count,
+        "failed": fail_count,
+        "details": results
+    }
+
 
 

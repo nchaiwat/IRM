@@ -41,6 +41,7 @@ export interface User {
   department?: string | null;
   use_ad_auth?: boolean;
   telegram_chat_id?: string | null;
+  telegram_inbound_notify?: boolean;
   group_id: number | null;
   group?: { id: number; name: string; allowed_item_groups?: string | null; default_page?: string | null };
   allowed_item_groups?: string | null;

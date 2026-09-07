@@ -69,6 +69,7 @@ async def job_sync_sap_daily():
 
 
 _last_telegram_morning_date: str | None = None
+_last_telegram_inbound_dm_date: str | None = None
 
 
 async def job_daily_morning_telegram_summary():
@@ -103,6 +104,40 @@ async def job_daily_morning_telegram_summary():
                 logger.info(f"✅ [Scheduler] Daily Telegram Morning Summary Sent: {res}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error during Daily Telegram Morning Summary: {e}")
+
+
+async def job_daily_inbound_telegram_dm():
+    """Checks every minute if current time matches telegram_inbound_dm_time and dispatches Inbound DMs."""
+    global _last_telegram_inbound_dm_date
+    try:
+        from zoneinfo import ZoneInfo
+        now_bkk = datetime.now(ZoneInfo("Asia/Bangkok"))
+        current_hm = now_bkk.strftime("%H:%M")
+        today_date_str = now_bkk.strftime("%Y-%m-%d")
+
+        async with AsyncSessionLocal() as session:
+            from app.models.system_setting import SystemSetting
+            from sqlalchemy import select
+            stmt = select(SystemSetting).where(
+                SystemSetting.key.in_(["telegram_inbound_dm_enabled", "telegram_inbound_dm_time"])
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            s_map = {s.key: s.value for s in rows}
+
+            is_enabled = s_map.get("telegram_inbound_dm_enabled", "false").strip().lower() in ("true", "1", "yes")
+            target_time = s_map.get("telegram_inbound_dm_time", "07:30").strip()
+
+            if is_enabled and current_hm == target_time:
+                if _last_telegram_inbound_dm_date == today_date_str:
+                    return  # Already dispatched today
+                logger.info(f"⏰ [Scheduler] Triggering Daily Inbound Telegram DMs at {current_hm}...")
+                from app.services.telegram_service import send_batch_inbound_daily_dms
+                res = await send_batch_inbound_daily_dms(session)
+                await session.commit()
+                _last_telegram_inbound_dm_date = today_date_str
+                logger.info(f"✅ [Scheduler] Daily Inbound Telegram DMs Dispatched: {res}")
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Error during Daily Inbound Telegram DM dispatch: {e}")
 
 
 async def job_daily_pu_remind_email():
@@ -181,8 +216,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 6: Daily Inbound Telegram DM for Non-PU (Minute-Checker)
+    scheduler.add_job(
+        job_daily_inbound_telegram_dm,
+        trigger=CronTrigger(second=0, timezone="Asia/Bangkok"),
+        id="telegram_inbound_dm_minute_checker",
+        name="Daily Inbound Telegram DM Dispatcher",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 06:45 SAP Sync, Dynamic Telegram Morning Summary Dispatcher, and PU Reminder Dispatcher.")
+    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 06:45 SAP Sync, Morning Summary, Inbound DM Dispatcher, and PU Reminder Dispatcher.")
 
 
 def stop_scheduler():

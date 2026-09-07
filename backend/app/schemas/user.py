@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     department: str | None = None
     use_ad_auth: bool = False
     telegram_chat_id: str | None = None
+    telegram_inbound_notify: bool = True
     group_id: int | None = None
     allowed_item_groups: str | None = "*"
     is_active: bool = True
@@ -25,6 +26,7 @@ class UserUpdate(BaseModel):
     department: str | None = None
     use_ad_auth: bool | None = None
     telegram_chat_id: str | None = None
+    telegram_inbound_notify: bool | None = None
     group_id: int | None = None
     allowed_item_groups: str | None = None
     is_active: bool | None = None
@@ -51,6 +53,7 @@ class UserResponse(BaseModel):
     department: str | None = None
     use_ad_auth: bool = False
     telegram_chat_id: str | None = None
+    telegram_inbound_notify: bool = True
     group_id: int | None
     group: GroupMinimal | None
     allowed_item_groups: str | None = "*"

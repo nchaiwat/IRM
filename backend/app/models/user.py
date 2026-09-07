@@ -18,6 +18,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(100), nullable=False)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    telegram_inbound_notify: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     group_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     allowed_item_groups: Mapped[str | None] = mapped_column(String(200), nullable=True, default="*")
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)

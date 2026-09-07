@@ -19,6 +19,7 @@ async def run_ddl_migrations(conn):
     migrations = [
         # users table
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(50);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_inbound_notify BOOLEAN DEFAULT TRUE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS use_ad_auth BOOLEAN DEFAULT FALSE;",
@@ -242,6 +243,8 @@ async def seed_data():
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
                 ("telegram_morning_summary_enabled", "true", "เปิด/ปิดการส่งสรุปสถานะประจำวันเข้า Telegram (Morning Daily Briefing)", "telegram", "boolean"),
+                ("telegram_inbound_dm_enabled", "false", "เปิด/ปิดส่ง Telegram DM สรุปยอดวัตถุดิบรายบุคคลตอนเช้า (Safeguard ช่วง Implement)", "telegram", "boolean"),
+                ("telegram_inbound_dm_time", "07:30", "เวลากำหนดส่ง Telegram DM สรุปยอดวัตถุดิบรายบุคคล (HH:MM)", "telegram", "string"),
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
                 ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
                 ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),
