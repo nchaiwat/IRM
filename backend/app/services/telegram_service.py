@@ -10,6 +10,7 @@ IRM System
 import html
 import httpx
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -542,138 +543,142 @@ async def send_user_inbound_daily_dm(
     if not user.telegram_chat_id:
         return {"success": False, "message": f"ผู้ใช้ {user.username} ยังไม่ได้ระบุ Telegram Chat ID"}
 
-    bkk_tz = ZoneInfo("Asia/Bangkok")
-    now_bkk = target_date.astimezone(bkk_tz) if target_date else datetime.now(bkk_tz)
-    today_date_str = now_bkk.strftime("%d/%m/%Y")
-    thai_weekdays = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
-    weekday_thai = thai_weekdays[now_bkk.weekday()]
+    try:
+        bkk_tz = ZoneInfo("Asia/Bangkok")
+        now_bkk = target_date.astimezone(bkk_tz) if target_date else datetime.now(bkk_tz)
+        today_date_str = now_bkk.strftime("%d/%m/%Y")
+        thai_weekdays = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+        weekday_thai = thai_weekdays[now_bkk.weekday()]
 
-    # Time boundaries in UTC
-    start_today_bkk = now_bkk.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_today_bkk = now_bkk.replace(hour=23, minute=59, second=59, microsecond=999999)
-    end_7days_bkk = start_today_bkk + timedelta(days=7, hours=23, minutes=59, seconds=59)
+        today_d = now_bkk.date()
+        next_7d = today_d + timedelta(days=7)
 
-    start_today_utc = start_today_bkk.astimezone(timezone.utc)
-    end_today_utc = end_today_bkk.astimezone(timezone.utc)
-    end_7days_utc = end_7days_bkk.astimezone(timezone.utc)
+        # Determine assigned item groups
+        raw_groups = (user.allowed_item_groups or "*").strip()
+        is_all_groups = raw_groups in ("*", "", "all", "ALL")
+        allowed_list = [g.strip() for g in raw_groups.split(",") if g.strip()] if not is_all_groups else []
 
-    # Determine assigned item groups
-    raw_groups = (user.allowed_item_groups or "*").strip()
-    is_all_groups = raw_groups in ("*", "", "all", "ALL")
-    allowed_list = [g.strip() for g in raw_groups.split(",") if g.strip()] if not is_all_groups else []
+        # Query active items: open in SAP (POHeader.status == 'O') and not closed in IRM
+        stmt = (
+            select(POItem, POHeader)
+            .join(POHeader, POItem.po_header_id == POHeader.id)
+            .where(POHeader.status == "O", POItem.status != "closed")
+        )
 
-    # Query active items: open in SAP (POHeader.status == 'O') and not closed in IRM
-    stmt = (
-        select(POItem, POHeader)
-        .join(POHeader, POItem.po_header_id == POHeader.id)
-        .where(POHeader.status == "O", POItem.status != "closed")
-    )
+        if not is_all_groups and allowed_list:
+            stmt = stmt.where(POItem.item_group.in_(allowed_list))
 
-    if not is_all_groups and allowed_list:
-        stmt = stmt.where(POItem.item_group.in_(allowed_list))
+        rows = (await db.execute(stmt)).all()
 
-    rows = (await db.execute(stmt)).all()
+        today_inbounds = []
+        next_7d_inbounds = []
+        overdue_items = []
 
-    today_inbounds = []
-    next_7d_inbounds = []
-    overdue_items = []
+        for po_item, po_header in rows:
+            eff_date = po_item.estimate_date or po_item.due_date
+            if not eff_date:
+                continue
 
-    for po_item, po_header in rows:
-        eff_date = po_item.estimate_date or po_item.due_date
-        if not eff_date:
-            continue
+            # normalize timezone to Bangkok
+            if eff_date.tzinfo is None:
+                eff_date_bkk = eff_date.replace(tzinfo=bkk_tz)
+            else:
+                eff_date_bkk = eff_date.astimezone(bkk_tz)
 
-        # normalize timezone for comparison
-        if eff_date.tzinfo is None:
-            eff_date_utc = eff_date.replace(tzinfo=timezone.utc)
+            eff_d = eff_date_bkk.date()
+
+            # Check today
+            if eff_d == today_d:
+                today_inbounds.append((po_item, po_header))
+            # Check next 7 days (from tomorrow to +7 days)
+            elif today_d < eff_d <= next_7d:
+                next_7d_inbounds.append((po_item, po_header))
+            # Check overdue (before today and not confirmed / not closed)
+            elif eff_d < today_d and po_item.status != "confirmed":
+                overdue_items.append((po_item, po_header))
+
+        group_display_name = "ทุกกลุ่มสินค้า (Overall)" if is_all_groups else ", ".join(allowed_list)
+
+        # Build Message
+        topic = "🌅 <b>สรุปยอดวัตถุดิบขาเข้าประจำวัน</b>"
+        user_dept_str = f" ({html.escape(user.department)})" if user.department else ""
+        msg_lines = [
+            format_telegram_header(topic),
+            "",
+            f"👤 <b>เรียน:</b> คุณ{html.escape(user.full_name)}{user_dept_str}",
+            f"🏷️ <b>กลุ่มสินค้า:</b> <code>{html.escape(group_display_name)}</code>",
+            f"📅 <b>ประจำวัน{weekday_thai}ที่ {today_date_str}</b>",
+            "────────────────────────────",
+            "",
+            f"🚚 <b>สินค้ามีนัดส่งเข้า \"วันนี้\": {len(today_inbounds):,} รายการ</b>",
+        ]
+
+        if today_inbounds:
+            for it, hdr in today_inbounds[:6]:
+                unit_str = it.unit or "หน่วย"
+                raw_qty = it.estimate_qty or it.remaining_qty or it.quantity
+                est_qty_str = f"{raw_qty:,.0f}" if isinstance(raw_qty, (int, float)) and raw_qty.is_integer() else f"{raw_qty:,.2f}".rstrip('0').rstrip('.')
+                sup_name = hdr.supplier_name or hdr.supplier_code or "ไม่ระบุผู้ขาย"
+                if len(sup_name) > 22:
+                    sup_name = sup_name[:20] + ".."
+                msg_lines.append(
+                    f"• 📦 <code>{html.escape(it.item_code)}</code> ({est_qty_str} {html.escape(unit_str)})\n"
+                    f"   └ {html.escape(it.item_name)}\n"
+                    f"   └ 🏢 <i>{html.escape(sup_name)}</i>"
+                )
+            if len(today_inbounds) > 6:
+                msg_lines.append(f"• <i>...และรายการอื่นๆ อีก {len(today_inbounds) - 6} รายการ</i>")
         else:
-            eff_date_utc = eff_date.astimezone(timezone.utc)
+            msg_lines.append("• <i>ไม่มีรายการวัตถุดิบนัดส่งมอบเข้าโรงงานในวันนี้</i>")
 
-        # Check today
-        if start_today_utc <= eff_date_utc <= end_today_utc:
-            today_inbounds.append((po_item, po_header))
-        # Check next 7 days (from tomorrow to +7 days)
-        elif end_today_utc < eff_date_utc <= end_7days_utc:
-            next_7d_inbounds.append((po_item, po_header))
-        # Check overdue (before today and not confirmed / not closed)
-        elif eff_date_utc < start_today_utc and po_item.status != "confirmed":
-            overdue_items.append((po_item, po_header))
+        msg_lines.append("")
+        total_qty_7d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_7d_inbounds)
+        total_qty_str = f"{total_qty_7d:,.0f}" if isinstance(total_qty_7d, (int, float)) and total_qty_7d.is_integer() else f"{total_qty_7d:,.2f}".rstrip('0').rstrip('.')
+        msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_str} หน่วย)")
 
-    group_display_name = "ทุกกลุ่มสินค้า (Overall)" if is_all_groups else ", ".join(allowed_list)
+        if overdue_items:
+            msg_lines.append(f"⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> <b>{len(overdue_items):,} รายการ</b>")
+            for it, hdr in overdue_items[:3]:
+                po_num = hdr.po_number if hdr else "N/A"
+                msg_lines.append(f"• ⚠️ <code>{html.escape(it.item_code)}</code> (PO {html.escape(str(po_num))}) — {html.escape(it.item_name[:25])}")
+            if len(overdue_items) > 3:
+                msg_lines.append(f"• <i>...และค้างส่งอื่นๆ อีก {len(overdue_items) - 3} รายการ</i>")
+        else:
+            msg_lines.append("⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> 0 รายการ (สถานะปกติ)")
 
-    # Build Message
-    topic = "🌅 <b>สรุปยอดวัตถุดิบขาเข้าประจำวัน</b>"
-    user_dept_str = f" ({html.escape(user.department)})" if user.department else ""
-    msg_lines = [
-        format_telegram_header(topic),
-        "",
-        f"👤 <b>เรียน:</b> คุณ{html.escape(user.full_name)}{user_dept_str}",
-        f"🏷️ <b>กลุ่มสินค้า:</b> <code>{html.escape(group_display_name)}</code>",
-        f"📅 <b>ประจำวัน{weekday_thai}ที่ {today_date_str}</b>",
-        "────────────────────────────",
-        "",
-        f"🚚 <b>สินค้ามีนัดส่งเข้า \"วันนี้\": {len(today_inbounds):,} รายการ</b>",
-    ]
+        msg_lines.append("")
+        msg_lines.append("────────────────────────────")
+        msg_lines.append("📋 <a href=\"https://irm.windowasia.com/receiving-checklist\">เปิดใบตรวจรับสินค้า (Receiving Checklist)</a>")
+        msg_lines.append("📅 <a href=\"https://irm.windowasia.com/calendar\">เปิดดูปฏิทินรอบส่ง (Calendar)</a>")
 
-    if today_inbounds:
-        for it, hdr in today_inbounds[:6]:
-            unit_str = it.unit or "หน่วย"
-            raw_qty = it.estimate_qty or it.remaining_qty or it.quantity
-            est_qty_str = f"{raw_qty:,.0f}" if isinstance(raw_qty, (int, float)) and raw_qty.is_integer() else f"{raw_qty:,.2f}".rstrip('0').rstrip('.')
-            sup_name = hdr.supplier_name or hdr.supplier_code or "ไม่ระบุผู้ขาย"
-            if len(sup_name) > 22:
-                sup_name = sup_name[:20] + ".."
-            msg_lines.append(
-                f"• 📦 <code>{html.escape(it.item_code)}</code> ({est_qty_str} {html.escape(unit_str)})\n"
-                f"   └ {html.escape(it.item_name)}\n"
-                f"   └ 🏢 <i>{html.escape(sup_name)}</i>"
-            )
-        if len(today_inbounds) > 6:
-            msg_lines.append(f"• <i>...และรายการอื่นๆ อีก {len(today_inbounds) - 6} รายการ</i>")
-    else:
-        msg_lines.append("• <i>ไม่มีรายการวัตถุดิบนัดส่งมอบเข้าโรงงานในวันนี้</i>")
+        full_text = "\n".join(msg_lines)
 
-    msg_lines.append("")
-    total_qty_7d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_7d_inbounds)
-    total_qty_str = f"{total_qty_7d:,.0f}" if isinstance(total_qty_7d, (int, float)) and total_qty_7d.is_integer() else f"{total_qty_7d:,.2f}".rstrip('0').rstrip('.')
-    msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_str} หน่วย)")
+        success, msg_detail = await send_telegram_message_detailed(
+            db=db,
+            message_text=full_text,
+            category="telegram_inbound_dm",
+            chat_id=user.telegram_chat_id
+        )
 
-    if overdue_items:
-        msg_lines.append(f"⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> <b>{len(overdue_items):,} รายการ</b>")
-        for it, hdr in overdue_items[:3]:
-            po_num = hdr.po_number if hdr else "N/A"
-            msg_lines.append(f"• ⚠️ <code>{html.escape(it.item_code)}</code> (PO {html.escape(str(po_num))}) — {html.escape(it.item_name[:25])}")
-        if len(overdue_items) > 3:
-            msg_lines.append(f"• <i>...และค้างส่งอื่นๆ อีก {len(overdue_items) - 3} รายการ</i>")
-    else:
-        msg_lines.append("⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> 0 รายการ (สถานะปกติ)")
-
-    msg_lines.append("")
-    msg_lines.append("────────────────────────────")
-    msg_lines.append("📋 <a href=\"https://irm.windowasia.com/receiving-checklist\">เปิดใบตรวจรับสินค้า (Receiving Checklist)</a>")
-    msg_lines.append("📅 <a href=\"https://irm.windowasia.com/calendar\">เปิดดูปฏิทินรอบส่ง (Calendar)</a>")
-
-    full_text = "\n".join(msg_lines)
-
-    success, msg_detail = await send_telegram_message_detailed(
-        db=db,
-        message_text=full_text,
-        category="telegram_inbound_dm",
-        chat_id=user.telegram_chat_id
-    )
-
-    return {
-        "success": success,
-        "user_id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        "chat_id": user.telegram_chat_id,
-        "group_display": group_display_name,
-        "today_count": len(today_inbounds),
-        "next_7d_count": len(next_7d_inbounds),
-        "overdue_count": len(overdue_items),
-        "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else msg_detail
-    }
+        return {
+            "success": success,
+            "user_id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "chat_id": user.telegram_chat_id,
+            "group_display": group_display_name,
+            "today_count": len(today_inbounds),
+            "next_7d_count": len(next_7d_inbounds),
+            "overdue_count": len(overdue_items),
+            "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else msg_detail
+        }
+    except Exception as e:
+        err_msg = f"เกิดข้อผิดพลาดในการประมวลผลข้อมูล Inbound DM: {str(e)}"
+        print(err_msg)
+        return {
+            "success": False,
+            "message": err_msg
+        }
 
 
 async def send_batch_inbound_daily_dms(db: AsyncSession) -> dict:

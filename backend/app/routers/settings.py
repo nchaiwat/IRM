@@ -330,7 +330,7 @@ async def test_telegram_inbound_dm(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"เกิดข้อผิดพลาดในการส่งทดสอบ Telegram DM: {str(e)}"
         )
     finally:
