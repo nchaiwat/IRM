@@ -221,7 +221,19 @@ export default function SettingsPage() {
       setMessage({ type: 'success', text: successText });
       alert(`✅ ${successText}`);
     } catch (err: any) {
-      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการทดสอบส่ง Telegram DM';
+      let errText = 'เกิดข้อผิดพลาดในการทดสอบส่ง Telegram DM';
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        errText = detail;
+      } else if (Array.isArray(detail)) {
+        errText = detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+      } else if (detail && typeof detail === 'object') {
+        errText = JSON.stringify(detail);
+      } else if (err.response?.data?.message) {
+        errText = err.response.data.message;
+      } else if (err.message) {
+        errText = err.message;
+      }
       setMessage({ type: 'error', text: errText });
       alert(`❌ ${errText}`);
     } finally {

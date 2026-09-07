@@ -7,6 +7,7 @@ IRM System
 🚀 [Topic]
 """
 
+import html
 import httpx
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import select
@@ -42,13 +43,16 @@ def format_telegram_header(topic: str) -> str:
     return header
 
 
-async def send_telegram_message(
+async def send_telegram_message_detailed(
     db: AsyncSession,
     message_text: str,
     category: str = "telegram_alert",
     chat_id: str | None = None
-) -> bool:
-    """Send message to configured Telegram Group or specific user DM with fallback and transaction logging."""
+) -> tuple[bool, str]:
+    """
+    Sends message to configured Telegram Group or specific user DM with detailed error diagnostics.
+    Returns (success: bool, detail_message: str).
+    """
     try:
         settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
         s_map = {s.key: s.value for s in settings_rows}
@@ -57,9 +61,10 @@ async def send_telegram_message(
         target_chat = (chat_id or "").strip() or s_map.get("telegram_group_id") or "-5394050672"
         api_url = s_map.get("telegram_api_url") or "https://api.telegram.org"
 
-        if not bot_token or not target_chat:
-            print("Telegram Bot Token or Target Chat ID is not configured.")
-            return False
+        if not bot_token:
+            return False, "ยังไม่ได้กำหนดค่า Telegram Bot Token ในระบบ (กรุณาระบุใน System Settings)"
+        if not target_chat:
+            return False, "ยังไม่ได้ระบุ Telegram Chat ID ผู้รับ"
 
         endpoint = f"{api_url}/bot{bot_token}/sendMessage"
         payload = {
@@ -71,7 +76,9 @@ async def send_telegram_message(
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.post(endpoint, json=payload)
-            if res.status_code == 200:
+            data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+
+            if res.status_code == 200 and data.get("ok"):
                 await record_transaction_log(
                     category=category,
                     action="telegram_broadcast" if not chat_id else "telegram_dm",
@@ -80,13 +87,50 @@ async def send_telegram_message(
                     details=f"To: {target_chat} | {message_text[:250]}",
                     db=db,
                 )
-                return True
+                return True, "ส่งข้อความ Telegram สำเร็จแล้ว"
             else:
-                print(f"Telegram API Error ({res.status_code}): {res.text}")
-                return False
+                desc = data.get("description") or res.text or f"HTTP {res.status_code}"
+                
+                # Humanize common Telegram API errors for Thai users
+                if res.status_code == 401 or "unauthorized" in desc.lower():
+                    human_err = f"Telegram Bot Token ไม่ถูกต้องหรือถูกเพิกถอน (401 Unauthorized: {desc})"
+                elif res.status_code == 403 or "bot can't initiate conversation with a user" in desc.lower():
+                    human_err = (
+                        f"Telegram ปฏิเสธ (403 Forbidden): ผู้รับ (Chat ID: {target_chat}) ยังไม่เคยกดเริ่มคุยกับ Bot "
+                        f"กรุณาเปิดค้นหา Bot ใน Telegram แล้วกดปุ่ม /start ก่อน 1 ครั้ง บอทจึงจะได้รับอนุญาตให้ส่งข้อความส่วนตัว (DM) หาได้"
+                    )
+                elif "chat not found" in desc.lower():
+                    human_err = f"ไม่พบ Chat ID: {target_chat} ในระบบ Telegram (กรุณาตรวจสอบ Chat ID ให้ถูกต้อง)"
+                elif "can't parse entities" in desc.lower():
+                    human_err = f"รูปแบบ HTML ในข้อความผิดพลาด: {desc}"
+                else:
+                    human_err = f"Telegram API Error ({res.status_code}): {desc}"
+
+                print(f"Telegram API Error: {human_err}")
+                await record_transaction_log(
+                    category=category,
+                    action="telegram_broadcast" if not chat_id else "telegram_dm",
+                    status="ERROR",
+                    message="ส่งแจ้งเตือน Telegram ล้มเหลว",
+                    details=f"To: {target_chat} | Error: {human_err}",
+                    db=db,
+                )
+                return False, human_err
     except Exception as e:
-        print(f"Failed to send Telegram notification: {e}")
-        return False
+        err_msg = f"การเชื่อมต่อ Telegram API ล้มเหลว: {str(e)}"
+        print(err_msg)
+        return False, err_msg
+
+
+async def send_telegram_message(
+    db: AsyncSession,
+    message_text: str,
+    category: str = "telegram_alert",
+    chat_id: str | None = None
+) -> bool:
+    """Send message to configured Telegram Group or specific user DM with fallback and transaction logging."""
+    success, _ = await send_telegram_message_detailed(db, message_text, category, chat_id)
+    return success
 
 
 # ----------------------------------------------------
@@ -559,11 +603,12 @@ async def send_user_inbound_daily_dm(
 
     # Build Message
     topic = "🌅 <b>สรุปยอดวัตถุดิบขาเข้าประจำวัน</b>"
+    user_dept_str = f" ({html.escape(user.department)})" if user.department else ""
     msg_lines = [
         format_telegram_header(topic),
         "",
-        f"👤 <b>เรียน:</b> คุณ{user.full_name} ({user.department or 'ผู้ดูแลกลุ่มสินค้า'})",
-        f"🏷️ <b>กลุ่มสินค้า:</b> <code>{group_display_name}</code>",
+        f"👤 <b>เรียน:</b> คุณ{html.escape(user.full_name)}{user_dept_str}",
+        f"🏷️ <b>กลุ่มสินค้า:</b> <code>{html.escape(group_display_name)}</code>",
         f"📅 <b>ประจำวัน{weekday_thai}ที่ {today_date_str}</b>",
         "────────────────────────────",
         "",
@@ -573,11 +618,16 @@ async def send_user_inbound_daily_dm(
     if today_inbounds:
         for it, hdr in today_inbounds[:6]:
             unit_str = it.unit or "หน่วย"
-            est_qty = it.estimate_qty or it.remaining_qty or it.quantity
-            sup_name = hdr.supplier_name or it.supplier_code or "ไม่ระบุผู้ขาย"
+            raw_qty = it.estimate_qty or it.remaining_qty or it.quantity
+            est_qty_str = f"{raw_qty:,.0f}" if isinstance(raw_qty, (int, float)) and raw_qty.is_integer() else f"{raw_qty:,.2f}".rstrip('0').rstrip('.')
+            sup_name = hdr.supplier_name or hdr.supplier_code or "ไม่ระบุผู้ขาย"
             if len(sup_name) > 22:
                 sup_name = sup_name[:20] + ".."
-            msg_lines.append(f"• 📦 <code>{it.item_code}</code> ({est_qty:,} {unit_str})\n   └ {it.item_name}\n   └ 🏢 <i>{sup_name}</i>")
+            msg_lines.append(
+                f"• 📦 <code>{html.escape(it.item_code)}</code> ({est_qty_str} {html.escape(unit_str)})\n"
+                f"   └ {html.escape(it.item_name)}\n"
+                f"   └ 🏢 <i>{html.escape(sup_name)}</i>"
+            )
         if len(today_inbounds) > 6:
             msg_lines.append(f"• <i>...และรายการอื่นๆ อีก {len(today_inbounds) - 6} รายการ</i>")
     else:
@@ -585,12 +635,14 @@ async def send_user_inbound_daily_dm(
 
     msg_lines.append("")
     total_qty_7d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_7d_inbounds)
-    msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_7d:,} หน่วย)")
+    total_qty_str = f"{total_qty_7d:,.0f}" if isinstance(total_qty_7d, (int, float)) and total_qty_7d.is_integer() else f"{total_qty_7d:,.2f}".rstrip('0').rstrip('.')
+    msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_str} หน่วย)")
 
     if overdue_items:
         msg_lines.append(f"⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> <b>{len(overdue_items):,} รายการ</b>")
         for it, hdr in overdue_items[:3]:
-            msg_lines.append(f"• ⚠️ <code>{it.item_code}</code> (PO {hdr.po_number}) — {it.item_name[:25]}")
+            po_num = hdr.po_number if hdr else "N/A"
+            msg_lines.append(f"• ⚠️ <code>{html.escape(it.item_code)}</code> (PO {html.escape(str(po_num))}) — {html.escape(it.item_name[:25])}")
         if len(overdue_items) > 3:
             msg_lines.append(f"• <i>...และค้างส่งอื่นๆ อีก {len(overdue_items) - 3} รายการ</i>")
     else:
@@ -603,7 +655,7 @@ async def send_user_inbound_daily_dm(
 
     full_text = "\n".join(msg_lines)
 
-    success = await send_telegram_message(
+    success, msg_detail = await send_telegram_message_detailed(
         db=db,
         message_text=full_text,
         category="telegram_inbound_dm",
@@ -620,7 +672,7 @@ async def send_user_inbound_daily_dm(
         "today_count": len(today_inbounds),
         "next_7d_count": len(next_7d_inbounds),
         "overdue_count": len(overdue_items),
-        "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else "ส่งข้อความไม่สำเร็จ กรุณาตรวจสอบ Chat ID หรือ Bot Token"
+        "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else msg_detail
     }
 
 
