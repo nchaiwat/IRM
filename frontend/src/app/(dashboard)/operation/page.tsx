@@ -1157,9 +1157,7 @@ export default function OperationPage() {
                             {formatDateThai(item.po_date)}
                           </div>
                         </>
-                      ) : (
-                        <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                      )}
+                      ) : null}
                     </td>
 
                     {/* COLUMN 3: Supplier (Code / Name) - Stacked with Deduplication */}
@@ -1171,9 +1169,7 @@ export default function OperationPage() {
                             {item.supplier_name}
                           </div>
                         </>
-                      ) : (
-                        <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                      )}
+                      ) : null}
                     </td>
 
                     {/* COLUMN 4: Group */}

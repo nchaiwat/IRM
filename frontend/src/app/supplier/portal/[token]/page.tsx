@@ -722,9 +722,7 @@ export default function SupplierPortalPage() {
                                   <span className="font-bold text-slate-800 text-xs">{item.po_number}</span>
                                   <div className="text-[10px] text-slate-400 mt-0.5">{formatDateThai(item.po_date)}</div>
                                 </div>
-                              ) : (
-                                <span className="text-slate-300 pl-2 text-xs">↳</span>
-                              )}
+                              ) : null}
                             </td>
 
                             {/* 3. Item Code & Description */}

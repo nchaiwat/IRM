@@ -316,9 +316,7 @@ export default function HistoryPage() {
                           <div className="font-bold text-slate-900">{item.po_number}</div>
                           <div className="text-[10px] text-slate-500 font-normal">{formatDateThai(item.po_date)}</div>
                         </>
-                      ) : (
-                        <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                      )}
+                      ) : null}
                     </td>
 
                     {/* 3. Supplier */}
@@ -330,9 +328,7 @@ export default function HistoryPage() {
                             {item.supplier_name}
                           </div>
                         </>
-                      ) : (
-                        <div className="text-slate-300 text-xs font-mono select-none pl-1">↳</div>
-                      )}
+                      ) : null}
                     </td>
 
                     {/* 4. Group */}
