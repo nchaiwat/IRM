@@ -1,7 +1,7 @@
 # 🧠 IRM Project — MEMORY & WORKFLOW RULES
 
 > **บันทึกข้อตกลง กฎเหล็ก และบริบทสำคัญของระบบ IRM (Incoming Raw Material)**  
-> **อัปเดตล่าสุด:** 3 กันยายน 2026  
+> **อัปเดตล่าสุด:** 7 กันยายน 2026  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **Production URL:** `https://irm.windowasia.com`  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -113,8 +113,13 @@
 * IRM ไม่เป็นผู้ยิงส่งข้อมูลออกไป ไม่มีปุ่มทดสอบส่ง JSON
 * ทุกคำขอจาก QMS ถูกบันทึกลงใน **Transaction Logs** โดยตรง และแจ้งเตือนผ่าน Telegram แบบ Real-time
 
-### 3.9 การเชื่อมต่อ Active Directory (AD Authentication)
-* เชื่อมต่อตรวจสอบรหัสผ่านพนักงานกับ Active Directory Server (`192.168.12.11`) ผ่าน AD Sync Agent Gateway พอร์ต `3100`
+### 3.10 การแจ้งเตือนยอดวัตถุดิบขาเข้าประจำวันรายบุคคล (Daily Inbound Telegram DM for Non-PU Staff)
+* **วัตถุประสงค์:** แจ้งข้อมูลสินค้าเข้าทุกเช้าให้กับแต่ละหน่วยงานที่ไม่ใช่ PU (PC, สโตร์/คลัง, QC) ล่วงหน้าเฉพาะกลุ่มสินค้าที่ตนเองรับผิดชอบ
+* **ส่งตรงรายบุคคล (DM):** ส่งข้อความเข้า Telegram Chat ID ของพนักงานแต่ละคนตามที่ระบุใน User Management
+* **คัดกรองตามกลุ่มสินค้า (Item Groups):** สรุป 3 ส่วน: 1) ของเข้าวันนี้, 2) ประมาณการ 7 วันข้างหน้า, 3) รายการค้างส่งเกินกำหนด (Overdue)
+* **Master Safeguard Switch:** สวิตช์หลักใน System Settings สำหรับ Admin เปิด/ปิดระบบ DM ภาพรวม พร้อมช่องกำหนดเวลาส่ง (07:30 น.) และแถบจำลองการส่งทดสอบ (Test Simulation)
+* **Telegram Bot Privacy Rule:** ผู้รับต้องกดเปิดสนทนากับบอทแล้วกด `/start` ใน Telegram อย่างน้อย 1 ครั้ง เพื่อยินยอมให้บอทส่งข้อความส่วนตัว (DM) หาได้
+* **Decoupled Architecture:** ในการทดสอบ Simulation ไม่ทำการ mutate ORM user entity ใน database และแยก Transaction logging ให้ใช้ standalone session อิสระ
 
 ---
 
