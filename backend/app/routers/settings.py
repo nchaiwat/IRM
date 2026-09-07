@@ -305,25 +305,26 @@ async def test_telegram_inbound_dm(
     if not target_user:
         target_user = current_user
 
-    original_chat_id = target_user.telegram_chat_id
-    if data.test_chat_id and data.test_chat_id.strip():
-        target_user.telegram_chat_id = data.test_chat_id.strip()
-
-    if not target_user.telegram_chat_id:
+    chat_id_to_use = (data.test_chat_id or target_user.telegram_chat_id or "").strip()
+    if not chat_id_to_use:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"ผู้ใช้ '{target_user.full_name}' ยังไม่มี Telegram Chat ID กรุณาระบุในช่อง Chat ID สำหรับทดสอบ"
+            detail=f"ผู้ใช้ '{target_user.full_name}' ยังไม่มี Telegram Chat ID กรุณาระบุในช่อง Chat ID ผู้รับทดสอบ"
         )
 
     try:
-        res = await send_user_inbound_daily_dm(db, target_user)
+        res = await send_user_inbound_daily_dm(
+            db=db,
+            user=target_user,
+            override_chat_id=chat_id_to_use
+        )
         if not res.get("success"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=res.get("message", "ไม่สามารถส่งข้อความ Telegram DM ได้")
             )
         return {
-            "message": f"ทดสอบส่งสรุปยอดวัตถุดิบรายบุคคลไปยัง Telegram ({target_user.telegram_chat_id}) สำเร็จแล้ว!",
+            "message": f"ทดสอบส่งสรุปยอดวัตถุดิบรายบุคคลไปยัง Telegram ({chat_id_to_use}) สำเร็จแล้ว!",
             "details": res
         }
     except HTTPException:
@@ -333,8 +334,6 @@ async def test_telegram_inbound_dm(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"เกิดข้อผิดพลาดในการส่งทดสอบ Telegram DM: {str(e)}"
         )
-    finally:
-        target_user.telegram_chat_id = original_chat_id
 
 
 @router.post("/test-sap-connection")

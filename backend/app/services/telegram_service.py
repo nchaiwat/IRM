@@ -86,7 +86,7 @@ async def send_telegram_message_detailed(
                     status="SUCCESS",
                     message="ส่งแจ้งเตือน Telegram สำเร็จ",
                     details=f"To: {target_chat} | {message_text[:250]}",
-                    db=db,
+                    db=None,
                 )
                 return True, "ส่งข้อความ Telegram สำเร็จแล้ว"
             else:
@@ -114,7 +114,7 @@ async def send_telegram_message_detailed(
                     status="ERROR",
                     message="ส่งแจ้งเตือน Telegram ล้มเหลว",
                     details=f"To: {target_chat} | Error: {human_err}",
-                    db=db,
+                    db=None,
                 )
                 return False, human_err
     except Exception as e:
@@ -534,13 +534,15 @@ async def send_telegram_qms_pull(
 async def send_user_inbound_daily_dm(
     db: AsyncSession,
     user: Any,
-    target_date: datetime | None = None
+    target_date: datetime | None = None,
+    override_chat_id: str | None = None,
 ) -> dict:
     """
     Generates and sends a personalized Daily Inbound Summary DM to a specific user
     filtered by their assigned item groups (user.allowed_item_groups).
     """
-    if not user.telegram_chat_id:
+    target_chat = (override_chat_id or user.telegram_chat_id or "").strip()
+    if not target_chat:
         return {"success": False, "message": f"ผู้ใช้ {user.username} ยังไม่ได้ระบุ Telegram Chat ID"}
 
     try:
@@ -657,7 +659,7 @@ async def send_user_inbound_daily_dm(
             db=db,
             message_text=full_text,
             category="telegram_inbound_dm",
-            chat_id=user.telegram_chat_id
+            chat_id=target_chat
         )
 
         return {
@@ -665,7 +667,7 @@ async def send_user_inbound_daily_dm(
             "user_id": user.id,
             "username": user.username,
             "full_name": user.full_name,
-            "chat_id": user.telegram_chat_id,
+            "chat_id": target_chat,
             "group_display": group_display_name,
             "today_count": len(today_inbounds),
             "next_7d_count": len(next_7d_inbounds),
