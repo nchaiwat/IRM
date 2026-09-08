@@ -50,19 +50,29 @@ def _send_smtp_sync(
     server.quit()
 
 
-def calculate_prd_expiry_date(now_dt: datetime) -> datetime:
+def calculate_prd_expiry_date(now_dt: datetime | None = None) -> datetime:
     """
-    PRD Expiration Rules:
-    - Monday (0), Tuesday (1), Wednesday (2) -> Expires Wednesday 23:59:59
-    - Thursday (3), Friday (4), Saturday (5), Sunday (6) -> Expires Sunday 23:59:59
+    PRD Expiration Rules (Calculated in Asia/Bangkok Time):
+    - Monday (0), Tuesday (1), Wednesday (2) -> Expires Wednesday 23:59:59 BKK
+    - Thursday (3), Friday (4), Saturday (5), Sunday (6) -> Expires Sunday 23:59:59 BKK
+    Returned as timezone-aware datetime in UTC for DB storage, corresponding to 23:59:59 Bangkok time.
     """
-    weekday = now_dt.weekday()
+    bkk_tz = timezone(timedelta(hours=7))
+    if not now_dt:
+        now_bkk = datetime.now(bkk_tz)
+    elif now_dt.tzinfo:
+        now_bkk = now_dt.astimezone(bkk_tz)
+    else:
+        now_bkk = now_dt.replace(tzinfo=bkk_tz)
+
+    weekday = now_bkk.weekday()
     if weekday <= 2:
         days_ahead = 2 - weekday
-        return (now_dt + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
     else:
         days_ahead = 6 - weekday
-        return (now_dt + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    exp_bkk = (now_bkk + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
+    return exp_bkk.astimezone(timezone.utc)
 
 
 async def get_or_create_supplier_token(db: AsyncSession, supplier_code: str) -> SupplierPortalToken:

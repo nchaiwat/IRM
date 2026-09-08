@@ -145,7 +145,10 @@ async def update_po_item(
     # 1. OWNERSHIP LOCKING & CONFLICT PREVENTION
     if item.locked_by == "supplier" and item.lock_expires_at and item.lock_expires_at > now_dt:
         if not data.force_override:
-            exp_str = item.lock_expires_at.strftime("%d/%m/%Y เวลา %H:%M น.")
+            from zoneinfo import ZoneInfo
+            bkk_tz = ZoneInfo("Asia/Bangkok")
+            exp_bkk = item.lock_expires_at.astimezone(bkk_tz) if item.lock_expires_at.tzinfo else item.lock_expires_at
+            exp_str = exp_bkk.strftime("%d/%m/%Y เวลา %H:%M น.")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"⚠️ รายการนี้กำลังอยู่ในช่วงที่ Supplier กำลังเปิดกรอกข้อมูล (เปิดถึง {exp_str}) หากจำเป็นต้องแก้ไขด่วน โปรดยืนยัน Force Edit",

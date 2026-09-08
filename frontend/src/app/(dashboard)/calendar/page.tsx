@@ -70,6 +70,16 @@ const getGroupBadge = (grp?: string | null) => {
   return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 shrink-0">{g}</span>;
 };
 
+const formatDateDisplay = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return '-';
+  const clean = dateStr.split('T')[0].trim();
+  const parts = clean.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const monthNames = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
@@ -505,7 +515,7 @@ export default function CalendarPage() {
                           <div className="flex items-center justify-between text-[10px] pt-1 text-slate-400">
                             <span className="text-sky-600 font-semibold flex items-center gap-1">
                               <CalendarIcon className="w-3 h-3" />
-                              ส่งวันที่: {new Date(ev.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              ส่งวันที่: {formatDateDisplay(ev.date)}
                             </span>
                             <span className="flex items-center gap-0.5 text-sky-600 font-bold">
                               <span>ไปที่วัน</span>
@@ -971,7 +981,7 @@ export default function CalendarPage() {
               <div className="flex items-center gap-2">
                 <CalendarIcon className="w-5 h-5 text-sky-600" />
                 <h3 className="text-base font-bold text-slate-900">
-                  รายการส่งของวันที่ {new Date(selectedDateEvents.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  รายการส่งของวันที่ {formatDateDisplay(selectedDateEvents.date)}
                 </h3>
               </div>
               <button
@@ -1041,7 +1051,7 @@ export default function CalendarPage() {
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                       <span>ผู้ปรับปรุงล่าสุด: <strong className="text-slate-700">{ev.updated_by}</strong></span>
-                      <span>กำหนดส่ง: <strong>{new Date(ev.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+                      <span>กำหนดส่ง: <strong>{formatDateDisplay(ev.date)}</strong></span>
                     </div>
                   </div>
                 );

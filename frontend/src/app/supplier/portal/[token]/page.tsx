@@ -108,9 +108,14 @@ export default function SupplierPortalPage() {
     }
   }, [portalData, loading, expandedSplitRow]);
 
-  const formatDateThai = (isoStr: string | null | undefined) => {
-    if (!isoStr) return '';
-    const d = new Date(isoStr);
+  const formatDateThai = (val: string | null | undefined) => {
+    if (!val) return '';
+    const clean = val.split('T')[0].trim();
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    const d = new Date(val);
     if (isNaN(d.getTime())) return '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -139,8 +144,10 @@ export default function SupplierPortalPage() {
     if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
     if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2020 || year > 2099) return null;
     
-    const d = new Date(year, month - 1, day, 12, 0, 0);
-    return d.toISOString();
+    const yStr = String(year);
+    const mStr = String(month).padStart(2, '0');
+    const dStr = String(day).padStart(2, '0');
+    return `${yStr}-${mStr}-${dStr}`;
   };
 
   const fetchPortalData = async () => {

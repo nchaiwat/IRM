@@ -583,13 +583,15 @@ async def send_user_inbound_daily_dm(
             if not eff_date:
                 continue
 
-            # normalize timezone to Bangkok
-            if eff_date.tzinfo is None:
-                eff_date_bkk = eff_date.replace(tzinfo=bkk_tz)
+            # normalize to date
+            if isinstance(eff_date, datetime):
+                if eff_date.tzinfo is None:
+                    eff_date_bkk = eff_date.replace(tzinfo=bkk_tz)
+                else:
+                    eff_date_bkk = eff_date.astimezone(bkk_tz)
+                eff_d = eff_date_bkk.date()
             else:
-                eff_date_bkk = eff_date.astimezone(bkk_tz)
-
-            eff_d = eff_date_bkk.date()
+                eff_d = eff_date
 
             # Check today
             if eff_d == today_d:

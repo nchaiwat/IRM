@@ -20,6 +20,23 @@ router = APIRouter(prefix="/api/external/qms", tags=["QMS Integration API"])
 DEFAULT_QMS_API_KEY = "irm_qms_secure_key_2026"
 
 
+def to_bkk_date(d) -> Optional[date]:
+    """Convert date or datetime to pure date with Asia/Bangkok safety."""
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        if d.tzinfo:
+            from zoneinfo import ZoneInfo
+            return d.astimezone(ZoneInfo("Asia/Bangkok")).date()
+        return d.date()
+    if isinstance(d, date):
+        return d
+    try:
+        return datetime.strptime(str(d)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
 async def verify_qms_api_key(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -140,7 +157,8 @@ async def get_confirmed_inbound_deliveries_for_qms(
         sup_code = header.supplier_code or "-"
         sup_name = header.supplier_name or "-"
         po_num = header.po_number
-        po_dt = header.po_date.strftime("%Y-%m-%d") if header.po_date else None
+        po_d = to_bkk_date(header.po_date)
+        po_dt = po_d.strftime("%Y-%m-%d") if po_d else None
         item_c = item.item_code
         item_desc = item.item_name or ""
         unit = item.unit or ""
@@ -150,9 +168,9 @@ async def get_confirmed_inbound_deliveries_for_qms(
         if item.sub_items:
             sub_count = len(item.sub_items)
             for idx, sub in enumerate(item.sub_items, start=1):
-                if not sub.estimate_date:
+                del_date = to_bkk_date(sub.estimate_date)
+                if not del_date:
                     continue
-                del_date = sub.estimate_date.date()
                 if d_from and del_date < d_from:
                     continue
                 if d_to and del_date > d_to:
@@ -177,30 +195,31 @@ async def get_confirmed_inbound_deliveries_for_qms(
                     "confirmed_at": confirmed_at_str,
                 })
         elif item.estimate_date:
-            del_date = item.estimate_date.date()
-            if d_from and del_date < d_from:
-                continue
-            if d_to and del_date > d_to:
-                continue
+            del_date = to_bkk_date(item.estimate_date)
+            if del_date:
+                if d_from and del_date < d_from:
+                    continue
+                if d_to and del_date > d_to:
+                    continue
 
-            deliveries.append({
-                "po_number": po_num,
-                "po_date": po_dt,
-                "item_code": item_c,
-                "description": item_desc,
-                "delivery_date": del_date.strftime("%Y-%m-%d"),
-                "quantity": float(item.estimate_qty if item.estimate_qty is not None else item.remaining_qty),
-                "unit": unit,
-                "buyer": buyer,
-                "supplier_code": sup_code,
-                "supplier_name": sup_name,
-                "item_group": group,
-                "is_split_round": False,
-                "round_no": 1,
-                "total_rounds": 1,
-                "status": "confirmed",
-                "confirmed_at": confirmed_at_str,
-            })
+                deliveries.append({
+                    "po_number": po_num,
+                    "po_date": po_dt,
+                    "item_code": item_c,
+                    "description": item_desc,
+                    "delivery_date": del_date.strftime("%Y-%m-%d"),
+                    "quantity": float(item.estimate_qty if item.estimate_qty is not None else item.remaining_qty),
+                    "unit": unit,
+                    "buyer": buyer,
+                    "supplier_code": sup_code,
+                    "supplier_name": sup_name,
+                    "item_group": group,
+                    "is_split_round": False,
+                    "round_no": 1,
+                    "total_rounds": 1,
+                    "status": "confirmed",
+                    "confirmed_at": confirmed_at_str,
+                })
 
     # Sort deliveries by delivery_date ASC, then po_number ASC
     deliveries.sort(key=lambda d: (d["delivery_date"], d["po_number"], d["item_code"]))

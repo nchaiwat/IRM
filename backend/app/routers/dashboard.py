@@ -7,8 +7,9 @@ Computes real-time statistics across 4 dimensions:
 4. Digital Adoption & Process Governance (Portal adoption rate, SAP vs Actual variance)
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List
+from datetime import date, datetime, timezone, timedelta
+from typing import Dict, Any, List, Optional
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -22,13 +23,31 @@ from app.dependencies import get_current_user, require_permission
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard Analytics"])
 
+BKK_TZ = ZoneInfo("Asia/Bangkok")
+
+
+def to_bkk_date(d) -> Optional[date]:
+    """Convert date or datetime to pure date with Asia/Bangkok safety."""
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        if d.tzinfo:
+            return d.astimezone(BKK_TZ).date()
+        return d.date()
+    if isinstance(d, date):
+        return d
+    try:
+        return datetime.strptime(str(d)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
 
 @router.get("/analytics")
 async def get_dashboard_analytics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("/dashboard", "view")),
 ) -> Dict[str, Any]:
-    now_dt = datetime.now(timezone(timedelta(hours=7)))
+    now_dt = datetime.now(BKK_TZ)
     today_date = now_dt.date()
 
     # 1. Fetch All PO Items and Headers
@@ -162,7 +181,7 @@ async def get_dashboard_analytics(
             group_stats[grp]["open_qty"] += rem_qty
 
             # Overdue Check
-            due_d = item.due_date.date() if item.due_date else None
+            due_d = to_bkk_date(item.due_date)
             if due_d and due_d < today_date:
                 critical_overdue_count += 1
 
@@ -171,12 +190,17 @@ async def get_dashboard_analytics(
             rounds = []
             if item.sub_items and len(item.sub_items) > 0:
                 for sub in item.sub_items:
-                    if sub.estimate_date:
-                        rounds.append((sub.estimate_date.date(), float(sub.quantity or 0.0)))
+                    sub_d = to_bkk_date(sub.estimate_date)
+                    if sub_d:
+                        rounds.append((sub_d, float(sub.quantity or 0.0)))
             elif item.estimate_date:
-                rounds.append((item.estimate_date.date(), est_qty if est_qty > 0 else rem_qty))
+                est_d = to_bkk_date(item.estimate_date)
+                if est_d:
+                    rounds.append((est_d, est_qty if est_qty > 0 else rem_qty))
             elif item.due_date:
-                rounds.append((item.due_date.date(), rem_qty))
+                due_d_val = to_bkk_date(item.due_date)
+                if due_d_val:
+                    rounds.append((due_d_val, rem_qty))
 
             for r_date, r_qty in rounds:
                 if today_date <= r_date <= seven_days_later:
@@ -192,11 +216,13 @@ async def get_dashboard_analytics(
             supplier_stats[sup_code]["completed_items"] += 1
 
         # Evaluate OTIF (On-Time In-Full)
-        if item.estimate_date and item.due_date:
+        item_est_d = to_bkk_date(item.estimate_date)
+        item_due_d = to_bkk_date(item.due_date)
+        if item_est_d and item_due_d:
             total_evaluated_items += 1
             supplier_stats[sup_code]["evaluated_count"] += 1
             # If estimate_date <= due_date
-            if item.estimate_date.date() <= item.due_date.date():
+            if item_est_d <= item_due_d:
                 on_time_items += 1
                 supplier_stats[sup_code]["on_time_count"] += 1
 

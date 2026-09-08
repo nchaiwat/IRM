@@ -2,8 +2,8 @@
 PO Models — PO Header, PO Items, Sub Items, and Audit Logs.
 """
 
-from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from datetime import date, datetime
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,7 +14,7 @@ class POHeader(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     po_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-    po_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    po_date: Mapped[date] = mapped_column(Date, nullable=False)
     supplier_code: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     supplier_name: Mapped[str] = mapped_column(String(150), nullable=False)
     buyer_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -36,11 +36,11 @@ class POItem(Base):
     unit: Mapped[str] = mapped_column(String(20), default="แผ่น")
     received_qty: Mapped[float] = mapped_column(Float, default=0.0)
     remaining_qty: Mapped[float] = mapped_column(Float, nullable=False)
-    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, index=True, nullable=True)
     item_group: Mapped[str | None] = mapped_column(String(50), nullable=True, default="RM-กระจก")
     
     # Estimate Planning Data
-    estimate_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
+    estimate_date: Mapped[date | None] = mapped_column(Date, index=True, nullable=True)
     estimate_qty: Mapped[float | None] = mapped_column(Float, nullable=True)
     
     # Status: 'pending', 'estimate', 'supplier_responded', 'confirmed', 'delay', 'closed'
@@ -69,7 +69,7 @@ class SubItem(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     po_item_id: Mapped[int] = mapped_column(Integer, ForeignKey("po_items.id", ondelete="CASCADE"), index=True, nullable=False)
-    estimate_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    estimate_date: Mapped[date | None] = mapped_column(Date, index=True, nullable=True)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     
     # Audit Trail per sub-item

@@ -8,7 +8,7 @@ SAP B1 Sync Service — Supports Tri-Mode:
 import json
 import logging
 import httpx
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import List, Dict, Any
 
 from sqlalchemy import select, update, or_
@@ -160,27 +160,33 @@ def normalize_item_group(raw_group: str, item_code: str = "", item_name: str = "
     return g
 
 
+def to_clean_date(val, default_date: date | None = None) -> date:
+    bkk_tz = timezone(timedelta(hours=7))
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    if isinstance(val, datetime):
+        if val.tzinfo:
+            val = val.astimezone(bkk_tz)
+        return val.date()
+    if isinstance(val, str) and val.strip():
+        s = val.strip().split("T")[0].split(" ")[0]
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+        try:
+            return datetime.strptime(s, "%d/%m/%Y").date()
+        except ValueError:
+            pass
+    return default_date or datetime.now(bkk_tz).date()
+
+
 def parse_raw_sap_rows(raw_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sanitize and format raw SAP rows into typed dictionary objects."""
     parsed_records = []
     for r in raw_records:
-        po_date_val = r.get("po_date")
-        if isinstance(po_date_val, str):
-            try:
-                po_date_val = datetime.fromisoformat(po_date_val.replace("Z", "+00:00"))
-            except ValueError:
-                po_date_val = datetime.now(timezone.utc)
-        elif not isinstance(po_date_val, datetime):
-            po_date_val = datetime.now(timezone.utc)
-
-        due_date_val = r.get("due_date")
-        if isinstance(due_date_val, str):
-            try:
-                due_date_val = datetime.fromisoformat(due_date_val.replace("Z", "+00:00"))
-            except ValueError:
-                due_date_val = po_date_val + timedelta(days=30)
-        elif not isinstance(due_date_val, datetime):
-            due_date_val = po_date_val + timedelta(days=30)
+        po_date_val = to_clean_date(r.get("po_date"))
+        due_date_val = to_clean_date(r.get("due_date"), default_date=po_date_val + timedelta(days=30))
 
         s_phone = str(r.get("supplier_phone") or "").strip() or None
         

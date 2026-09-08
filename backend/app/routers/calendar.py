@@ -21,6 +21,24 @@ from app.models.user import User
 router = APIRouter(prefix="/api/calendar", tags=["Calendar"])
 
 
+def format_date_str(d) -> str | None:
+    """Format Date or DateTime to pure YYYY-MM-DD string with Asia/Bangkok safety."""
+    if not d:
+        return None
+    from datetime import datetime, date
+    from zoneinfo import ZoneInfo
+    if isinstance(d, datetime):
+        if d.tzinfo:
+            d = d.astimezone(ZoneInfo("Asia/Bangkok")).date()
+        else:
+            d = d.date()
+    elif isinstance(d, date):
+        pass
+    else:
+        return str(d)[:10]
+    return d.strftime("%Y-%m-%d")
+
+
 @router.get("")
 async def get_calendar_events(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -55,58 +73,64 @@ async def get_calendar_events(
         if item.sub_items:
             for sub in item.sub_items:
                 if sub.estimate_date:
-                    events.append({
-                        "id": f"{item.id}-{sub.id}",
-                        "title": f"↳ {item.item_code} - {header.supplier_name}",
-                        "item_code": f"↳ {item.item_code}",
-                        "item_name": item.item_name,
-                        "item_group": item.item_group or "-",
-                        "supplier_code": header.supplier_code,
-                        "supplier_name": header.supplier_name,
-                        "buyer_name": buyer,
-                        "date": sub.estimate_date.strftime("%Y-%m-%d"),
-                        "quantity": sub.quantity,
-                        "unit": item.unit,
-                        "status": status_label,
-                        "is_confirmed": is_confirmed,
-                        "po_number": header.po_number,
-                        "updated_by": sub.updated_by_name or item.updated_by_name or "-",
-                    })
+                    d_str = format_date_str(sub.estimate_date)
+                    if d_str:
+                        events.append({
+                            "id": f"{item.id}-{sub.id}",
+                            "title": f"↳ {item.item_code} - {header.supplier_name}",
+                            "item_code": f"↳ {item.item_code}",
+                            "item_name": item.item_name,
+                            "item_group": item.item_group or "-",
+                            "supplier_code": header.supplier_code,
+                            "supplier_name": header.supplier_name,
+                            "buyer_name": buyer,
+                            "date": d_str,
+                            "quantity": sub.quantity,
+                            "unit": item.unit,
+                            "status": status_label,
+                            "is_confirmed": is_confirmed,
+                            "po_number": header.po_number,
+                            "updated_by": sub.updated_by_name or item.updated_by_name or "-",
+                        })
         elif item.estimate_date:
-            events.append({
-                "id": str(item.id),
-                "title": f"{item.item_code} - {header.supplier_name}",
-                "item_code": item.item_code,
-                "item_name": item.item_name,
-                "item_group": item.item_group or "-",
-                "supplier_code": header.supplier_code,
-                "supplier_name": header.supplier_name,
-                "buyer_name": buyer,
-                "date": item.estimate_date.strftime("%Y-%m-%d"),
-                "quantity": item.estimate_qty or item.remaining_qty,
-                "unit": item.unit,
-                "status": status_label,
-                "is_confirmed": is_confirmed,
-                "po_number": header.po_number,
-                "updated_by": item.updated_by_name or "-",
-            })
+            d_str = format_date_str(item.estimate_date)
+            if d_str:
+                events.append({
+                    "id": str(item.id),
+                    "title": f"{item.item_code} - {header.supplier_name}",
+                    "item_code": item.item_code,
+                    "item_name": item.item_name,
+                    "item_group": item.item_group or "-",
+                    "supplier_code": header.supplier_code,
+                    "supplier_name": header.supplier_name,
+                    "buyer_name": buyer,
+                    "date": d_str,
+                    "quantity": item.estimate_qty or item.remaining_qty,
+                    "unit": item.unit,
+                    "status": status_label,
+                    "is_confirmed": is_confirmed,
+                    "po_number": header.po_number,
+                    "updated_by": item.updated_by_name or "-",
+                })
         elif item.due_date:
-            events.append({
-                "id": str(item.id),
-                "title": f"{item.item_code} - {header.supplier_name}",
-                "item_code": item.item_code,
-                "item_name": item.item_name,
-                "item_group": item.item_group or "-",
-                "supplier_code": header.supplier_code,
-                "supplier_name": header.supplier_name,
-                "buyer_name": buyer,
-                "date": item.due_date.strftime("%Y-%m-%d"),
-                "quantity": item.remaining_qty or item.quantity,
-                "unit": item.unit,
-                "status": status_label,
-                "is_confirmed": False,
-                "po_number": header.po_number,
-                "updated_by": item.updated_by_name or "-",
-            })
+            d_str = format_date_str(item.due_date)
+            if d_str:
+                events.append({
+                    "id": str(item.id),
+                    "title": f"{item.item_code} - {header.supplier_name}",
+                    "item_code": item.item_code,
+                    "item_name": item.item_name,
+                    "item_group": item.item_group or "-",
+                    "supplier_code": header.supplier_code,
+                    "supplier_name": header.supplier_name,
+                    "buyer_name": buyer,
+                    "date": d_str,
+                    "quantity": item.remaining_qty or item.quantity,
+                    "unit": item.unit,
+                    "status": status_label,
+                    "is_confirmed": False,
+                    "po_number": header.po_number,
+                    "updated_by": item.updated_by_name or "-",
+                })
 
     return events

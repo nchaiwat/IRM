@@ -168,22 +168,37 @@ export default function OperationPage() {
   };
 
   // Helper date getters and condition checkers
+  const parseToLocalDate = (val: string | null | undefined): Date | null => {
+    if (!val) return null;
+    const clean = val.split('T')[0].trim();
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d, 0, 0, 0);
+    }
+    const dt = new Date(val);
+    if (isNaN(dt.getTime())) return null;
+    return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0);
+  };
+
   const getItemTargetDate = (item: POItemResponse): Date | null => {
     if (item.sub_items && item.sub_items.length > 0) {
       const dates = item.sub_items
-        .map((s) => (s.estimate_date ? new Date(s.estimate_date) : null))
-        .filter((d): d is Date => d !== null && !isNaN(d.getTime()));
+        .map((s) => parseToLocalDate(s.estimate_date))
+        .filter((d): d is Date => d !== null);
       if (dates.length > 0) {
         return new Date(Math.min(...dates.map((d) => d.getTime())));
       }
     }
     if (item.estimate_date) {
-      const d = new Date(item.estimate_date);
-      if (!isNaN(d.getTime())) return d;
+      const d = parseToLocalDate(item.estimate_date);
+      if (d) return d;
     }
     if (item.due_date) {
-      const d = new Date(item.due_date);
-      if (!isNaN(d.getTime())) return d;
+      const d = parseToLocalDate(item.due_date);
+      if (d) return d;
     }
     return null;
   };
@@ -353,13 +368,31 @@ export default function OperationPage() {
     return stripped.split(/\s+/)[0] || stripped;
   };
 
-  const formatDateThai = (isoStr: string | null | undefined) => {
-    if (!isoStr) return '';
-    const d = new Date(isoStr);
+  const formatDateThai = (val: string | null | undefined) => {
+    if (!val) return '';
+    const clean = val.split('T')[0].trim();
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  const formatDateTimeThai = (val: string | null | undefined) => {
+    if (!val) return '-';
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return val;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
   const formatUpdatedBy = (name: string | null | undefined, type: string | null | undefined) => {
@@ -395,8 +428,10 @@ export default function OperationPage() {
     if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
     if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000) return null;
     
-    const d = new Date(year, month - 1, day, 12, 0, 0);
-    return d.toISOString();
+    const yStr = String(year);
+    const mStr = String(month).padStart(2, '0');
+    const dStr = String(day).padStart(2, '0');
+    return `${yStr}-${mStr}-${dStr}`;
   };
 
   const handleOpenInlineSubItem = (item: POItemResponse) => {
@@ -1266,7 +1301,7 @@ export default function OperationPage() {
                             )}
                           </span>
                           <span className="text-[9px] text-slate-400">
-                            {new Date(item.updated_at).toLocaleString('th-TH')}
+                            {formatDateTimeThai(item.updated_at)}
                           </span>
                         </div>
                       ) : (
@@ -1804,7 +1839,7 @@ export default function OperationPage() {
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-slate-400 font-medium">{new Date(log.changed_at).toLocaleString('th-TH')}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{formatDateTimeThai(log.changed_at)}</span>
                       </div>
                       <div className="text-slate-600 text-[11px] leading-relaxed">{log.changes_detail}</div>
                     </div>

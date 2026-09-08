@@ -2,7 +2,7 @@
 Supplier Portal Router — Cryptographic Token Validation, One-time Submission Lock, Quantity Validation, and PRD Expiration Window Enforcement.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,13 +21,13 @@ router = APIRouter(prefix="/api/supplier-portal", tags=["Supplier Portal"])
 
 
 class SupplierSubmitSubItem(BaseModel):
-    estimate_date: datetime
+    estimate_date: date
     quantity: float
 
 
 class SupplierSubmitItem(BaseModel):
     item_id: int
-    estimate_date: datetime | None = None
+    estimate_date: date | None = None
     estimate_qty: float | None = None
     sub_items: list[SupplierSubmitSubItem] = []
 

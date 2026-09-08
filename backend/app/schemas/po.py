@@ -2,19 +2,19 @@
 PO Pydantic Schemas with Audit Trail fields.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel
 
 
 class SubItemCreate(BaseModel):
-    estimate_date: datetime
+    estimate_date: date
     quantity: float
 
 
 class SubItemResponse(BaseModel):
     id: int
     po_item_id: int
-    estimate_date: datetime
+    estimate_date: date | None = None
     quantity: float
     updated_by_name: str | None = None
     updated_by_type: str | None = None
@@ -35,7 +35,7 @@ class POItemAuditLogResponse(BaseModel):
 
 
 class POItemUpdate(BaseModel):
-    estimate_date: datetime | None = None
+    estimate_date: date | None = None
     estimate_qty: float | None = None
     sub_items: list[SubItemCreate] = []
     force_override: bool = False
@@ -47,7 +47,7 @@ class POItemResponse(BaseModel):
     po_header_id: int
     line_num: int = 0
     po_number: str
-    po_date: datetime
+    po_date: date
     supplier_code: str
     supplier_name: str
     buyer_name: str
@@ -57,10 +57,10 @@ class POItemResponse(BaseModel):
     unit: str
     received_qty: float
     remaining_qty: float
-    due_date: datetime | None = None
+    due_date: date | None = None
     item_group: str | None = None
-    estimate_date: datetime | None
-    estimate_qty: float | None
+    estimate_date: date | None = None
+    estimate_qty: float | None = None
     allow_over_delivery: bool = False
     status: str
     is_new: bool = True
@@ -68,8 +68,8 @@ class POItemResponse(BaseModel):
     closed_at: datetime | None = None
     locked_by: str | None = None
     lock_expires_at: datetime | None = None
-    updated_by_name: str | None
-    updated_by_type: str | None
+    updated_by_name: str | None = None
+    updated_by_type: str | None = None
     updated_at: datetime
     sub_items: list[SubItemResponse] = []
     audit_logs: list[POItemAuditLogResponse] = []

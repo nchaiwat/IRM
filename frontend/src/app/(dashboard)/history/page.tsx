@@ -84,11 +84,29 @@ export default function HistoryPage() {
 
   const formatDateThai = (isoStr: string | null | undefined) => {
     if (!isoStr) return '-';
+    const clean = isoStr.split('T')[0].trim();
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
     const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '-';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  const formatDateTimeThai = (isoStr: string | null | undefined) => {
+    if (!isoStr) return '-';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
   const handleOpenAuditModal = async (item: POItemResponse) => {
@@ -529,7 +547,7 @@ export default function HistoryPage() {
                         )}
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium">
-                        {log.changed_at ? new Date(log.changed_at).toLocaleString('th-TH') : '-'}
+                        {formatDateTimeThai(log.changed_at)}
                       </span>
                     </div>
                     <div className="text-slate-600 text-[11px] leading-relaxed">{log.changes_detail}</div>

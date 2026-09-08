@@ -67,7 +67,13 @@ export default function ItemsPage() {
 
   const formatDateThai = (isoStr: string | null | undefined) => {
     if (!isoStr) return '-';
+    const clean = isoStr.split('T')[0].trim();
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
     const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '-';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();

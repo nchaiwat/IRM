@@ -329,6 +329,16 @@ export default function ReceivingChecklistPage() {
     return trimmed;
   };
 
+  const getPrintTimestamp = () => {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* ─── SCREEN ONLY: Header & Controls ─────────────────────────────────── */}
@@ -857,14 +867,7 @@ export default function ReceivingChecklistPage() {
                 </div>
                 <div className="text-right text-xs text-slate-600 space-y-0.5">
                   <div>
-                    <strong>วันที่พิมพ์:</strong>{' '}
-                    {new Date().toLocaleDateString('th-TH', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    <strong>วันที่พิมพ์:</strong> {getPrintTimestamp()}
                   </div>
                   <div>
                     <strong>กลุ่มสินค้า:</strong> {selectedGroup === 'all' ? 'ทุกกลุ่มสินค้า' : `กลุ่ม ${selectedGroup}`}
@@ -995,14 +998,7 @@ export default function ReceivingChecklistPage() {
                 </div>
                 <div className="text-right text-xs text-slate-600 space-y-0.5">
                   <div>
-                    <strong>วันที่พิมพ์:</strong>{' '}
-                    {new Date().toLocaleDateString('th-TH', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    <strong>วันที่พิมพ์:</strong> {getPrintTimestamp()}
                   </div>
                   <div>
                     <strong>กลุ่มสินค้า:</strong> {selectedGroup === 'all' ? 'ทุกกลุ่มสินค้า' : `กลุ่ม ${selectedGroup}`}

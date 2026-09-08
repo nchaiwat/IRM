@@ -2,8 +2,9 @@
 Receiving Checklist Router — On-site delivery checklist, print layout support, and Item Group permission filtering.
 """
 
-from datetime import datetime, timezone
-from typing import Annotated
+from datetime import date, datetime, timezone, timedelta
+from typing import Annotated, Optional
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import distinct, or_, select
 from sqlalchemy.orm import selectinload
@@ -21,6 +22,24 @@ from app.models.po import POHeader, POItem, SubItem
 from app.models.user import User
 
 router = APIRouter(prefix="/api/receiving-checklist", tags=["Receiving Checklist"])
+
+BKK_TZ = ZoneInfo("Asia/Bangkok")
+
+
+def to_bkk_date(d) -> Optional[date]:
+    """Convert date or datetime to pure date in Asia/Bangkok."""
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        if d.tzinfo:
+            return d.astimezone(BKK_TZ).date()
+        return d.date()
+    if isinstance(d, date):
+        return d
+    try:
+        return datetime.strptime(str(d)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
 
 
 @router.get("/item-groups")
@@ -78,8 +97,8 @@ async def get_receiving_checklist(
 
     rows = (await db.execute(stmt)).all()
 
-    now_dt = datetime.now(timezone.utc)
-    today_str = now_dt.strftime("%Y-%m-%d")
+    today_date = datetime.now(BKK_TZ).date()
+    today_str = today_date.strftime("%Y-%m-%d")
 
     # Date parsing
     d_from = None
@@ -113,14 +132,15 @@ async def get_receiving_checklist(
             continue
 
         is_confirmed = (item.status == "confirmed")
+        po_d = to_bkk_date(header.po_date)
+        po_d_str = po_d.strftime("%Y-%m-%d") if po_d else None
 
         # Case A: Item has Sub-Items
         if item.sub_items:
             for sub in item.sub_items:
-                target_dt = sub.estimate_date or item.estimate_date or item.due_date
-                if not target_dt:
+                target_date = to_bkk_date(sub.estimate_date or item.estimate_date or item.due_date)
+                if not target_date:
                     continue
-                target_date = target_dt.date() if isinstance(target_dt, datetime) else target_dt
                 target_date_str = target_date.strftime("%Y-%m-%d")
 
                 # Date Range Filter
@@ -129,7 +149,7 @@ async def get_receiving_checklist(
                 if d_to and target_date > d_to:
                     continue
 
-                is_overdue = not is_confirmed and target_date_str < today_str
+                is_overdue = not is_confirmed and target_date < today_date
 
                 # Status Mode Filter
                 if status_mode == "confirmed" and not is_confirmed:
@@ -155,7 +175,7 @@ async def get_receiving_checklist(
                     "id": f"{item.id}-{sub.id}",
                     "po_id": header.id,
                     "po_number": header.po_number,
-                    "po_date": header.po_date.strftime("%Y-%m-%d") if header.po_date else None,
+                    "po_date": po_d_str,
                     "line_num": item.line_num or 0,
                     "item_code": f"↳ {item.item_code}",
                     "item_name": item.item_name,
@@ -174,10 +194,9 @@ async def get_receiving_checklist(
                 })
         else:
             # Case B: Main Item without Sub-Items
-            target_dt = item.estimate_date or item.due_date
-            if not target_dt:
+            target_date = to_bkk_date(item.estimate_date or item.due_date)
+            if not target_date:
                 continue
-            target_date = target_dt.date() if isinstance(target_dt, datetime) else target_dt
             target_date_str = target_date.strftime("%Y-%m-%d")
 
             # Date Range Filter
@@ -186,7 +205,7 @@ async def get_receiving_checklist(
             if d_to and target_date > d_to:
                 continue
 
-            is_overdue = not is_confirmed and target_date_str < today_str
+            is_overdue = not is_confirmed and target_date < today_date
 
             # Status Mode Filter
             if status_mode == "confirmed" and not is_confirmed:
@@ -212,7 +231,7 @@ async def get_receiving_checklist(
                 "id": str(item.id),
                 "po_id": header.id,
                 "po_number": header.po_number,
-                "po_date": header.po_date.strftime("%Y-%m-%d") if header.po_date else None,
+                "po_date": po_d_str,
                 "line_num": item.line_num or 0,
                 "item_code": item.item_code,
                 "item_name": item.item_name,

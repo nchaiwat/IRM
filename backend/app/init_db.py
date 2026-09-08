@@ -58,6 +58,35 @@ async def run_ddl_migrations(conn):
         # Update username format to Firstname.L
         "UPDATE users SET username = 'Patcha.S' WHERE lower(username) = 'patcha';",
         "UPDATE users SET username = 'Pinyada.S' WHERE lower(username) = 'pinyada';",
+
+        # Migrate Business Dates (estimate_date, due_date, po_date) to pure DATE type safely with Asia/Bangkok conversion
+        """DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'po_items' AND column_name = 'estimate_date' AND data_type LIKE '%timestamp%'
+            ) THEN
+                ALTER TABLE po_items ALTER COLUMN estimate_date TYPE DATE USING (estimate_date AT TIME ZONE 'Asia/Bangkok')::date;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'po_items' AND column_name = 'due_date' AND data_type LIKE '%timestamp%'
+            ) THEN
+                ALTER TABLE po_items ALTER COLUMN due_date TYPE DATE USING (due_date AT TIME ZONE 'Asia/Bangkok')::date;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'sub_items' AND column_name = 'estimate_date' AND data_type LIKE '%timestamp%'
+            ) THEN
+                ALTER TABLE sub_items ALTER COLUMN estimate_date TYPE DATE USING (estimate_date AT TIME ZONE 'Asia/Bangkok')::date;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'po_headers' AND column_name = 'po_date' AND data_type LIKE '%timestamp%'
+            ) THEN
+                ALTER TABLE po_headers ALTER COLUMN po_date TYPE DATE USING (po_date AT TIME ZONE 'Asia/Bangkok')::date;
+            END IF;
+        END $$;""",
     ]
 
     for sql in migrations:
