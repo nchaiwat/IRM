@@ -1,6 +1,6 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 7 กันยายน 2026  
+> **วันที่บันทึก:** 9 กันยายน 2026  
 > **สถานะโครงการ:** Production-Ready & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -69,11 +69,24 @@
   * **ไม่แตะต้องและไม่อัปเดตทับ** ทั้ง `lead_time_days` และ `notify_alert_days` (คงค่าเดิม 100%)
   * กำหนด `is_new = False` เมื่อพ้นวันหรือเป็นสินค้าเดิม
 
-### 9) 🔑 Central Identity Management API (SCIM-Like)
-* พัฒนาระบบ API สำหรับ Central IAM เข้ามาควบคุมผู้ใช้งานในระบบ IRM ครบทั้ง 3 Endpoint:
-  * `GET /api/v1/directory/accounts` — ดึงบัญชีทั้งหมดไปทำ Inventory / Reconciliation
-  * `PATCH /api/v1/directory/accounts/{username}/status` — สั่งระงับสิทธิ์พนักงานลาออกทันที (Instant Offboarding)
-  * `POST /api/v1/directory/accounts` — สั่งสร้างบัญชีผู้ใช้งานใหม่แบบ Real-time (Account Provisioning)
+### 10) 🗓️ สถาปัตยกรรมวันที่บริสุทธิ์ (Pure Date Standard) & มาตรฐาน dd/mm/yyyy ทั้งระบบ
+* **ที่มาและปัญหาเดิม (UTC Discrepancy):**
+  * ข้อมูลวันที่ส่งมอบ (`estimate_date`, `due_date`, `po_date`) เดิมจัดเก็บเป็น `TIMESTAMPTZ` (UTC) ใน PostgreSQL
+  * เมื่อ Frontend ส่งเวลาเที่ยงคืนไทย `2026-09-08 00:00:00+07` ฐานข้อมูลแปลงเป็น `2026-09-07 17:00:00 UTC` เมื่อเรียกผ่าน `.strftime("%Y-%m-%d")` หรือส่งต่อไปยัง Frontend โดยไม่มี Timezone Offset วันที่จะถอยหลังไป 1 วัน (กลายเป็น 07/09/2026) ส่งผลให้ในปฏิทิน Calendar และการประเมินสถานะ Overdue ผิดพลาด
+* **การแก้ไขด้วยแนวทาง Pure Date (Option 1):**
+  * **Database Type Migration (`init_db.py`):** แปลงประเภทคอลัมน์ `po_items.estimate_date`, `po_items.due_date`, `sub_items.estimate_date`, และ `po_headers.po_date` ใน PostgreSQL ให้เป็น **`DATE`** บริสุทธิ์ (ไม่มีเวลาและ Timezone) โดยใช้คำสั่ง `USING (column AT TIME ZONE 'Asia/Bangkok')::date` เพื่อให้ข้อมูลเดิมทั้งหมดถูกแปลงกลับมาเป็นวันที่ตามเวลาประเทศไทยตรงเป๊ะ ไม่เลื่อนถอยหลัง 1 วัน
+  * **SQLAlchemy & Pydantic Models:** ปรับ Type เป็น `Date` และ `datetime.date` ส่งสตริงวันที่รูปแบบมาตรฐาน `YYYY-MM-DD` บริสุทธิ์
+  * **Backend Services & Routers:**
+    * `calendar.py`: จัดส่ง Event Date เป็น `YYYY-MM-DD` แน่นอน ไม่เกิด Timezone Drift
+    * `receiving_checklist.py` & `dashboard.py`: คำนวณสถานะ Overdue, OTIF, และ 14-day Delivery Forecast โดยยึดวันปัจจุบัน (`today_date`) ในเวลา `Asia/Bangkok`
+    * `qms_integration.py`: ส่ง `delivery_date` และ `po_date` แบบ Pure Date ป้องกันความผิดพลาดของระบบภายนอก
+    * `sap_service.py`: ดึง `po_date` และ `due_date` จาก SAP แปลงเป็น Pure Date สะอาดทันทีก่อนบันทึก
+    * `email_service.py` & `telegram_service.py`: คำนวณวันหมดอายุ PRD Token และแสดงผลวันที่โดยอิงเวลาประเทศไทยอย่างแม่นยำ
+* **มาตรฐานการแสดงผล `dd/mm/yyyy` ครบทุกหน้าจอ:**
+  * หน้า **Operation**, **Calendar**, **Receiving Checklist**, **History**, **Item Master**, **Supplier Master**, และ **Supplier Portal** แสดงผลวันที่ทั้งหมดในรูปแบบ **`dd/mm/yyyy`** (เช่น `08/09/2026`) อย่างสม่ำเสมอ
+  * ฟังก์ชันแปลงวันที่ (`formatDateThai`, `formatDateDisplay`) ตรวจจับ Regex `YYYY-MM-DD` และสลับเป็น `dd/mm/yyyy` โดยตรง ไม่ผ่านการ parse UTC ที่อาจเกิด Timezone Shift
+  * ช่องกรอกวันที่ (Date Masking Input) รองรับการพิมพ์และจัดรูปแบบ `dd/mm/yyyy` พร้อมแปลงเป็น `YYYY-MM-DD` สำหรับส่งไปยัง Backend
+  * วันเวลาที่อัปเดตและ Audit Logs แสดงเป็น `dd/mm/yyyy hh:mm` (ค.ศ.) คงความเป็นเอกภาพทั่วทั้งระบบ
 
 ---
 
@@ -95,20 +108,22 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
-| [`backend/app/services/telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py) | ระบบส่ง Telegram Alert, Morning Summary, และ Daily Inbound DM รายบุคคลตาม Item Groups พร้อมกลไก Detailed Error Diagnostics & HTML Escaping |
+| [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | รัน Database Migration อัตโนมัติ แปลงคอลัมน์วันที่เป็น pure `DATE` ด้วย `AT TIME ZONE 'Asia/Bangkok'` |
+| [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | โมเดล SQLAlchemy กำหนด `po_date`, `due_date`, `estimate_date` เป็น `Date` |
+| [`backend/app/schemas/po.py`](file:///d:/Python/IRM/backend/app/schemas/po.py) | Pydantic Schemas กำหนด Data Type ของวันที่เป็น pure `date` (`YYYY-MM-DD`) |
+| [`backend/app/routers/calendar.py`](file:///d:/Python/IRM/backend/app/routers/calendar.py) | API ปฏิทินส่งของ พร้อมระบบ Universal Search และส่ง Event Date แบบ `YYYY-MM-DD` |
+| [`backend/app/routers/receiving_checklist.py`](file:///d:/Python/IRM/backend/app/routers/receiving_checklist.py) | API ใบตรวจรับสินค้าประจำวัน ตรวจสอบ Overdue เทียบกับเวลาประเทศไทย |
+| [`backend/app/routers/dashboard.py`](file:///d:/Python/IRM/backend/app/routers/dashboard.py) | API คำนวณ KPI ภาพรวม, OTIF, Overdue, และ 14-day Delivery Forecast บนเวลาไทย |
+| [`backend/app/services/telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py) | ระบบส่ง Telegram Alert, Morning Summary, และ Daily Inbound DM รายบุคคลตาม Item Groups |
 | [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | Background Cron Job ตรวจสอบรอบเวลาซิงค์ SAP (06:45), อีเมลแจ้งเตือน (08:00), และ Telegram DM รายบุคคล (07:30) |
-| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | API จัดการ System Settings, การทดสอบ Telegram Group, Morning Summary, และ Simulation DM |
-| [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) | API บริหารจัดการผู้ใช้งาน รองรับ `telegram_inbound_notify` และ `allowed_item_groups` |
-| [`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) | หน้าจัดการ User พร้อม Multi-select Checkboxes กลุ่มสินค้า และสวิตช์เปิดรับ Telegram DM |
-| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | หน้า System Settings พร้อม Master Safeguard Switch, กำหนดเวลาส่ง, และปุ่มจำลองการส่ง DM |
-| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | ปฏิทินรอบส่งของ โหมดรายเดือน, รายปี (12 เดือน), และ Universal Search |
-| [`frontend/src/app/(dashboard)/receiving-checklist/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/receiving-checklist/page.tsx) | ใบตรวจรับสินค้าประจำวันสำหรับสโตร์/รปภ. พร้อมโหมดสั่งพิมพ์ A4 แนวนอน |
-| [`frontend/src/app/(dashboard)/system-blueprint/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/system-blueprint/page.tsx) | พิมพ์เขียวระบบ IRM ครบวงจร พร้อมกล่องคัดลอก AI Prompts ภาษาไทย |
-| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ระบบส่งอีเมลคู่ค้า และคำนวณอายุ Token ตามรอบสัปดาห์พร้อมกลไก Reuse |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ระบบส่งอีเมลคู่ค้า คำนวณอายุ Token ตามรอบสัปดาห์ (23:59:59 BKK) พร้อมกลไก Reuse |
 | [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | หน้า Operation, การแตกงวดส่ง, Single-PO Token อายุ 1 ชม. พร้อมกลไก Reuse |
-| [`backend/app/services/sap_service.py`](file:///d:/Python/IRM/backend/app/services/sap_service.py) | ซิงค์ข้อมูล SAP B1 เวลา 06:45 น. และคงค่าเดิมของ ItemMaster (Lead Time, Notify Alert) |
+| [`backend/app/services/sap_service.py`](file:///d:/Python/IRM/backend/app/services/sap_service.py) | ซิงค์ข้อมูล SAP B1 เวลา 06:45 น., แปลงวันที่เป็น `date` สะอาด, คงค่าเดิม Item Master |
 | [`backend/app/routers/central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) | Central Identity Management API (SCIM-Like) รองรับ `GET`, `PATCH`, และ `POST /accounts` |
 | [`backend/app/routers/external_qms.py`](file:///d:/Python/IRM/backend/app/routers/external_qms.py) | QMS Inbound Deliveries Integration API (`GET /api/external/qms/inbound-deliveries`) |
+| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | หน้า Operation รองรับกรอก/แสดงผล `dd/mm/yyyy`, คำนวณ Overdue เที่ยงคืนไทย |
+| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | ปฏิทินรอบส่งของ โหมดรายเดือน, รายปี (12 เดือน), Universal Search, และ Badge `dd/mm/yyyy` |
+| [`frontend/src/app/(dashboard)/receiving-checklist/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/receiving-checklist/page.tsx) | ใบตรวจรับสินค้าประจำวันสำหรับสโตร์/รปภ. พร้อมโหมดสั่งพิมพ์ A4 แนวนอน |
 | [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md) | ข้อกำหนดมาตรฐาน API ระดับองค์กรสำหรับการเชื่อมต่อ Central IAM |
 
 ---
@@ -117,6 +132,13 @@
 
 ```bash
 cd /var/www/Irm
+
+# 1. ดึงโค้ดล่าสุดจาก main branch
 git pull origin main
-docker compose up -d --build
+
+# 2. Rebuild และ Restart คอนเทนเนอร์ irm-backend และ irm-frontend
+docker compose up -d --build irm-backend irm-frontend
+
+# 3. ตรวจสอบสถานะการทำงาน
+docker compose ps
 ```

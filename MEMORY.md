@@ -1,7 +1,7 @@
 # 🧠 IRM Project — MEMORY & WORKFLOW RULES
 
 > **บันทึกข้อตกลง กฎเหล็ก และบริบทสำคัญของระบบ IRM (Incoming Raw Material)**  
-> **อัปเดตล่าสุด:** 7 กันยายน 2026  
+> **อัปเดตล่าสุด:** 9 กันยายน 2026  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **Production URL:** `https://irm.windowasia.com`  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -26,7 +26,7 @@
    # 2. ดึงโค้ดล่าสุดจาก GitHub
    git pull origin main
    # 3. สั่ง Rebuild คอนเทนเนอร์ Backend และ Frontend (รันเฉพาะตัวที่แก้ ไม่กระทบ DB และ Redis เดิม)
-   docker compose up -d --build
+   docker compose up -d --build irm-backend irm-frontend
    ```
    *(หากมีการเปลี่ยนแปลงโครงสร้าง Database ให้แนบคำสั่ง `docker exec -i irm-backend python backend/scripts/...` ตามความจำเป็น)*
 
@@ -45,6 +45,14 @@
   * **ไม่มีอะไรให้โดดเด่นเป็นพิเศษเกินความจำเป็น:** ห้ามใช้ Dark Background หรือ Widget สีตัดที่ดึงสายตาและสร้างความซ้ำซ้อน
   * สถานะความพร้อมการทำงาน (Health/Active Status) ให้แสดงเป็น **ไอคอนหรือ Status Pill Badge เล็กๆ เรียบหรู** กำกับข้างหัวข้อในแต่ละการ์ด (เช่น `[ 🟢 Active / Ready ]`)
   * **ไม่ทำข้อมูลหรือสถิติกระจัดกระจาย:** ข้อมูลการเชื่อมต่อหรือ Logs ทุกชนิดต้องรวมศูนย์ไว้ที่ **Transaction Logs (`/admin/logs`)** เท่านั้น ไม่สร้างกล่องสถิติยิบย่อยซ้ำซ้อนในหน้า Settings
+
+### 1.5 กฎมาตรฐานวันที่บริสุทธิ์ (Pure Date Standard) และรูปแบบ dd/mm/yyyy ทั่วทั้งระบบ
+* **Pure Date Only:** ข้อมูลวันที่ส่งมอบ (`estimate_date`, `due_date`, `po_date`, `delivery_date`) ในฐานข้อมูลต้องเป็นประเภท `DATE` และใน Python ต้องเป็น `datetime.date` เท่านั้น (ห้ามใช้ `TIMESTAMPTZ` หรือเก็บเวลา 00:00 UTC ที่ทำให้เกิด Date Shift ข้ามวันเด็ดขาด)
+* **มาตรฐานการแสดงผล `dd/mm/yyyy` (ค.ศ.):**
+  * ทุกหน้าจอ (Operation, Calendar, Receiving Checklist, History, Master, Portal) ต้องแสดงผลวันที่เป็น **`dd/mm/yyyy`** (เช่น `08/09/2026`)
+  * ฟังก์ชันแปลงวันที่ต้องจัดการสตริง `YYYY-MM-DD` เป็น `dd/mm/yyyy` โดยตรง ไม่ผ่าน `new Date(str)` ที่เสี่ยงต่อการโดน UTC ดึงวันถอยหลัง
+  * ช่องรับค่า (Input) ต้องรับในรูปแบบ `dd/mm/yyyy` และแปลงเป็น `YYYY-MM-DD` ก่อนส่งบันทึกเข้า API
+  * การเปรียบเทียบ Overdue / Near Due ให้เปรียบเทียบกับวันที่ปัจจุบันของ `Asia/Bangkok` เที่ยงคืนตรงวันเสมอ
 
 ---
 

@@ -136,12 +136,26 @@ docker-compose up -d --build
 * `08:30 น. ทุกวัน` ➔ ส่งอีเมลแจ้งเตือนจัดซื้อพร้อมแนบ Excel 2 Sheet
 * `Real-time` ➔ แจ้งเตือนเมื่อ QMS เข้ามาดึงข้อมูลการส่งมอบ
 
+### 7. สถาปัตยกรรม Pure Date Standard & รูปแบบ dd/mm/yyyy ทั่วทั้งระบบ
+* **Pure Date Only (`DATE` / `datetime.date`):** วันที่ทางธุรกิจ (`estimate_date`, `due_date`, `po_date`) ใน PostgreSQL และ Backend เป็นประเภท `DATE` บริสุทธิ์ (ไม่มี Timezone และไม่ผูกกับเวลา) เพื่อขจัดปัญหา Date Shift ข้ามวันจาก UTC Discrepancy อย่างถาวร 100%
+* **มาตรฐานการแสดงผล `dd/mm/yyyy` (คริสต์ศักราช):**
+  * ทุกหน้าจอ (Operation, Calendar, Receiving Checklist, History, Master, Portal) แสดงผลวันที่เป็น **`dd/mm/yyyy`** (เช่น `08/09/2026`)
+  * ฟังก์ชันแปลงวันที่ประมวลผลสตริง `YYYY-MM-DD` เป็น `dd/mm/yyyy` โดยตรง ไม่ผ่าน Date Object ที่เสี่ยงต่อการโดน Timezone เลื่อนวัน
+  * การคำนวณสถานะ Overdue / Near Due ทำงานบน Local Midnight ของเวลาประเทศไทย (`Asia/Bangkok`)
+
 ---
 
 ## 🚀 คำสั่งอัปเดตระบบบน VPS Hostinger (`/var/www/Irm`)
 
 ```bash
 cd /var/www/Irm
+
+# 1. ดึงโค้ดล่าสุดจาก main branch
 git pull origin main
-docker compose up -d --build
+
+# 2. Rebuild และ Restart คอนเทนเนอร์ irm-backend และ irm-frontend
+docker compose up -d --build irm-backend irm-frontend
+
+# 3. ตรวจสอบสถานะการทำงาน
+docker compose ps
 ```
