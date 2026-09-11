@@ -1112,7 +1112,7 @@ export default function OperationPage() {
               <th className="py-2 px-2.5 w-28 border-b border-slate-800 sticky left-10 z-30 bg-slate-900 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.4)] whitespace-nowrap">PO No. / Date</th>
               <th className="py-2 px-2.5 border-b border-slate-800 w-44">Supplier</th>
               <th className="py-2 px-1.5 text-center w-24 border-b border-slate-800 whitespace-nowrap">Group</th>
-              <th className="py-2 px-2.5 border-b border-slate-800 min-w-[180px]">Item Code & Description</th>
+              <th className="py-2 px-2.5 border-b border-slate-800 min-w-[220px]">Item Code & Description</th>
               <th className="py-2 px-2 text-right border-b border-slate-800 w-24 whitespace-nowrap">PO Qty / Unit</th>
               <th className="py-2 px-2 text-center border-b border-slate-800 w-24 whitespace-nowrap">Due To</th>
               <th className="py-2 px-2 text-right border-b border-slate-800 w-28 whitespace-nowrap">รับแล้ว / เหลือ</th>
@@ -1245,9 +1245,9 @@ export default function OperationPage() {
                     </td>
 
                     {/* COLUMN 5: Stacked Item Code & Description */}
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-3 align-top min-w-[200px]">
                       <div className="font-bold text-slate-900">{item.item_code}</div>
-                      <div className="text-[11px] text-slate-500 leading-tight line-clamp-1">{item.item_name}</div>
+                      <div className="text-[11px] text-slate-500 leading-tight">{item.item_name}</div>
                     </td>
 
                     {/* 6. Stacked PO Qty & Unit */}
