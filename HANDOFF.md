@@ -136,9 +136,13 @@ cd /var/www/Irm
 # 1. ดึงโค้ดล่าสุดจาก main branch
 git pull origin main
 
-# 2. Rebuild และ Restart คอนเทนเนอร์ irm-backend และ irm-frontend
+# 2. รัน Migration สร้าง Performance Index ใน PostgreSQL
+docker cp backend/app/migrations/add_performance_indexes.py irm-backend:/app/app/migrations/add_performance_indexes.py
+docker exec irm-backend python /app/app/migrations/add_performance_indexes.py
+
+# 3. Rebuild และ Restart คอนเทนเนอร์ irm-backend และ irm-frontend
 docker compose up -d --build irm-backend irm-frontend
 
-# 3. ตรวจสอบสถานะการทำงาน
+# 4. ตรวจสอบสถานะการทำงาน
 docker compose ps
 ```

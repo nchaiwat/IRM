@@ -126,8 +126,11 @@
 * **ส่งตรงรายบุคคล (DM):** ส่งข้อความเข้า Telegram Chat ID ของพนักงานแต่ละคนตามที่ระบุใน User Management
 * **คัดกรองตามกลุ่มสินค้า (Item Groups):** สรุป 3 ส่วน: 1) ของเข้าวันนี้, 2) ประมาณการ 7 วันข้างหน้า, 3) รายการค้างส่งเกินกำหนด (Overdue)
 * **Master Safeguard Switch:** สวิตช์หลักใน System Settings สำหรับ Admin เปิด/ปิดระบบ DM ภาพรวม พร้อมช่องกำหนดเวลาส่ง (07:30 น.) และแถบจำลองการส่งทดสอบ (Test Simulation)
-* **Telegram Bot Privacy Rule:** ผู้รับต้องกดเปิดสนทนากับบอทแล้วกด `/start` ใน Telegram อย่างน้อย 1 ครั้ง เพื่อยินยอมให้บอทส่งข้อความส่วนตัว (DM) หาได้
-* **Decoupled Architecture:** ในการทดสอบ Simulation ไม่ทำการ mutate ORM user entity ใน database และแยก Transaction logging ให้ใช้ standalone session อิสระ
+### 3.11 การเพิ่มประสิทธิภาพฐานข้อมูล (Database Performance) และ PO-Level Portal Token
+* **PostgreSQL Indexes:** ตาราง `po_items`, `sub_items`, `po_headers`, `po_item_audit_logs`, `users` มี Index บน Foreign Key และเงื่อนไข Filter หลักทั้งหมด ป้องกัน Sequential Scan
+* **Eliminate Cascade Queries:** ยกเลิก `lazy="selectin"` บน `Group.users` และ `Menu.auth_entries` เปลี่ยนเป็น `lazy="select"` เพื่อหยุดการโหลด User และ Menu ซ้ำซ้อนหลายสิบ Query ต่อ Request
+* **PO-Level Portal Link & Lock:** ปุ่ม `[ 🔗 ]` บนหน้า Operation สร้าง Token ระดับ PO และล็อค **ทุกรายการใน PO นั้น** เป็น `awaiting_supplier` และ `locked_by = 'supplier'`
+* **Token Expiry Standard:** ใช้วันหมดอายุรอบ PRD (พุธ 23:59 น. / อาทิตย์ 23:59 น.) พร้อม Cushion ขั้นต่ำ 12 ชม. และฟอร์แมตเวลาแสดงผลเป็น `Asia/Bangkok` (+07:00)
 
 ---
 
@@ -149,5 +152,11 @@ python -m py_compile backend/app/services/*.py backend/app/routers/*.py
 ```bash
 cd /var/www/Irm
 git pull origin main
-docker compose up -d --build
+
+# รัน Migration สร้าง Performance Index ใน PostgreSQL
+docker cp backend/app/migrations/add_performance_indexes.py irm-backend:/app/app/migrations/add_performance_indexes.py
+docker exec irm-backend python /app/app/migrations/add_performance_indexes.py
+
+# Rebuild คอนเทนเนอร์ Backend และ Frontend
+docker compose up -d --build irm-backend irm-frontend
 ```
