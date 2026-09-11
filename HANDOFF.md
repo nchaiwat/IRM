@@ -1,7 +1,7 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 9 กันยายน 2026  
-> **สถานะโครงการ:** Production-Ready & Feature Complete (`https://irm.windowasia.com`)  
+> **วันที่บันทึก:** 11 กันยายน 2026 (22:05 น.)  
+> **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
 
@@ -9,84 +9,53 @@
 
 ## 🎯 1. ภาพรวมระบบ (System Overview)
 
-ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ได้รับการพัฒนาจนสมบูรณ์ครบถ้วนตามความต้องการของฝ่ายจัดซื้อ ฝ่ายวางแผนการผลิต ฝ่ายคลังสินค้า และฝ่ายประกันคุณภาพ (QC) โดยทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งต่อข้อมูลให้ระบบ **QMS**, และรองรับการบริหารจัดการตัวตนส่วนกลางผ่าน **Central Identity Management API (SCIM-Like)**
+ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งต่อข้อมูลให้ระบบ **QMS**, และรองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อมทั้งการสำรองฉุกเฉินด้วย **Break-Glass Mode**
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (11 กันยายน 2026)
 
-### 1) 📲 ระบบแจ้งเตือนยอดวัตถุดิบขาเข้าประจำวันรายบุคคล (Daily Inbound Telegram DM for Non-PU Staff)
-* **วัตถุประสงค์:** แจ้งข้อมูลสินค้าเข้าทุกเช้าให้กับแต่ละหน่วยงานที่ไม่ใช่ PU (เช่น ฝ่ายวางแผนการผลิต/PC, ฝ่ายคลังสินค้า/Store, ฝ่าย QC) ได้รับทราบข้อมูลล่วงหน้าเฉพาะกลุ่มสินค้า (Item Groups) ที่ตนเองรับผิดชอบ
-* **ช่องทางการส่ง:** ส่งตรงเข้า **Telegram Direct Message (DM)** ของพนักงานแต่ละคนตาม `telegram_chat_id` ที่บันทึกไว้ใน User Management
-* **โครงสร้างข้อความสรุป 3 ส่วน:**
-  1. 🚚 **สินค้ามีนัดส่งเข้า "วันนี้" (Today Inbound):** แสดงรหัสสินค้า, จำนวนพร้อมหน่วย, ชื่อสินค้า, และชื่อผู้ขาย (จำกัดการแสดง 6 รายการแรก พร้อมสรุปยอดที่เหลือ)
-  2. 📅 **กำหนดส่งใน 7 วันข้างหน้า (Next 7 Days Forecast):** สรุปจำนวนรายการและผลรวมหน่วยส่งมอบทั้งหมดในรอบสัปดาห์
-  3. ⚠️ **ค้างส่งเกินกำหนด (Overdue / Pending):** แจ้งเตือนรายการที่เลยกำหนดส่งและยังไม่ได้ยืนยันรับเข้า เพื่อให้ผู้รับผิดชอบเตรียมประสานงานล่วงหน้า
-* **ปุ่มลิงก์ท้ายข้อความ:** ลิงก์ตรงเปิดไปยัง **ใบตรวจรับสินค้า (Receiving Checklist)** และ **ปฏิทินรอบส่ง (Calendar)** ของระบบ IRM
-* **การรักษาความปลอดภัย (Safeguard) และการตั้งค่าใน System Settings:**
-  * มี **Master Switch** เปิด/ปิดระบบ Telegram DM ภาพรวม (ปิดไว้เป็นค่าเริ่มต้นเพื่อความปลอดภัยช่วงเริ่มใช้งาน)
-  * กำหนดเวลาส่งข้อความตอนเช้าได้อิสระ (ค่าเริ่มต้น `07:30` น.)
-  * เครื่องมือ **จำลองการส่งทดสอบ (Test Simulation):** ให้ Admin สามารถเลือกพนักงานเพื่อจำลองกลุ่มสินค้าที่ดูแล พร้อมช่องกรอก Chat ID ทดสอบ เพื่อยิงข้อความจริงเข้า Telegram ได้ทันทีโดยไม่บันทึกทับข้อมูลในฐานข้อมูล
+### 1) ⚡ การเพิ่มประสิทธิภาพฐานข้อมูล (Database Performance & Indexing)
+* **ปัญหาเดิม:** หน้า Operation, History, และ Calendar มีการโหลดที่ล่าช้า เนื่องจากขาด Index บน Foreign Key และเงื่อนไข Filter หลักใน PostgreSQL ส่งผลให้ต้องทำ Sequential Scan ทุกครั้ง
+* **การแก้ไข:**
+  * สร้าง Migration [`backend/app/migrations/add_performance_indexes.py`](file:///d:/Python/IRM/backend/app/migrations/add_performance_indexes.py) เพิ่ม Index สำคัญทั้งหมด 13 ตัว:
+    * `po_items`: `po_header_id`, `status`, `(po_header_id, status)`, `estimate_date`, `due_date`, `closed_at DESC`
+    * `sub_items`: `po_item_id`, `estimate_date`
+    * `po_headers`: `status`, `(status, supplier_code)`
+    * `po_item_audit_logs`: `po_item_id`, `changed_at DESC`
+    * `supplier_portal_tokens`: `(supplier_code, is_submitted, expires_at)`, `po_number`
+    * `users`: `group_id`
+  * **ตัด Cascading Queries ใน SQLAlchemy:** ปรับ `Group.users` และ `Menu.auth_entries` จาก `lazy="selectin"` เป็น `lazy="select"` เพื่อหยุดการโหลด User ทั้งบริษัทและ Menu ซ้ำซ้อน 20-30 Query ต่อ 1 Request
+  * **แก้ MissingGreenlet:** เพิ่ม `.options(selectinload(POItem.sub_items))` ใน `supplier_portal.py` ป้องกัน Error 500 เวลาดึงข้อมูล Portal ที่มี Sub-items
 
-### 2) 👥 ปรับปรุงหน้า User Management: Multi-select Checkboxes & DM Toggle
-* **URL:** `/admin/users`
-* **เปลี่ยนช่องกรอกกลุ่มสินค้าเป็น Checkboxes:** แทนที่ช่องกรอกข้อความเดิมด้วย Multi-select Checkboxes ของกลุ่มสินค้ามาตรฐาน 6 กลุ่ม:
-  * `RM-กระจก`, `HW`, `SP - Sparepart`, `FG-ALU`, `FG-UPVC`, `FG-Non BOI`
-  * พร้อมตัวเลือก **`⭐️ ทุกกลุ่มสินค้า (*)`** เพื่อความสะดวกและลดปัญหาการสะกดชื่อกลุ่มผิด
-* **สวิตช์เปิดรับแจ้งเตือน DM:** เพิ่ม Checkbox **"รับสรุปยอดของเข้าประจำวันทาง Telegram (Daily DM)"** ในฟอร์มสร้างและแก้ไขผู้ใช้
-* **Status Badge บนตาราง:** แสดงป้ายสถานะ `[ ✈️ DM ]` สีฟ้า สำหรับผู้ที่เปิดรับแจ้งเตือน และ `[ ⏸️ ปิด DM ]` สีเทา สำหรับผู้ที่ปิดไว้
+### 2) 🔗 ปุ่ม Link หน้า Operation: ส่งและล็อคทั้ง PO (PO-Level Portal Token)
+* **ปัญหาเดิม:** ปุ่ม `[ 🔗 ]` บนตารางหน้า Operation กดแล้วเกิด HTTP 500 (`base_url not defined`) และสร้าง Token เจาะจงเพียงแค่ Item เดียว
+* **การแก้ไข:**
+  * แก้ไขการดึง `app_base_url` จาก `SystemSetting` ให้ถูกต้อง
+  * ขยายขอบเขตให้เมื่อกดปุ่ม `[ 🔗 ]` บน Item ใดใน PO ระบบจะค้นหา **ทุกรายการใน PO นั้น (`po_header_id`)**
+  * ล็อคสถานะทุก Item ใน PO พร้อมกัน: `locked_by = 'supplier'`, `lock_expires_at = token_obj.expires_at` และเปลี่ยนเป็น `awaiting_supplier`
+  * บันทึก Audit Log ให้ทุก Item และบันทึก `transaction_logs`
+  * ฝั่งหน้าจอ Operation ([`operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx)) อัปเดตสถานะของทุกรายการใน PO นั้นบนตารางแบบ Realtime ทันที
 
-### 3) 🧹 ปรับปรุง UI ตาราง: เอาลูกศรซ้ำซ้อนออก (Clean Table Layout)
-* นำลูกศรชี้ลง (`↳` / downward arrows) ในแถวตารางข้อมูล PO Header และ Supplier Name ที่เป็นรายการซ้ำออก
-* คงเหลือเฉพาะชื่อ PO และ Supplier แสดงเป็นตัวอักษรเรียบหรู สบายตา ตามหลัก Clean Corporate Light Theme
+### 3) ⏰ แก้ไขลิงก์หมดอายุ (Expired Links) & Timezone การแสดงผล (+07:00 BKK)
+* **ปัญหาเดิม:** ผู้ใช้เปิดลิงก์ Portal แล้วขึ้นหมดอายุ หรือแสดงเวลาเป็น UTC (16:59 น.)
+* **การแก้ไข:**
+  * ปรับฟังก์ชันแสดงผลใน [`supplier_portal.py`](file:///d:/Python/IRM/backend/app/routers/supplier_portal.py) และ [`suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) ให้แปลงเวลาจาก UTC เป็น `Asia/Bangkok` ก่อนแสดงผล ทำให้หน้าจอและข้อความแจ้งเตือนแสดง `เวลา 23:59 น.` อย่างถูกต้อง
+  * **12-Hour Cushion:** ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) ปรับปรุงให้หากสร้าง Token ในช่วงใกล้หมดรอบ (เหลือน้อยกว่า 12 ชม.) ระบบจะขยายวันหมดอายุข้ามไปจบรอบถัดไปทันที ป้องกันลิงก์หมดอายุเร็วเกินไป
+  * **Clipboard Helper ([`frontend/src/lib/clipboard.ts`](file:///d:/Python/IRM/frontend/src/lib/clipboard.ts)):** เพิ่มระบบ Fallback คัดลอกผ่าน `execCommand` และ `window.prompt` ป้องกันเบราว์เซอร์บล็อกการคัดลอกหลังรอผล API
 
-### 4) 📅 หน้า Calendar: โหมดรายปี (12 เดือน) และ Universal Search
-* **สลับโหมดมุมมองได้ทันที:** ปุ่มสลับระหว่าง **"รายเดือน"** และ **"รายปี"**
-  * **โหมดรายปี:** แสดงการ์ดสรุป 12 เดือนของทั้งปี พร้อมตัวเลขสรุปยอด Confirmed, Estimate, Overdue, และเมทริกซ์จุดมาร์กวันที่มีสินค้าส่งเข้าโรงงาน
-* **Universal Search (ค้นหาอเนกประสงค์):**
-  * ค้นหาคำค้นด่วนแบบ Real-time (เลขที่ PO, รหัสสินค้า, ชื่อสินค้า, ชื่อคู่ค้า) ครอบคลุมทั้งปี
-  * แสดงผลลัพธ์แบบ Dropdown พร้อมปุ่ม **"ไปที่วัน" (Jump to date)** เพื่อกระโดดไปยังเดือนและเปิด Modal แสดงรายการของวันนั้นทันที
+### 4) 📝 แสดงผล Item Description เต็มรูปแบบในหน้า Operation (Full Description)
+* **ปัญหาเดิม:** หน้า Operation ตัดข้อความคำอธิบายสินค้าด้วย `line-clamp-1` มีจุดไข่ปลา `...`
+* **การแก้ไข:**
+  * ปลด `line-clamp-1` ออกใน [`operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) บรรทัด 1250
+  * ปรับใช้ `align-top` และขยายความกว้าง `min-w-[220px]` ให้แสดงผลข้อความยาวได้ครบถ้วนสวยงามเหมือนหน้า History และ Item Master
 
-### 5) 📋 หน้า Receiving Checklist: ใบตรวจรับสำหรับสโตร์/รปภ.
-* **URL:** `/receiving-checklist` (เมนูลำดับที่ 4 ต่อจาก Calendar)
-* สรุปรายการสินค้าที่มีนัดหมายส่งมอบในวันที่เลือก เพื่อให้สโตร์, รปภ., QA ตรวจรับของจริง
-* บันทึกผลการตรวจเช็ค, ทะเบียนรถ, จำนวนรับจริง พร้อมปุ่ม **สั่งพิมพ์ A4 แนวนอน (Print-Ready)**
-
-### 6) 🧭 หน้า System Blueprint: ผังระบบและพิมพ์เขียวองค์กร
-* **URL:** `/system-blueprint` (เมนูลำดับที่ 8 ต่อจาก History)
-* แผนผังการไหลของข้อมูล 5 ขั้นตอน (SAP ➔ Operation ➔ Portal ➔ Calendar ➔ QMS/คลัง), กฎเงื่อนไขการตัดยอด FIFO, สิทธิ์บทบาทหน้าที่ และกล่องคัดลอก AI Prompts ภาษาไทย
-
-### 7) 🔐 ปรับปรุงระบบ Token Portal: Reuse Token ในรอบเดียวกัน
-* **การคำนวณอายุตามรอบ PRD:**
-  * รอบวันจันทร์ 08:00 น. ➔ หมดอายุ **คืนวันพุธ 23:59:59 น.**
-  * รอบวันพฤหัสบดี 08:00 น. ➔ หมดอายุ **คืนวันอาทิตย์ 23:59:59 น.**
-* **Reuse Token Logic:** เมื่อส่งอีเมลซ้ำ หรือกด Copy Link ในรอบเดียวกัน ระบบจะ **ใช้ Token และ URL เดิม** ไม่ทำให้ลิงก์เดิมเสีย
-* **Single-PO Token:** ลิงก์ด่วนราย PO สำหรับส่งทาง Line มีอายุ 1 ชั่วโมง (และ Reuse เช่นกัน)
-
-### 8) 📦 กฎความปลอดภัย Item Master & Supplier Master (Append-Only)
-* ทั้ง Item Master และ Supplier Master จะสะสมข้อมูลเพิ่มขึ้นเรื่อยๆ ไม่มีการลบออกเด็ดขาด
-* เมื่อข้อมูลจาก SAP ตรงกับรายการเดิมใน Item Master:
-  * **ไม่แตะต้องและไม่อัปเดตทับ** ทั้ง `lead_time_days` และ `notify_alert_days` (คงค่าเดิม 100%)
-  * กำหนด `is_new = False` เมื่อพ้นวันหรือเป็นสินค้าเดิม
-
-### 10) 🗓️ สถาปัตยกรรมวันที่บริสุทธิ์ (Pure Date Standard) & มาตรฐาน dd/mm/yyyy ทั้งระบบ
-* **ที่มาและปัญหาเดิม (UTC Discrepancy):**
-  * ข้อมูลวันที่ส่งมอบ (`estimate_date`, `due_date`, `po_date`) เดิมจัดเก็บเป็น `TIMESTAMPTZ` (UTC) ใน PostgreSQL
-  * เมื่อ Frontend ส่งเวลาเที่ยงคืนไทย `2026-09-08 00:00:00+07` ฐานข้อมูลแปลงเป็น `2026-09-07 17:00:00 UTC` เมื่อเรียกผ่าน `.strftime("%Y-%m-%d")` หรือส่งต่อไปยัง Frontend โดยไม่มี Timezone Offset วันที่จะถอยหลังไป 1 วัน (กลายเป็น 07/09/2026) ส่งผลให้ในปฏิทิน Calendar และการประเมินสถานะ Overdue ผิดพลาด
-* **การแก้ไขด้วยแนวทาง Pure Date (Option 1):**
-  * **Database Type Migration (`init_db.py`):** แปลงประเภทคอลัมน์ `po_items.estimate_date`, `po_items.due_date`, `sub_items.estimate_date`, และ `po_headers.po_date` ใน PostgreSQL ให้เป็น **`DATE`** บริสุทธิ์ (ไม่มีเวลาและ Timezone) โดยใช้คำสั่ง `USING (column AT TIME ZONE 'Asia/Bangkok')::date` เพื่อให้ข้อมูลเดิมทั้งหมดถูกแปลงกลับมาเป็นวันที่ตามเวลาประเทศไทยตรงเป๊ะ ไม่เลื่อนถอยหลัง 1 วัน
-  * **SQLAlchemy & Pydantic Models:** ปรับ Type เป็น `Date` และ `datetime.date` ส่งสตริงวันที่รูปแบบมาตรฐาน `YYYY-MM-DD` บริสุทธิ์
-  * **Backend Services & Routers:**
-    * `calendar.py`: จัดส่ง Event Date เป็น `YYYY-MM-DD` แน่นอน ไม่เกิด Timezone Drift
-    * `receiving_checklist.py` & `dashboard.py`: คำนวณสถานะ Overdue, OTIF, และ 14-day Delivery Forecast โดยยึดวันปัจจุบัน (`today_date`) ในเวลา `Asia/Bangkok`
-    * `qms_integration.py`: ส่ง `delivery_date` และ `po_date` แบบ Pure Date ป้องกันความผิดพลาดของระบบภายนอก
-    * `sap_service.py`: ดึง `po_date` และ `due_date` จาก SAP แปลงเป็น Pure Date สะอาดทันทีก่อนบันทึก
-    * `email_service.py` & `telegram_service.py`: คำนวณวันหมดอายุ PRD Token และแสดงผลวันที่โดยอิงเวลาประเทศไทยอย่างแม่นยำ
-* **มาตรฐานการแสดงผล `dd/mm/yyyy` ครบทุกหน้าจอ:**
-  * หน้า **Operation**, **Calendar**, **Receiving Checklist**, **History**, **Item Master**, **Supplier Master**, และ **Supplier Portal** แสดงผลวันที่ทั้งหมดในรูปแบบ **`dd/mm/yyyy`** (เช่น `08/09/2026`) อย่างสม่ำเสมอ
-  * ฟังก์ชันแปลงวันที่ (`formatDateThai`, `formatDateDisplay`) ตรวจจับ Regex `YYYY-MM-DD` และสลับเป็น `dd/mm/yyyy` โดยตรง ไม่ผ่านการ parse UTC ที่อาจเกิด Timezone Shift
-  * ช่องกรอกวันที่ (Date Masking Input) รองรับการพิมพ์และจัดรูปแบบ `dd/mm/yyyy` พร้อมแปลงเป็น `YYYY-MM-DD` สำหรับส่งไปยัง Backend
-  * วันเวลาที่อัปเดตและ Audit Logs แสดงเป็น `dd/mm/yyyy hh:mm` (ค.ศ.) คงความเป็นเอกภาพทั่วทั้งระบบ
+### 5) 🔐 สรุปการเชื่อมต่อ Central IAM Single Sign-On (Steps 1-5 สำเร็จครบถ้วน)
+* **Step 1: DB Schema & System Settings** — ฟิลด์ `ciam_*` ใน `system_settings`
+* **Step 2: Backend Auth & SSO Routes** — `/api/auth/sso/login`, `/api/auth/sso/callback`, `/api/auth/break-glass`
+* **Step 3: Auto-provisioning & User Sync** — ดึง AD Attributes, ซิงค์กลุ่มผู้ใช้ และ Default Page
+* **Step 4: Central Management API** — Endpoint ปลอดภัยสำหรับ CIAM จัดการ User ข้ามระบบ
+* **Step 5: Frontend Clean Corporate SSO UI** — ปุ่ม SSO เข้าสู่ระบบด้วย Window Asia Account และ Break-Glass Modal
 
 ---
 
@@ -104,45 +73,47 @@
 
 ---
 
-## 📂 4. โครงสร้างไฟล์สำคัญ (Key Files Reference)
+## 📂 4. โครงสร้างไฟล์สำคัญที่ปรับปรุงล่าสุด (Key Files Reference)
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
-| [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | รัน Database Migration อัตโนมัติ แปลงคอลัมน์วันที่เป็น pure `DATE` ด้วย `AT TIME ZONE 'Asia/Bangkok'` |
-| [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | โมเดล SQLAlchemy กำหนด `po_date`, `due_date`, `estimate_date` เป็น `Date` |
-| [`backend/app/schemas/po.py`](file:///d:/Python/IRM/backend/app/schemas/po.py) | Pydantic Schemas กำหนด Data Type ของวันที่เป็น pure `date` (`YYYY-MM-DD`) |
-| [`backend/app/routers/calendar.py`](file:///d:/Python/IRM/backend/app/routers/calendar.py) | API ปฏิทินส่งของ พร้อมระบบ Universal Search และส่ง Event Date แบบ `YYYY-MM-DD` |
-| [`backend/app/routers/receiving_checklist.py`](file:///d:/Python/IRM/backend/app/routers/receiving_checklist.py) | API ใบตรวจรับสินค้าประจำวัน ตรวจสอบ Overdue เทียบกับเวลาประเทศไทย |
-| [`backend/app/routers/dashboard.py`](file:///d:/Python/IRM/backend/app/routers/dashboard.py) | API คำนวณ KPI ภาพรวม, OTIF, Overdue, และ 14-day Delivery Forecast บนเวลาไทย |
-| [`backend/app/services/telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py) | ระบบส่ง Telegram Alert, Morning Summary, และ Daily Inbound DM รายบุคคลตาม Item Groups |
-| [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | Background Cron Job ตรวจสอบรอบเวลาซิงค์ SAP (06:45), อีเมลแจ้งเตือน (08:00), และ Telegram DM รายบุคคล (07:30) |
-| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ระบบส่งอีเมลคู่ค้า คำนวณอายุ Token ตามรอบสัปดาห์ (23:59:59 BKK) พร้อมกลไก Reuse |
-| [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | หน้า Operation, การแตกงวดส่ง, Single-PO Token อายุ 1 ชม. พร้อมกลไก Reuse |
-| [`backend/app/services/sap_service.py`](file:///d:/Python/IRM/backend/app/services/sap_service.py) | ซิงค์ข้อมูล SAP B1 เวลา 06:45 น., แปลงวันที่เป็น `date` สะอาด, คงค่าเดิม Item Master |
-| [`backend/app/routers/central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) | Central Identity Management API (SCIM-Like) รองรับ `GET`, `PATCH`, และ `POST /accounts` |
-| [`backend/app/routers/external_qms.py`](file:///d:/Python/IRM/backend/app/routers/external_qms.py) | QMS Inbound Deliveries Integration API (`GET /api/external/qms/inbound-deliveries`) |
-| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | หน้า Operation รองรับกรอก/แสดงผล `dd/mm/yyyy`, คำนวณ Overdue เที่ยงคืนไทย |
-| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | ปฏิทินรอบส่งของ โหมดรายเดือน, รายปี (12 เดือน), Universal Search, และ Badge `dd/mm/yyyy` |
-| [`frontend/src/app/(dashboard)/receiving-checklist/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/receiving-checklist/page.tsx) | ใบตรวจรับสินค้าประจำวันสำหรับสโตร์/รปภ. พร้อมโหมดสั่งพิมพ์ A4 แนวนอน |
-| [`docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md`](file:///d:/Python/IRM/docs/CENTRAL_IDENTITY_MANAGEMENT_API_SPEC.md) | ข้อกำหนดมาตรฐาน API ระดับองค์กรสำหรับการเชื่อมต่อ Central IAM |
+| [`backend/app/migrations/add_performance_indexes.py`](file:///d:/Python/IRM/backend/app/migrations/add_performance_indexes.py) | สคริปต์รันสร้าง 13 Performance Index ใน PostgreSQL (`CREATE INDEX IF NOT EXISTS`) |
+| [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | กำหนด Index บน `status`, `closed_at`, `po_header_id`, `estimate_date` |
+| [`backend/app/models/group.py`](file:///d:/Python/IRM/backend/app/models/group.py) | ปรับ `Group.users` เป็น `lazy="select"` ตัดปัญหา Cascading Queries |
+| [`backend/app/models/menu.py`](file:///d:/Python/IRM/backend/app/models/menu.py) | ปรับ `Menu.auth_entries` เป็น `lazy="select"` |
+| [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | ลอจิก PO-Level Portal Link, ล็อคทั้ง PO, แก้ไข `base_url`, และบันทึก Audit/Transaction Logs |
+| [`backend/app/routers/supplier_portal.py`](file:///d:/Python/IRM/backend/app/routers/supplier_portal.py) | แก้ MissingGreenlet ด้วย `selectinload`, ฟอร์แมตเวลาหมดอายุเป็น `Asia/Bangkok` (+07:00) |
+| [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | ฟอร์แมตวันหมดอายุใน Token response เป็นเวลาไทย |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | เพิ่ม 12-hour cushion ใน `calculate_prd_expiry_date` ป้องกันลิงก์หมดอายุทันที |
+| [`frontend/src/lib/clipboard.ts`](file:///d:/Python/IRM/frontend/src/lib/clipboard.ts) | ยูทิลิตี้คัดลอก Clipboard แบบทนทาน มี Fallback `execCommand` ข้ามเบราว์เซอร์ |
+| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | แสดง Item Description เต็มรูปแบบ (ปลด `line-clamp-1`), อัปเดต PO-level lock บนตาราง |
+| [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | ปุ่มคัดลอกลิงก์ Supplier Portal พร้อม Fallback ป้องกันการคัดลอกไม่ติด |
 
 ---
 
 ## 🚀 5. คำสั่งอัปเดตระบบบน VPS Hostinger (`/var/www/Irm`)
 
 ```bash
+# 1. ไปที่โฟลเดอร์โปรเจกต์ IRM บน VPS
 cd /var/www/Irm
 
-# 1. ดึงโค้ดล่าสุดจาก main branch
+# 2. ดึงโค้ดล่าสุดจาก main branch
 git pull origin main
 
-# 2. รัน Migration สร้าง Performance Index ใน PostgreSQL
+# 3. รัน Migration สร้าง Performance Index ใน PostgreSQL (รันครั้งเดียวปลอดภัยด้วย IF NOT EXISTS)
 docker cp backend/app/migrations/add_performance_indexes.py irm-backend:/app/app/migrations/add_performance_indexes.py
 docker exec irm-backend python /app/app/migrations/add_performance_indexes.py
 
-# 3. Rebuild และ Restart คอนเทนเนอร์ irm-backend และ irm-frontend
+# 4. สั่ง Rebuild คอนเทนเนอร์ Backend และ Frontend
 docker compose up -d --build irm-backend irm-frontend
 
-# 4. ตรวจสอบสถานะการทำงาน
+# 5. ตรวจสอบสถานะการทำงาน
 docker compose ps
 ```
+
+---
+
+## 📌 6. Checkpoint สำหรับการเริ่มงานในครั้งหน้า (Next Session)
+* **สถานะปัจจุบัน:** โค้ดทั้งหมดได้รับการ Compile และทดสอบความถูกต้องผ่าน 100%, Git Commit & Push ขึ้น `main` (`commit 736b72b`) ครบถ้วน
+* **สิ่งที่ต้องทำต่อบน VPS:** รันคำสั่งในข้อ 5 เพื่อนำ Index และฟีเจอร์ใหม่ขึ้น Production
+* **เรื่องที่จะพูดคุยต่อในครั้งหน้า:** ตรวจสอบผลการใช้งานจริงบน Production หลัง Rebuild หรือขยายผลฟังก์ชันเพิ่มเติมตามที่ผู้ใช้ต้องการ
