@@ -2,11 +2,11 @@
 System Settings Router — Configuration management, Telegram test, SAP Connection test, and Manual SAP Sync trigger.
 """
 
-from typing import Annotated
+from typing import Annotated, Optional
 from datetime import datetime
 import httpx
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,12 @@ from app.models.transaction_log import TransactionLog
 from app.models.user import User
 from app.schemas.system_setting import SystemSettingResponse, SystemSettingsBulkUpdate
 from app.services.sap_service import sync_sap_open_pos
+from app.services.ciam_config_service import (
+    get_ciam_settings,
+    invalidate_ciam_cache,
+    test_ciam_connection_sync,
+)
+from app.services.log_service import record_transaction_log
 
 router = APIRouter(prefix="/api/settings", tags=["System Settings"])
 
@@ -591,3 +597,168 @@ async def regenerate_qms_api_key(
 
     await db.commit()
     return {"qms_api_key": new_token, "message": "สร้าง QMS API Key ใหม่สำเร็จ"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Central IAM SSO Management Endpoints (Group A - System Settings Channel)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def mask_secret(secret: Optional[str]) -> str:
+    """Mask secret displaying only prefix and suffix to prevent credential leakage."""
+    if not secret:
+        return ""
+    if len(secret) <= 8:
+        return "sec_****"
+    return f"{secret[:4]}****{secret[-4:]}"
+
+
+class CiamSsoSettingsUpdateRequest(BaseModel):
+    ciam_base_url: Optional[str] = None
+    ciam_client_id: Optional[str] = None
+    ciam_client_secret: Optional[str] = None
+    ciam_sso_enabled: Optional[bool] = None
+    ciam_break_glass_active: Optional[bool] = None
+    ciam_ad_gateway_url: Optional[str] = None
+    ciam_auto_provision_group: Optional[str] = None
+    ciam_session_ttl_minutes: Optional[int] = None
+
+
+class CiamTestConnectionRequest(BaseModel):
+    ciam_base_url: Optional[str] = None
+
+
+@router.get("/ciam-sso")
+async def get_ciam_sso_settings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "view"))],
+):
+    """
+    Retrieve Central IAM SSO runtime configuration with masked client secret.
+    Enforces Zero .env dependency and ISO 27001 compliance.
+    """
+    cfg = await get_ciam_settings(db, force_refresh=True)
+
+    stmt = select(func.max(SystemSetting.updated_at)).where(SystemSetting.key.like("ciam_%"))
+    last_updated = (await db.execute(stmt)).scalar()
+
+    return {
+        "status": "success",
+        "settings": {
+            "ciam_base_url": cfg["ciam_base_url"],
+            "ciam_client_id": cfg["ciam_client_id"],
+            "ciam_client_secret_masked": mask_secret(cfg.get("ciam_client_secret")),
+            "ciam_sso_enabled": cfg["ciam_sso_enabled"],
+            "ciam_break_glass_active": cfg["ciam_break_glass_active"],
+            "ciam_ad_gateway_url": cfg["ciam_ad_gateway_url"],
+            "ciam_auto_provision_group": cfg["ciam_auto_provision_group"],
+            "ciam_session_ttl_minutes": cfg["ciam_session_ttl_minutes"],
+            "updated_at": last_updated.isoformat() if last_updated else None,
+        },
+    }
+
+
+@router.put("/ciam-sso")
+async def update_ciam_sso_settings(
+    body: CiamSsoSettingsUpdateRequest,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """
+    Update Central IAM SSO configuration dynamically at runtime.
+    Invalidates in-memory cache and records transaction log (CFG-01).
+    """
+    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
+    if "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+
+    updates: dict[str, str] = {}
+    if body.ciam_base_url is not None:
+        updates["ciam_base_url"] = body.ciam_base_url.rstrip("/")
+    if body.ciam_client_id is not None:
+        updates["ciam_client_id"] = body.ciam_client_id.strip()
+    if body.ciam_client_secret is not None:
+        val = body.ciam_client_secret.strip()
+        if val and not val.startswith("sec_****") and "****" not in val:
+            updates["ciam_client_secret"] = val
+    if body.ciam_sso_enabled is not None:
+        updates["ciam_sso_enabled"] = "true" if body.ciam_sso_enabled else "false"
+    if body.ciam_break_glass_active is not None:
+        updates["ciam_break_glass_active"] = "true" if body.ciam_break_glass_active else "false"
+    if body.ciam_ad_gateway_url is not None:
+        updates["ciam_ad_gateway_url"] = body.ciam_ad_gateway_url.strip()
+    if body.ciam_auto_provision_group is not None:
+        updates["ciam_auto_provision_group"] = body.ciam_auto_provision_group.strip()
+    if body.ciam_session_ttl_minutes is not None:
+        updates["ciam_session_ttl_minutes"] = str(body.ciam_session_ttl_minutes)
+
+    changed_fields = []
+    for key, str_val in updates.items():
+        stmt = select(SystemSetting).where(SystemSetting.key == key)
+        row = (await db.execute(stmt)).scalar_one_or_none()
+        if row:
+            if row.value != str_val:
+                row.value = str_val
+                changed_fields.append(key)
+        else:
+            new_row = SystemSetting(
+                key=key,
+                value=str_val,
+                category="central_iam",
+                data_type="encrypted" if "secret" in key else ("boolean" if "enabled" in key or "active" in key else "string"),
+                description=f"Central IAM SSO: {key}",
+            )
+            db.add(new_row)
+            changed_fields.append(key)
+
+    await db.commit()
+    invalidate_ciam_cache()
+
+    # Record ISO 27001 Audit Log (CFG-01)
+    if changed_fields:
+        await record_transaction_log(
+            category="system_setting",
+            action="update_ciam_settings",
+            status="success",
+            message="แก้ไขการตั้งค่าระบบ Central IAM SSO",
+            details={"changed_fields": changed_fields, "ip": client_ip},
+            triggered_by=f"user:{current_user.username}",
+            db=db,
+        )
+
+    refreshed = await get_ciam_settings(db, force_refresh=True)
+    return {
+        "status": "success",
+        "message": "บันทึกการตั้งค่า Central IAM SSO สำเร็จ",
+        "changed_fields": changed_fields,
+        "settings": {
+            "ciam_base_url": refreshed["ciam_base_url"],
+            "ciam_client_id": refreshed["ciam_client_id"],
+            "ciam_client_secret_masked": mask_secret(refreshed.get("ciam_client_secret")),
+            "ciam_sso_enabled": refreshed["ciam_sso_enabled"],
+            "ciam_break_glass_active": refreshed["ciam_break_glass_active"],
+            "ciam_ad_gateway_url": refreshed["ciam_ad_gateway_url"],
+            "ciam_auto_provision_group": refreshed["ciam_auto_provision_group"],
+            "ciam_session_ttl_minutes": refreshed["ciam_session_ttl_minutes"],
+        },
+    }
+
+
+@router.post("/ciam-sso/test-connection")
+async def test_ciam_connection_endpoint(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "view"))],
+    body: Optional[CiamTestConnectionRequest] = None,
+):
+    """
+    Test connectivity from IRM to Central IAM Discovery & JWKS endpoint.
+    Returns latency, issuer info, and JWKS key status within 3-second timeout.
+    """
+    base_url = body.ciam_base_url if (body and body.ciam_base_url) else None
+    if not base_url:
+        cfg = await get_ciam_settings(db)
+        base_url = cfg.get("ciam_base_url", "https://ciam.windowasia.com")
+
+    result = test_ciam_connection_sync(base_url)
+    return result
+

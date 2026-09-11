@@ -28,6 +28,8 @@ import {
   Activity,
   FileJson,
   ExternalLink,
+  Zap,
+  AlertTriangle,
 } from 'lucide-react';
 
 function formatDateThai(dateStr?: string | null) {
@@ -96,6 +98,43 @@ export default function SettingsPage() {
   const [testInboundChatId, setTestInboundChatId] = useState('');
   const [testingInboundDm, setTestingInboundDm] = useState(false);
 
+  // Central IAM SSO State
+  const [ciamSettings, setCiamSettings] = useState<{
+    ciam_base_url: string;
+    ciam_client_id: string;
+    ciam_client_secret_masked: string;
+    ciam_sso_enabled: boolean;
+    ciam_break_glass_active: boolean;
+    ciam_ad_gateway_url: string;
+    ciam_auto_provision_group: string;
+    ciam_session_ttl_minutes: number;
+    updated_at?: string | null;
+  }>({
+    ciam_base_url: 'https://ciam.windowasia.com',
+    ciam_client_id: 'irm-spoke-client',
+    ciam_client_secret_masked: 'sec_****2026',
+    ciam_sso_enabled: true,
+    ciam_break_glass_active: false,
+    ciam_ad_gateway_url: 'http://192.168.12.11:3100',
+    ciam_auto_provision_group: 'PU User',
+    ciam_session_ttl_minutes: 480,
+  });
+  const [editingSecret, setEditingSecret] = useState(false);
+  const [newClientSecret, setNewClientSecret] = useState('');
+  const [testingCiam, setTestingCiam] = useState(false);
+  const [ciamTestResult, setCiamTestResult] = useState<{
+    status: string;
+    latency_ms?: number;
+    ciam_issuer?: string;
+    jwks_uri?: string;
+    keys_found?: number;
+    key_id?: string;
+    message?: string;
+  } | null>(null);
+  const [togglingBreakGlass, setTogglingBreakGlass] = useState(false);
+  const [groupList, setGroupList] = useState<{ id: number; name: string }[]>([]);
+  const [savingCiam, setSavingCiam] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentOrigin(window.location.origin);
@@ -103,7 +142,97 @@ export default function SettingsPage() {
     fetchSettings();
     fetchApiStatus();
     fetchUsers();
+    fetchCiamSettings();
+    fetchGroups();
   }, []);
+
+  const fetchCiamSettings = async () => {
+    try {
+      const res = await api.get('/api/settings/ciam-sso');
+      if (res.data?.settings) {
+        setCiamSettings(res.data.settings);
+      }
+    } catch (err) {
+      console.error('Failed to fetch CIAM SSO settings:', err);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const res = await api.get('/api/groups');
+      setGroupList(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+    }
+  };
+
+  const handleTestCiamConnection = async () => {
+    setTestingCiam(true);
+    setCiamTestResult(null);
+    try {
+      const res = await api.post('/api/settings/ciam-sso/test-connection', {
+        ciam_base_url: ciamSettings.ciam_base_url,
+      });
+      setCiamTestResult(res.data);
+    } catch (err: any) {
+      setCiamTestResult({
+        status: 'failed',
+        message: err.response?.data?.detail || err.message || 'ทดสอบการเชื่อมต่อล้มเหลว',
+      });
+    } finally {
+      setTestingCiam(false);
+    }
+  };
+
+  const handleSaveCiamSettings = async () => {
+    setSavingCiam(true);
+    setMessage(null);
+    try {
+      const payload: any = {
+        ciam_base_url: ciamSettings.ciam_base_url,
+        ciam_client_id: ciamSettings.ciam_client_id,
+        ciam_sso_enabled: ciamSettings.ciam_sso_enabled,
+        ciam_break_glass_active: ciamSettings.ciam_break_glass_active,
+        ciam_ad_gateway_url: ciamSettings.ciam_ad_gateway_url,
+        ciam_auto_provision_group: ciamSettings.ciam_auto_provision_group,
+        ciam_session_ttl_minutes: Number(ciamSettings.ciam_session_ttl_minutes) || 480,
+      };
+      if (editingSecret && newClientSecret.trim()) {
+        payload.ciam_client_secret = newClientSecret.trim();
+      }
+      const res = await api.put('/api/settings/ciam-sso', payload);
+      if (res.data?.settings) {
+        setCiamSettings(res.data.settings);
+      }
+      setEditingSecret(false);
+      setNewClientSecret('');
+      setMessage({ type: 'success', text: 'บันทึกการตั้งค่า Central IAM SSO สำเร็จเรียบร้อยแล้ว' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'บันทึกการตั้งค่า Central IAM SSO ล้มเหลว' });
+    } finally {
+      setSavingCiam(false);
+    }
+  };
+
+  const handleToggleBreakGlass = async (newActiveState: boolean) => {
+    const actionText = newActiveState ? 'เปิดโหมดฉุกเฉิน (Break-Glass Active)' : 'ปิดโหมดฉุกเฉิน (กลับสู่ SSO ปกติ)';
+    if (!confirm(`คุณต้องการ ${actionText} ใช่หรือไม่?\n\nเมื่อเปิดโหมดฉุกเฉิน พนักงานทุกคนจะต้องล็อกอินด้วยรหัสผ่าน Active Directory หรือ Local Admin`)) {
+      return;
+    }
+    setTogglingBreakGlass(true);
+    try {
+      const res = await api.post('/api/auth/sso/break-glass-toggle', {
+        break_glass_active: newActiveState,
+        reason: newActiveState ? 'เปิดใช้งาน Break-Glass จากหน้า System Settings' : 'ปิด Break-Glass กลับสู่โหมด SSO ปกติ',
+      });
+      await fetchCiamSettings();
+      setMessage({ type: 'success', text: res.data?.message || `สลับสถานะ Break-Glass สำเร็จ` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'สลับโหมด Break-Glass ล้มเหลว' });
+    } finally {
+      setTogglingBreakGlass(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -512,14 +641,21 @@ export default function SettingsPage() {
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
         >
           <Server className="w-4 h-4 text-emerald-600" />
-          <span>5. SAP B1 MS SQL Connection</span>
+          <span>5. SAP B1 MS SQL</span>
+        </a>
+        <a
+          href="#sec-ciam-sso"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
+        >
+          <ShieldCheck className="w-4 h-4 text-blue-600" />
+          <span>6. Central IAM SSO</span>
         </a>
         <a
           href="#sec-central-iam"
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-300 transition shadow-sm whitespace-nowrap"
         >
           <Key className="w-4 h-4 text-emerald-600" />
-          <span>7. Central IAM API</span>
+          <span>7. Central IAM API (SCIM)</span>
         </a>
         <a
           href="#sec-qms-api"
@@ -1342,6 +1478,277 @@ export default function SettingsPage() {
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>
+          </div>
+        </div>
+
+        {/* ================================================================= */}
+        {/* Section 6: Window Asia Central IAM Single Sign-On (SSO)           */}
+        {/* ================================================================= */}
+        <div id="sec-ciam-sso" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5 scroll-mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5 text-slate-800 font-bold text-base">
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
+              <span>6. Window Asia Central IAM Single Sign-On (OIDC / PKCE SSO)</span>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {ciamSettings.ciam_break_glass_active ? (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Break-Glass Active</span>
+                </span>
+              ) : ciamSettings.ciam_sso_enabled ? (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Active / Ready</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                  <span>Disabled</span>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleTestCiamConnection}
+                disabled={testingCiam}
+                className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                {testingCiam ? (
+                  <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Zap className="w-3.5 h-3.5 text-blue-600" />
+                )}
+                <span>{testingCiam ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}</span>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed">
+            ระบบพิสูจน์ตัวตนกลางองค์กร (Window Asia Central IAM) ตามมาตรฐาน OpenID Connect (OIDC) และ OAuth 2.0 with PKCE S256 จัดเก็บคอนฟิกแบบ Zero .env และรองรับการสลับโหมดปลดระบบฉุกเฉิน (Break-Glass Fallback) ระดับ ISO 27001
+          </p>
+
+          {/* Test Connection Result Alert */}
+          {ciamTestResult && (
+            <div
+              className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 animate-fadeIn ${
+                ciamTestResult.status === 'connected'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
+              {ciamTestResult.status === 'connected' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1 flex-grow">
+                <div className="font-bold flex items-center justify-between">
+                  <span>{ciamTestResult.message || (ciamTestResult.status === 'connected' ? 'เชื่อมต่อสำเร็จ' : 'เชื่อมต่อล้มเหลว')}</span>
+                  {ciamTestResult.latency_ms !== undefined && (
+                    <span className="font-mono text-[10px] opacity-80">Latency: {ciamTestResult.latency_ms} ms</span>
+                  )}
+                </div>
+                {ciamTestResult.status === 'connected' && (
+                  <div className="text-[11px] text-emerald-700 font-mono space-y-0.5 pt-1">
+                    <div>Issuer: {ciamTestResult.ciam_issuer}</div>
+                    <div>JWKS Keys: {ciamTestResult.keys_found} (Key ID: {ciamTestResult.key_id})</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Form Fields Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Central IAM Base URL (OIDC Issuer) *
+              </label>
+              <input
+                type="text"
+                value={ciamSettings.ciam_base_url}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_base_url: e.target.value })}
+                placeholder="https://ciam.windowasia.com"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">URL ของเซิร์ฟเวอร์ Central IAM (ห้ามมี / ต่อท้าย)</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                OIDC Client ID *
+              </label>
+              <input
+                type="text"
+                value={ciamSettings.ciam_client_id}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_client_id: e.target.value })}
+                placeholder="irm-spoke-client"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Client ID ที่ลงทะเบียนไว้บน Central IAM Portal</span>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  OIDC Client Secret *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSecret(!editingSecret);
+                    if (editingSecret) setNewClientSecret('');
+                  }}
+                  className="text-[11px] text-sky-600 hover:text-sky-700 font-medium cursor-pointer"
+                >
+                  {editingSecret ? 'ยกเลิก' : 'เปลี่ยน Secret ใหม่'}
+                </button>
+              </div>
+              {editingSecret ? (
+                <input
+                  type="password"
+                  value={newClientSecret}
+                  onChange={(e) => setNewClientSecret(e.target.value)}
+                  placeholder="กรอก Secret ใหม่ที่ได้รับจาก Central IAM"
+                  className="w-full px-3.5 py-2 bg-amber-50/50 border border-amber-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-amber-500 outline-none font-mono text-xs"
+                />
+              ) : (
+                <input
+                  type="text"
+                  disabled
+                  value={ciamSettings.ciam_client_secret_masked || 'sec_****2026'}
+                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-sm font-mono text-xs select-none"
+                />
+              )}
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                {editingSecret ? 'ใส่ค่าใหม่เฉพาะเมื่อต้องการหมุนเวียน (Rotate) Secret' : 'รหัสลับถูก Mask ไว้ตามมาตรฐานความปลอดภัย ISO 27001'}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Active Directory Gateway URL (Break-Glass Fallback) *
+              </label>
+              <input
+                type="text"
+                value={ciamSettings.ciam_ad_gateway_url}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_ad_gateway_url: e.target.value })}
+                placeholder="http://192.168.12.11:3100"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">URL ของ AD Gateway สำหรับโหมดปลดระบบฉุกเฉิน</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                กลุ่มสิทธิ์เริ่มต้นสำหรับพนักงานใหม่ (Auto-Provisioned Group) *
+              </label>
+              <select
+                value={ciamSettings.ciam_auto_provision_group}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_auto_provision_group: e.target.value })}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none text-xs"
+              >
+                {groupList.filter(g => g.name !== 'Admin').map((g) => (
+                  <option key={g.id} value={g.name}>
+                    {g.name}
+                  </option>
+                ))}
+                {!groupList.some(g => g.name === ciamSettings.ciam_auto_provision_group) && (
+                  <option value={ciamSettings.ciam_auto_provision_group}>{ciamSettings.ciam_auto_provision_group}</option>
+                )}
+              </select>
+              <span className="text-[10px] text-slate-400 mt-1 block">กลุ่มสิทธิ์ที่พนักงานที่ล็อกอิน SSO ครั้งแรกจะได้รับอัตโนมัติ (ห้าม Admin)</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Session Token TTL ในระบบ IRM (นาที) *
+              </label>
+              <input
+                type="number"
+                min={30}
+                max={1440}
+                value={ciamSettings.ciam_session_ttl_minutes}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_session_ttl_minutes: Number(e.target.value) })}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none text-xs"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">อายุของ Access Token ในระบบ IRM (ค่าแนะนำ: 480 นาที / 8 ชั่วโมง)</span>
+            </div>
+          </div>
+
+          {/* Master SSO Switch */}
+          <div className="p-3.5 bg-blue-50/60 border border-blue-200 rounded-xl flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                <span>เปิดใช้งาน Central IAM Single Sign-On (Enforce SSO)</span>
+              </span>
+              <p className="text-[11px] text-blue-800">
+                เมื่อเปิดใช้งาน หน้า Login จะแสดงปุ่มล็อกอินผ่าน Central IAM SSO เป็นช่องทางหลัก
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={ciamSettings.ciam_sso_enabled}
+                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_sso_enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Break-Glass Emergency Control Panel (ISO 27001) */}
+          <div className="p-4 bg-amber-50/70 border border-amber-300 rounded-xl space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>โหมดปลดระบบฉุกเฉิน (Break-Glass Emergency Control — ISO 27001)</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  กรณีเกิดเหตุขัดข้องของระบบ Central IAM บนคลาวด์ หรือสัญญาณเน็ตเวิร์กขาดหาย ให้เปิดสวิตช์นี้เพื่อปลดระบบให้พนักงานสลับไปล็อกอินด้วยรหัสผ่าน Active Directory หรือ Local Admin ทันที
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleToggleBreakGlass(!ciamSettings.ciam_break_glass_active)}
+                disabled={togglingBreakGlass}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition shrink-0 cursor-pointer disabled:opacity-50 ${
+                  ciamSettings.ciam_break_glass_active
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700 shadow-sm'
+                }`}
+              >
+                {togglingBreakGlass
+                  ? 'กำลังสลับ...'
+                  : ciamSettings.ciam_break_glass_active
+                  ? 'ปิด Break-Glass (กลับสู่ SSO)'
+                  : 'เปิดโหมด Break-Glass ฉุกเฉิน'}
+              </button>
+            </div>
+            {ciamSettings.ciam_break_glass_active && (
+              <div className="p-2.5 bg-amber-100/80 border border-amber-300/80 rounded-lg text-[11px] text-amber-900 font-semibold flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping"></span>
+                <span>ขณะนี้ระบบกำลังทำงานในโหมดฉุกเฉิน (Break-Glass Active) — ปิดรับ SSO และเปิดรับรหัสผ่านผ่าน AD Gateway สำรอง</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Row */}
+          <div className="flex items-center justify-end pt-2">
+            <button
+              type="button"
+              onClick={handleSaveCiamSettings}
+              disabled={savingCiam}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              {savingCiam ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>{savingCiam ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า Central IAM SSO'}</span>
+            </button>
           </div>
         </div>
 

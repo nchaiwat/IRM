@@ -1,3 +1,4 @@
+from app.routers.sso import router as sso_router
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.groups import router as groups_router
@@ -36,4 +37,5 @@ __all__ = [
     "qms_integration_router",
     "receiving_checklist_router",
     "central_management_router",
+    "sso_router",
 ]

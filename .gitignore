@@ -31,6 +31,7 @@ build/
 *.egg-info/
 .next/
 out/
+*.tsbuildinfo
 
 # Docker
 docker-compose.override.yml

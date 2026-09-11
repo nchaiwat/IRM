@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     BACKEND_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:3001"
 
+    # Central IAM SSO & Break-Glass Configuration
+    CIAM_BASE_URL: str = "http://localhost:8001"
+    CIAM_CLIENT_ID: str = "irm-spoke-client"
+    CIAM_CLIENT_SECRET: str = "sec_irm_oauth_secret_2026"
+    CIAM_SSO_ENABLED: bool = True
+    CIAM_AD_GATEWAY_URL: str = "http://192.168.12.11:3100" 
+
     @property
     def database_url(self) -> str:
         return (

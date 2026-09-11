@@ -284,6 +284,15 @@ async def seed_data():
                 ("ad_enabled", "false", "เปิดใช้งานการตรวจสอบสิทธิ์ผ่าน Active Directory (AD Authentication)", "ad", "boolean"),
                 ("management_api_key", "sec_irm_mgmt_9a4f21e8d3b76c501e4a", "Secret API Key สำหรับ Central Management App เรียกดูและระงับสิทธิ์บัญชีผู้ใช้", "integration", "string"),
                 ("management_allowed_ips", "", "รายการ IP ของ Central Management Server ที่อนุญาตให้ยิง API (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "integration", "string"),
+                # Central IAM SSO Integration Settings (ISO 27001 Zero .env)
+                ("ciam_base_url", "https://ciam.windowasia.com", "Central IAM Engine Base URL (OIDC Issuer)", "central_iam", "string"),
+                ("ciam_client_id", "irm-spoke-client", "Central IAM OIDC Client ID", "central_iam", "string"),
+                ("ciam_client_secret", "sec_irm_oauth_secret_2026", "Central IAM OIDC Client Secret", "central_iam", "encrypted"),
+                ("ciam_sso_enabled", "true", "สวิตช์หลักเปิด/ปิดการเข้าใช้งานด้วย Central IAM SSO", "central_iam", "boolean"),
+                ("ciam_break_glass_active", "false", "โหมดปลดระบบฉุกเฉิน (สลับไปล็อกอินตรงด้วย AD Gateway หรือ Local)", "central_iam", "boolean"),
+                ("ciam_ad_gateway_url", "http://192.168.12.11:3100", "URL เซิร์ฟเวอร์ AD Gateway ภายในองค์กรสำหรับโหมดฉุกเฉิน", "central_iam", "string"),
+                ("ciam_auto_provision_group", "PU User", "กลุ่มสิทธิ์เริ่มต้นสำหรับพนักงานใหม่ที่ล็อกอินผ่าน SSO ครั้งแรก", "central_iam", "string"),
+                ("ciam_session_ttl_minutes", "480", "อายุ Access Token ประจำระบบ IRM (นาที)", "central_iam", "integer"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:
