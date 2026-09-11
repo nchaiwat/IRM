@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import { POItemResponse } from '@/types';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -732,12 +733,37 @@ export default function OperationPage() {
 
   const handleCopyItemPortalLink = async (itemId: number) => {
     try {
-      const res = await api.get<{ portal_url: string }>(`/api/operation/items/${itemId}/portal-link`);
-      navigator.clipboard.writeText(res.data.portal_url);
-      setCopiedItemId(itemId);
-      setTimeout(() => setCopiedItemId(null), 2000);
+      const res = await api.get<{
+        portal_url: string;
+        po_number: string;
+        expires_at_formatted: string;
+        locked_count: number;
+        locked_item_ids: number[];
+      }>(`/api/operation/items/${itemId}/portal-link`);
+
+      const copied = await copyToClipboard(res.data.portal_url);
+      if (copied) {
+        setCopiedItemId(itemId);
+        setTimeout(() => setCopiedItemId(null), 3000);
+      } else {
+        window.prompt('คัดลอกลิงก์สำหรับ Supplier Portal (กด Ctrl+C เพื่อคัดลอก):', res.data.portal_url);
+      }
+
+      // Update local state for ALL items belonging to this PO (Requirement #2)
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.po_number === res.data.po_number && it.status !== 'closed') {
+            return {
+              ...it,
+              locked_by: 'supplier',
+              status: it.status === 'pending' || it.status === 'estimate' ? 'awaiting_supplier' : it.status,
+            };
+          }
+          return it;
+        })
+      );
     } catch (err: any) {
-      alert('ไม่สามารถดึงลิงก์ Portal ได้');
+      alert(err.response?.data?.detail || 'ไม่สามารถดึงลิงก์ Portal ได้');
     }
   };
 

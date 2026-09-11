@@ -2,7 +2,7 @@
 Supplier Portal Router — Cryptographic Token Validation, One-time Submission Lock, Quantity Validation, and PRD Expiration Window Enforcement.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from typing import Annotated
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -61,6 +61,7 @@ async def get_supplier_po_items(
         stmt_fallback = (
             select(POItem, POHeader)
             .join(POHeader, POItem.po_header_id == POHeader.id)
+            .options(selectinload(POItem.sub_items))
             .where(POHeader.status == "O")
             .where(POHeader.supplier_code == token)
             .order_by(POHeader.po_number.desc(), POItem.id.asc())
@@ -76,12 +77,13 @@ async def get_supplier_po_items(
     else:
         supplier_code = token_obj.supplier_code
         is_submitted = token_obj.is_submitted
-        is_single_po = token_obj.po_number is not None
-        expires_at_formatted = token_obj.expires_at.strftime("%d/%m/%Y เวลา %H:%M น.")
+        bkk_tz = timezone(timedelta(hours=7))
+        exp_bkk = token_obj.expires_at.astimezone(bkk_tz) if token_obj.expires_at.tzinfo else token_obj.expires_at
+        expires_at_formatted = exp_bkk.strftime("%d/%m/%Y เวลา %H:%M น.")
 
-        # Check Expiration Window (1-hour for single PO tokens, or midnight for daily broadcast tokens)
+        # Check Expiration Window (PRD round expiration)
         if token_obj.expires_at < now_dt:
-            expiry_msg = f"ลิงก์ด่วนเฉพาะ PO นี้หมดอายุแล้ว (อายุ 1 ชั่วโมง - หมดอายุเมื่อ {expires_at_formatted})" if is_single_po else f"ลิงก์นี้หมดอายุการกรอกข้อมูลแล้ว (หมดอายุเมื่อ {expires_at_formatted})"
+            expiry_msg = f"ลิงก์ด่วนเฉพาะ PO นี้หมดอายุแล้ว (หมดอายุเมื่อ {expires_at_formatted})" if is_single_po else f"ลิงก์นี้หมดอายุการกรอกข้อมูลแล้ว (หมดอายุเมื่อ {expires_at_formatted})"
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=expiry_msg,
@@ -90,6 +92,7 @@ async def get_supplier_po_items(
         stmt_pos = (
             select(POItem, POHeader)
             .join(POHeader, POItem.po_header_id == POHeader.id)
+            .options(selectinload(POItem.sub_items))
             .where(POHeader.status == "O")
             .where(POHeader.supplier_code == supplier_code)
         )

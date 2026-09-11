@@ -24,7 +24,7 @@ class Menu(Base):
     children = relationship("Menu", back_populates="parent", cascade="all, delete-orphan", lazy="selectin", order_by="Menu.sort_order")
 
     # Relationships
-    auth_entries = relationship("AuthMatrix", back_populates="menu", cascade="all, delete-orphan", lazy="selectin")
+    auth_entries = relationship("AuthMatrix", back_populates="menu", cascade="all, delete-orphan", lazy="select")
 
     def __repr__(self) -> str:
         return f"<Menu(id={self.id}, name='{self.name}', parent_id={self.parent_id})>"

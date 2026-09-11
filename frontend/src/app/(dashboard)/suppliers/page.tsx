@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import { SupplierMaster } from '@/types';
 import {
   Factory,
@@ -203,9 +204,13 @@ export default function SuppliersPage() {
   const handleCopyLink = async (supplierId: number, supplierCode: string) => {
     try {
       const res = await api.post<{ token: string; portal_url: string }>(`/api/suppliers/${supplierId}/token`);
-      navigator.clipboard.writeText(res.data.portal_url);
-      setCopiedCode(supplierCode);
-      setTimeout(() => setCopiedCode(null), 2000);
+      const copied = await copyToClipboard(res.data.portal_url);
+      if (copied) {
+        setCopiedCode(supplierCode);
+        setTimeout(() => setCopiedCode(null), 3000);
+      } else {
+        window.prompt('คัดลอกลิงก์สำหรับ Supplier Portal (กด Ctrl+C เพื่อคัดลอก):', res.data.portal_url);
+      }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างลิงก์');
     }

@@ -234,9 +234,11 @@ async def generate_token_for_supplier(
     if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
         base_url = base_url.replace("http://", "https://")
 
+    bkk_tz = timezone(timedelta(hours=7))
+    exp_bkk = token_obj.expires_at.astimezone(bkk_tz) if token_obj.expires_at.tzinfo else token_obj.expires_at
     return {
         "token": token_obj.token,
-        "expires_at": token_obj.expires_at.strftime("%d/%m/%Y %H:%M:%S"),
+        "expires_at": exp_bkk.strftime("%d/%m/%Y %H:%M:%S"),
         "portal_url": f"{base_url}/supplier/portal/{token_obj.token}",
     }
 

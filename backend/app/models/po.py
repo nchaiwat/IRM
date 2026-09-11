@@ -47,7 +47,7 @@ class POItem(Base):
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     is_new: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
     
     # Ownership Lock & Conflict Management ('user' | 'supplier' | None)
     locked_by: Mapped[str | None] = mapped_column(String(20), nullable=True)

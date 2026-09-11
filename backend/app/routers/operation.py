@@ -717,12 +717,15 @@ async def get_item_portal_link(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """
-    Generate an Instant Encrypted Single-PO Token with a strict 1-Hour Expiration Window.
-    Provides instant secure access strictly for this single PO without exposing parameters.
+    Generate an Encrypted Portal Token for the ENTIRE PO of this item and lock all items in the PO.
+    Provides instant secure access strictly for all line items of this PO.
     """
     import secrets
     from datetime import datetime, timezone, timedelta
     from app.models.supplier_token import SupplierPortalToken
+    from app.models.system_setting import SystemSetting
+    from app.models.transaction_log import TransactionLog
+    from app.services.email_service import calculate_prd_expiry_date
 
     stmt = select(POItem).where(POItem.id == item_id)
     item = (await db.execute(stmt)).scalar_one_or_none()
@@ -730,10 +733,19 @@ async def get_item_portal_link(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PO Item not found")
 
     header = (await db.execute(select(POHeader).where(POHeader.id == item.po_header_id))).scalar_one()
-    
-    # 1. Check if an active unsubmitted token already exists for this PO
-    now_dt = datetime.now(timezone(timedelta(hours=7)))
-    expires_at = now_dt + timedelta(hours=1)
+
+    # 1. Resolve App Base URL
+    stmt_base = select(SystemSetting).where(SystemSetting.key == "app_base_url")
+    base_setting = (await db.execute(stmt_base)).scalar_one_or_none()
+    base_url = base_setting.value.strip().rstrip("/") if base_setting and base_setting.value else "https://irm.windowasia.com"
+    if "irm.windowasia.com" in base_url and base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    elif not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+
+    # 2. Check if an active unsubmitted token already exists for this PO
+    now_dt = datetime.now(timezone.utc)
+    target_expiry = calculate_prd_expiry_date(now_dt)
 
     stmt_active = (
         select(SupplierPortalToken)
@@ -749,6 +761,10 @@ async def get_item_portal_link(
 
     if existing_tok:
         token_obj = existing_tok
+        if token_obj.expires_at < target_expiry:
+            token_obj.expires_at = target_expiry
+            await db.commit()
+            await db.refresh(token_obj)
     else:
         stmt_revoke = (
             select(SupplierPortalToken)
@@ -768,11 +784,51 @@ async def get_item_portal_link(
             supplier_code=header.supplier_code,
             po_number=header.po_number,
             is_submitted=False,
-            expires_at=expires_at,
+            expires_at=target_expiry,
         )
         db.add(token_obj)
         await db.commit()
         await db.refresh(token_obj)
+
+    # 3. Lock ALL items in this entire PO for supplier input (Requirement #2)
+    stmt_all_items = (
+        select(POItem)
+        .where(
+            POItem.po_header_id == header.id,
+            POItem.status != "closed",
+        )
+    )
+    po_items = (await db.execute(stmt_all_items)).scalars().all()
+
+    bkk_exp_str = token_obj.expires_at.astimezone(timezone(timedelta(hours=7))).strftime("%d/%m/%Y เวลา %H:%M น.")
+    locked_count = 0
+    for po_it in po_items:
+        po_it.locked_by = "supplier"
+        po_it.lock_expires_at = token_obj.expires_at
+        if po_it.status in ["pending", "estimate"]:
+            po_it.status = "awaiting_supplier"
+
+        audit_log = POItemAuditLog(
+            po_item_id=po_it.id,
+            action="portal_link_generated",
+            changes_detail=f"สร้างลิงก์และล็อคให้ Supplier สำหรับทั้ง PO {header.po_number} (หมดอายุ {bkk_exp_str})",
+            changed_by_name=current_user.full_name,
+            changed_by_type="user",
+        )
+        db.add(audit_log)
+        locked_count += 1
+
+    t_log = TransactionLog(
+        category="supplier_portal",
+        action="generate_po_link",
+        status="success",
+        message=f"Generated Portal link for PO {header.po_number}",
+        details=f"Supplier: {header.supplier_code}, {locked_count} items locked under PO {header.po_number}",
+        records_count=locked_count,
+        triggered_by=f"user:{current_user.full_name}",
+    )
+    db.add(t_log)
+    await db.commit()
 
     portal_url = f"{base_url}/supplier/portal/{token_obj.token}"
 
@@ -783,6 +839,9 @@ async def get_item_portal_link(
         "token": token_obj.token,
         "portal_url": portal_url,
         "expires_at": token_obj.expires_at.isoformat(),
+        "expires_at_formatted": bkk_exp_str,
+        "locked_count": locked_count,
+        "locked_item_ids": [it.id for it in po_items],
     }
 
 

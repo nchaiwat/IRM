@@ -24,7 +24,7 @@ class Group(Base):
     )
 
     # Relationships
-    users = relationship("User", back_populates="group", lazy="selectin")
+    users = relationship("User", back_populates="group", lazy="select")
     auth_entries = relationship("AuthMatrix", back_populates="group", lazy="selectin")
 
     def __repr__(self) -> str:

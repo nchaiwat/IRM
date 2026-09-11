@@ -72,6 +72,13 @@ def calculate_prd_expiry_date(now_dt: datetime | None = None) -> datetime:
         days_ahead = 6 - weekday
 
     exp_bkk = (now_bkk + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59, microsecond=0)
+    # Cushion: If less than 12 hours remain in current window, advance to following round window
+    if (exp_bkk - now_bkk).total_seconds() < 12 * 3600:
+        if weekday <= 2:
+            exp_bkk = exp_bkk + timedelta(days=4)
+        else:
+            exp_bkk = exp_bkk + timedelta(days=3)
+
     return exp_bkk.astimezone(timezone.utc)
 
 
