@@ -57,6 +57,16 @@
 * **Step 4: Central Management API** — Endpoint ปลอดภัยสำหรับ CIAM จัดการ User ข้ามระบบ
 * **Step 5: Frontend Clean Corporate SSO UI** — ปุ่ม SSO เข้าสู่ระบบด้วย Window Asia Account และ Break-Glass Modal
 
+### 6) ⚙️ เพิ่มหน้าจอตั้งค่า Central IAM SSO UI (Section 9 ใน System Settings)
+* **การ์ดตั้งค่า Section 9:** เพิ่มการ์ด UI ส่วน "9. Window Asia Central IAM (Single Sign-On & OIDC/OAuth 2.0)" ใน [`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)
+* **ฟิลด์ตั้งค่าครบถ้วน:** รองรับการกรอก `ciam_base_url`, `ciam_client_id`, แก้ไข `ciam_client_secret`, สวิตช์เปิด/ปิด SSO, สลับโหมดฉุกเฉิน Break-Glass, เลือกกลุ่มสิทธิ์เริ่มต้น (Auto-Provision Group), และระบุ Session TTL
+* **ปุ่มทดสอบการเชื่อมต่อ (JWKS):** รองรับการทดสอบ Discovery & JWKS endpoint แบบ Real-time พร้อมแสดง Latency และจำนวน Key
+
+### 7) 🚚 ปรับปรุง Telegram Inbound Daily DM: ปรับช่วงเวลาล่วงหน้าจาก 7 วันเป็น 3 วัน
+* **เหตุผล:** ผู้ใช้ต้องการสรุปยอดล่วงหน้าที่กระชับขึ้น เนื่องจาก 7 วันนานเกินไป
+* **การแก้ไข:** ปรับ `next_7d` เป็น `next_3d` ใน [`telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py) และปรับคำอธิบายในหน้า [`admin/settings`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) และ [`admin/users`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) เป็น *"กำหนดส่งใน 3 วันข้างหน้า"*
+
+
 ---
 
 ## 🗂️ 3. ลำดับเมนูที่เป็นทางการของระบบ (Official Menu Order)

@@ -281,7 +281,7 @@ export default function UsersPage() {
             </span>
           </label>
           <p className="text-[11px] text-slate-500 pl-6 leading-relaxed">
-            ส่งสรุปรายการวัตถุดิบที่มีนัดส่งเข้าวันนี้ และ 7 วันข้างหน้า เฉพาะกลุ่มที่เลือกไปยัง Telegram Chat ID ของบุคคลนี้ทุกเช้าเวลา 07:30 น. (ทำงานเมื่อเปิด Master Switch ในหน้า Setting)
+            ส่งสรุปรายการวัตถุดิบที่มีนัดส่งเข้าวันนี้ และ 3 วันข้างหน้า เฉพาะกลุ่มที่เลือกไปยัง Telegram Chat ID ของบุคคลนี้ทุกเช้าเวลา 07:30 น. (ทำงานเมื่อเปิด Master Switch ในหน้า Setting)
           </p>
         </div>
       </div>

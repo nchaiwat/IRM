@@ -555,7 +555,7 @@ async def send_user_inbound_daily_dm(
         weekday_thai = thai_weekdays[now_bkk.weekday()]
 
         today_d = now_bkk.date()
-        next_7d = today_d + timedelta(days=7)
+        next_3d = today_d + timedelta(days=3)
 
         # Determine assigned item groups
         raw_groups = (user.allowed_item_groups or "*").strip()
@@ -575,7 +575,7 @@ async def send_user_inbound_daily_dm(
         rows = (await db.execute(stmt)).all()
 
         today_inbounds = []
-        next_7d_inbounds = []
+        next_3d_inbounds = []
         overdue_items = []
 
         for po_item, po_header in rows:
@@ -596,9 +596,9 @@ async def send_user_inbound_daily_dm(
             # Check today
             if eff_d == today_d:
                 today_inbounds.append((po_item, po_header))
-            # Check next 7 days (from tomorrow to +7 days)
-            elif today_d < eff_d <= next_7d:
-                next_7d_inbounds.append((po_item, po_header))
+            # Check next 3 days (from tomorrow to +3 days)
+            elif today_d < eff_d <= next_3d:
+                next_3d_inbounds.append((po_item, po_header))
             # Check overdue (before today and not confirmed / not closed)
             elif eff_d < today_d and po_item.status != "confirmed":
                 overdue_items.append((po_item, po_header))
@@ -638,9 +638,9 @@ async def send_user_inbound_daily_dm(
             msg_lines.append("• <i>ไม่มีรายการวัตถุดิบนัดส่งมอบเข้าโรงงานในวันนี้</i>")
 
         msg_lines.append("")
-        total_qty_7d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_7d_inbounds)
-        total_qty_str = f"{total_qty_7d:,.0f}" if isinstance(total_qty_7d, (int, float)) and total_qty_7d.is_integer() else f"{total_qty_7d:,.2f}".rstrip('0').rstrip('.')
-        msg_lines.append(f"📅 <b>กำหนดส่งใน 7 วันข้างหน้า:</b> {len(next_7d_inbounds):,} รายการ (รวม {total_qty_str} หน่วย)")
+        total_qty_3d = sum(it.estimate_qty or it.remaining_qty or it.quantity for it, _ in next_3d_inbounds)
+        total_qty_str = f"{total_qty_3d:,.0f}" if isinstance(total_qty_3d, (int, float)) and total_qty_3d.is_integer() else f"{total_qty_3d:,.2f}".rstrip('0').rstrip('.')
+        msg_lines.append(f"📅 <b>กำหนดส่งใน 3 วันข้างหน้า:</b> {len(next_3d_inbounds):,} รายการ (รวม {total_qty_str} หน่วย)")
 
         if overdue_items:
             msg_lines.append(f"⚠️ <b>ค้างส่งเกินกำหนด (Overdue):</b> <b>{len(overdue_items):,} รายการ</b>")
@@ -674,7 +674,8 @@ async def send_user_inbound_daily_dm(
             "chat_id": target_chat,
             "group_display": group_display_name,
             "today_count": len(today_inbounds),
-            "next_7d_count": len(next_7d_inbounds),
+            "next_3d_count": len(next_3d_inbounds),
+            "next_7d_count": len(next_3d_inbounds),
             "overdue_count": len(overdue_items),
             "message": f"ส่งข้อความ Telegram DM หา {user.full_name} สำเร็จ" if success else msg_detail
         }

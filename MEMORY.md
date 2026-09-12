@@ -124,7 +124,7 @@
 ### 3.10 การแจ้งเตือนยอดวัตถุดิบขาเข้าประจำวันรายบุคคล (Daily Inbound Telegram DM for Non-PU Staff)
 * **วัตถุประสงค์:** แจ้งข้อมูลสินค้าเข้าทุกเช้าให้กับแต่ละหน่วยงานที่ไม่ใช่ PU (PC, สโตร์/คลัง, QC) ล่วงหน้าเฉพาะกลุ่มสินค้าที่ตนเองรับผิดชอบ
 * **ส่งตรงรายบุคคล (DM):** ส่งข้อความเข้า Telegram Chat ID ของพนักงานแต่ละคนตามที่ระบุใน User Management
-* **คัดกรองตามกลุ่มสินค้า (Item Groups):** สรุป 3 ส่วน: 1) ของเข้าวันนี้, 2) ประมาณการ 7 วันข้างหน้า, 3) รายการค้างส่งเกินกำหนด (Overdue)
+* **คัดกรองตามกลุ่มสินค้า (Item Groups):** สรุป 3 ส่วน: 1) ของเข้าวันนี้, 2) ประมาณการ 3 วันข้างหน้า, 3) รายการค้างส่งเกินกำหนด (Overdue)
 * **Master Safeguard Switch:** สวิตช์หลักใน System Settings สำหรับ Admin เปิด/ปิดระบบ DM ภาพรวม พร้อมช่องกำหนดเวลาส่ง (07:30 น.) และแถบจำลองการส่งทดสอบ (Test Simulation)
 ### 3.11 การเพิ่มประสิทธิภาพฐานข้อมูล (Database Performance) และ PO-Level Portal Token
 * **PostgreSQL Indexes:** ตาราง `po_items`, `sub_items`, `po_headers`, `po_item_audit_logs`, `users` มี Index บน Foreign Key และเงื่อนไข Filter หลักทั้งหมด ป้องกัน Sequential Scan
