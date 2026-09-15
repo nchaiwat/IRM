@@ -3,6 +3,7 @@ System Settings Router — Configuration management, Telegram test, SAP Connecti
 """
 
 from typing import Annotated, Optional
+import asyncio
 from datetime import datetime
 import httpx
 from pydantic import BaseModel
@@ -129,10 +130,10 @@ async def test_email_sending(
     s_map = {s.key: s.value for s in settings_rows}
 
     # Override with request body values if provided
-    smtp_host = data.smtp_host or s_map.get("smtp_host") or "smtp.gmail.com"
+    smtp_host = (data.smtp_host.strip() if data.smtp_host else None) or s_map.get("smtp_host") or "smtp.gmail.com"
     smtp_port = data.smtp_port or int(s_map.get("smtp_port") or 587)
-    smtp_user = data.smtp_user or s_map.get("smtp_user") or "your-email@gmail.com"
-    smtp_pass = data.smtp_password if data.smtp_password is not None else (s_map.get("smtp_password") or "")
+    smtp_user = (data.smtp_user.strip() if data.smtp_user else None) or s_map.get("smtp_user") or "your-email@gmail.com"
+    smtp_pass = (data.smtp_password.strip() if data.smtp_password else None) or s_map.get("smtp_password") or ""
     use_tls = s_map.get("smtp_use_tls", "true").lower() == "true"
 
     if not smtp_user or smtp_user == "your-email@gmail.com":
@@ -159,17 +160,17 @@ async def test_email_sending(
     </html>
     """
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = smtp_user
-        msg["To"] = data.recipient_email
-        msg.attach(MIMEText(html_body, "html"))
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = smtp_user
+    msg["To"] = data.recipient_email
+    msg.attach(MIMEText(html_body, "html"))
 
+    def _send_sync():
         if smtp_port == 465:
-            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10.0)
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15.0)
         else:
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10.0)
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15.0)
             if use_tls:
                 server.starttls()
 
@@ -178,6 +179,9 @@ async def test_email_sending(
 
         server.sendmail(smtp_user, data.recipient_email, msg.as_string())
         server.quit()
+
+    try:
+        await asyncio.to_thread(_send_sync)
         return {"message": f"ทดสอบส่ง Email ไปยัง {data.recipient_email} สำเร็จเรียบร้อยแล้ว!"}
     except Exception as e:
         raise HTTPException(

@@ -385,20 +385,29 @@ export default function SettingsPage() {
   };
 
   const handleTestEmail = async () => {
-    if (!testEmailRecipient) return;
+    const emailToSend = testEmailRecipient.trim() || puTestEmailRecipient.trim();
+    if (!emailToSend) {
+      alert('⚠️ กรุณาระบุอีเมลผู้รับทดสอบในช่อง "อีเมลผู้รับทดสอบ" ก่อนกดส่ง');
+      setMessage({ type: 'error', text: 'กรุณาระบุอีเมลผู้รับทดสอบก่อนกดส่ง' });
+      return;
+    }
     setTestingEmail(true);
     setMessage(null);
     try {
       const res = await api.post('/api/settings/test-email', {
-        recipient_email: testEmailRecipient,
+        recipient_email: emailToSend,
         smtp_host: settings.smtp_host,
         smtp_port: parseInt(settings.smtp_port) || undefined,
         smtp_user: settings.smtp_user,
         smtp_password: settings.smtp_password,
       });
-      setMessage({ type: 'success', text: res.data.message || 'ส่งอีเมลทดสอบเรียบร้อยแล้ว!' });
+      const successText = res.data.message || 'ส่งอีเมลทดสอบเรียบร้อยแล้ว!';
+      setMessage({ type: 'success', text: successText });
+      alert(`✅ ${successText}`);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'การทดสอบส่งอีเมลล้มเหลว' });
+      const errText = err.response?.data?.detail || 'การทดสอบส่งอีเมลล้มเหลว';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
     } finally {
       setTestingEmail(false);
     }
@@ -862,8 +871,8 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleTestEmail}
-                disabled={testingEmail || !testEmailRecipient}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs rounded-lg transition disabled:opacity-50"
+                disabled={testingEmail}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer"
               >
                 {testingEmail ? (
                   <div className="w-3.5 h-3.5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>

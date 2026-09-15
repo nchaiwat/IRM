@@ -7,7 +7,7 @@ import asyncio
 import io
 import logging
 import smtplib
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -455,6 +455,20 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.models.user import User
 
 
+def _to_pure_date(d: date | datetime | str | None) -> date | None:
+    """Safely converts date, datetime, or date string to pure datetime.date."""
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    try:
+        return datetime.strptime(str(d)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
 async def generate_pu_remind_excel(db: AsyncSession) -> tuple[bytes, dict]:
     """
     Generates a 2-Sheet Excel workbook for PU User daily reminder:
@@ -602,7 +616,8 @@ async def generate_pu_remind_excel(db: AsyncSession) -> tuple[bytes, dict]:
         # Check sub items
         if item.sub_items:
             for sub in item.sub_items:
-                if sub.estimate_date and sub.estimate_date.date() == today_bkk_date:
+                sub_est_date = _to_pure_date(sub.estimate_date)
+                if sub_est_date and sub_est_date == today_bkk_date:
                     today_items_count += 1
                     today_pos.add(header.po_number)
                     row_num_s2 += 1
@@ -613,7 +628,7 @@ async def generate_pu_remind_excel(db: AsyncSession) -> tuple[bytes, dict]:
                         item.item_group or "-",
                         f"↳ {item.item_code}",
                         item.item_name or "-",
-                        sub.estimate_date.strftime("%d/%m/%Y"),
+                        sub_est_date.strftime("%d/%m/%Y"),
                         float(sub.quantity or 0),
                         item.unit or "",
                         due_dt_str,
@@ -635,30 +650,32 @@ async def generate_pu_remind_excel(db: AsyncSession) -> tuple[bytes, dict]:
                             c.alignment = align_right
                         else:
                             c.alignment = align_left
-        elif item.estimate_date and item.estimate_date.date() == today_bkk_date:
-            today_items_count += 1
-            today_pos.add(header.po_number)
-            row_num_s2 += 1
-            del_qty = float(item.estimate_qty if item.estimate_qty is not None else rem_qty)
-            row_data = [
-                row_num_s2 - 1,
-                header.po_number,
-                po_dt_str,
-                item.item_group or "-",
-                item.item_code,
-                item.item_name or "-",
-                item.estimate_date.strftime("%d/%m/%Y"),
-                del_qty,
-                item.unit or "",
-                due_dt_str,
-                float(item.received_qty or 0),
-                rem_qty,
-                buyer,
-                sup_code,
-                sup_name,
-                status_label,
-            ]
-            ws2.append(row_data)
+        else:
+            item_est_date = _to_pure_date(item.estimate_date)
+            if item_est_date and item_est_date == today_bkk_date:
+                today_items_count += 1
+                today_pos.add(header.po_number)
+                row_num_s2 += 1
+                del_qty = float(item.estimate_qty if item.estimate_qty is not None else rem_qty)
+                row_data = [
+                    row_num_s2 - 1,
+                    header.po_number,
+                    po_dt_str,
+                    item.item_group or "-",
+                    item.item_code,
+                    item.item_name or "-",
+                    item_est_date.strftime("%d/%m/%Y"),
+                    del_qty,
+                    item.unit or "",
+                    due_dt_str,
+                    float(item.received_qty or 0),
+                    rem_qty,
+                    buyer,
+                    sup_code,
+                    sup_name,
+                    status_label,
+                ]
+                ws2.append(row_data)
             for col_idx in range(1, len(row_data) + 1):
                 c = ws2.cell(row=row_num_s2, column=col_idx)
                 c.font = data_font
