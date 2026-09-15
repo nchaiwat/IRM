@@ -1,6 +1,6 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 11 กันยายน 2026 (22:05 น.)  
+> **วันที่บันทึก:** 15 กันยายน 2026 (13:05 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -13,7 +13,34 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (11 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (15 กันยายน 2026)
+
+### 1) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงานและทดสอบส่งอีเมล (Fix Email Service & Pure Date Bug)
+* **ปัญหาเดิม:**
+  * หน้าจอ System Settings ขึ้น Error: `❌ เกิดข้อผิดพลาดในการส่งอีเมลสรุปงาน: 'datetime.date' object has no attribute 'date'`
+  * ระบบไม่ส่งอีเมลสรุปงานและของส่งวันนี้ (PU Reminder Email with 2-Sheet Excel) ให้ฝ่ายจัดซื้อต่อเนื่องเป็นเวลา 3 วัน
+  * ปุ่ม "ทดสอบส่ง Email" ด้านบนติด `disabled` หากไม่ได้กรอกอีเมลในช่องด้านบน ทำให้ผู้ใช้คลิกแล้วไม่ตอบสนอง
+* **การแก้ไข:**
+  * **แก้บั๊ก Pure Date ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** เพิ่มฟังก์ชัน `_to_pure_date(d)` และตัดการเรียก `.date()` ซ้ำซ้อนบน `sub.estimate_date` และ `item.estimate_date` ใน `generate_pu_remind_excel` (Sheet 2) ขจัด `AttributeError` ส่งผลให้ระบบ APScheduler และปุ่มทดสอบส่งอีเมลสร้างไฟล์แนบ Excel 2 Sheet สำเร็จ 100%
+  * **ปรับปรุง `POST /api/settings/test-email` ใน [`settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py):** เพิ่มระบบ Fallback ดึงรหัสผ่านจาก Database หากผู้ใช้ไม่ได้พิมพ์รหัสผ่านใหม่ และครอบการเชื่อมต่อ SMTP ผ่าน `asyncio.to_thread` เพื่อไม่ให้บล็อก Async Event Loop
+  * **ปรับปรุงหน้าจอ Settings ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):** ปลดล็อคปุ่ม "ทดสอบส่ง Email" ให้คลิกได้ตลอดเวลา หากยังไม่ได้กรอกจะมี Alert เตือน หรือดึงอีเมลจากช่องทดสอบสรุปงานอัตโนมัติ พร้อมแสดง Alert แจ้งเตือนผลลัพธ์ชัดเจน
+
+### 2) 🔐 ปรับแต่งหน้า Login เมื่อปิดใช้งานระบบ SSO (Clean Login when SSO Disabled)
+* **ปัญหาเดิม:** เมื่อปิดระบบ SSO (`sso_enabled = false`) หน้า Login (`/login`) ยังแสดงกล่องข้อความสีเทา *"Central IAM SSO ปิดใช้งานชั่วคราว"*, เส้นคั่น *"หรือเข้าสู่ระบบสำรอง (Break-Glass Login)"*, ปุ่ม Sign In ระบุ *"เข้าสู่ระบบสำรอง"*, และ Footer อ้างอิง Break-Glass
+* **การแก้ไขใน [`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx):**
+  * เมื่อปิดระบบ SSO (`!ssoConfig?.sso_enabled`):
+    * **ลบกล่องข้อความและปุ่ม SSO:** ซ่อนกล่องแจ้งเตือน Central IAM, ปุ่ม SSO, และแบนเนอร์ Break-Glass ทั้งหมด 100%
+    * **ลบเส้นคั่น:** ไม่มีเส้นคั่น *"หรือเข้าสู่ระบบสำรอง"* ปรากฏ
+    * **ปุ่ม Sign In หลัก:** ปรับเปลี่ยนปุ่มเข้าสู่ระบบให้เป็น **Primary Gradient Button** สีน้ำเงินหรูหรา (`bg-gradient-to-r from-sky-500 to-indigo-600`) ระบุข้อความ **`เข้าสู่ระบบ (Sign In)`** โดดเด่น ชัดเจน สะอาดตา
+    * **Footer:** แสดงข้อความมาตรฐานองค์กร `Window Asia Public Company Limited · IRM System` โดยไม่มีคำว่า Break-Glass หรือข้อความฉุกเฉินใดๆ
+
+### 3) 👤 การตรวจสอบที่มาของ Test Accounts ใน User Management
+* **ข้อเท็จจริง:** บัญชี `test.user.xxxxxx` (เช่น `Lifecycle Test 6b7e63`, `Lifecycle Test c68f9e`) ในหน้า User Management ถูกสร้างขึ้นโดยอัตโนมัติจากการรันชุดทดสอบ Integration Test ของระบบ **Central IAM** ([`D:\Python\Central-IAM\backend\tests\test_api_flow.py`](file:///D:/Python/Central-IAM/backend/tests/test_api_flow.py)) ที่ยิง M2M API เข้ามายัง `POST /api/v1/directory/accounts` เมื่อวันที่ 9–11 กันยายน 2026
+* **ความปลอดภัย:** เป็นเพียงข้อมูลจำลองสำหรับทดสอบฟังก์ชัน Provisioning / Offboarding ข้ามระบบ สามารถลบออกได้จากหน้าเว็บอย่างปลอดภัย 100%
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (11 กันยายน 2026)
 
 ### 1) ⚡ การเพิ่มประสิทธิภาพฐานข้อมูล (Database Performance & Indexing)
 * **ปัญหาเดิม:** หน้า Operation, History, และ Calendar มีการโหลดที่ล่าช้า เนื่องจากขาด Index บน Foreign Key และเงื่อนไข Filter หลักใน PostgreSQL ส่งผลให้ต้องทำ Sequential Scan ทุกครั้ง
@@ -87,6 +114,10 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | เพิ่ม `_to_pure_date`, แก้ไข `AttributeError: 'datetime.date' object has no attribute 'date'` ใน `generate_pu_remind_excel` |
+| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | ปรับปรุง `POST /api/settings/test-email` รองรับ Password fallback จาก DB และรัน SMTP ผ่าน `asyncio.to_thread` |
+| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | ปลดล็อคปุ่มทดสอบส่ง Email ให้กดได้ตลอดเวลา พร้อมระบบ Alert แจ้งเตือนและเชื่อมต่อกับอีเมลสรุปงาน |
+| [`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx) | ซ่อนกล่องแจ้งเตือน SSO, ปุ่ม SSO, เส้นคั่น Break-Glass, ปรับปุ่ม Sign In เป็น Primary Gradient เมื่อปิด SSO 100% |
 | [`backend/app/migrations/add_performance_indexes.py`](file:///d:/Python/IRM/backend/app/migrations/add_performance_indexes.py) | สคริปต์รันสร้าง 13 Performance Index ใน PostgreSQL (`CREATE INDEX IF NOT EXISTS`) |
 | [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | กำหนด Index บน `status`, `closed_at`, `po_header_id`, `estimate_date` |
 | [`backend/app/models/group.py`](file:///d:/Python/IRM/backend/app/models/group.py) | ปรับ `Group.users` เป็น `lazy="select"` ตัดปัญหา Cascading Queries |
@@ -94,7 +125,6 @@
 | [`backend/app/routers/operation.py`](file:///d:/Python/IRM/backend/app/routers/operation.py) | ลอจิก PO-Level Portal Link, ล็อคทั้ง PO, แก้ไข `base_url`, และบันทึก Audit/Transaction Logs |
 | [`backend/app/routers/supplier_portal.py`](file:///d:/Python/IRM/backend/app/routers/supplier_portal.py) | แก้ MissingGreenlet ด้วย `selectinload`, ฟอร์แมตเวลาหมดอายุเป็น `Asia/Bangkok` (+07:00) |
 | [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | ฟอร์แมตวันหมดอายุใน Token response เป็นเวลาไทย |
-| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | เพิ่ม 12-hour cushion ใน `calculate_prd_expiry_date` ป้องกันลิงก์หมดอายุทันที |
 | [`frontend/src/lib/clipboard.ts`](file:///d:/Python/IRM/frontend/src/lib/clipboard.ts) | ยูทิลิตี้คัดลอก Clipboard แบบทนทาน มี Fallback `execCommand` ข้ามเบราว์เซอร์ |
 | [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | แสดง Item Description เต็มรูปแบบ (ปลด `line-clamp-1`), อัปเดต PO-level lock บนตาราง |
 | [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | ปุ่มคัดลอกลิงก์ Supplier Portal พร้อม Fallback ป้องกันการคัดลอกไม่ติด |
@@ -110,20 +140,22 @@ cd /var/www/Irm
 # 2. ดึงโค้ดล่าสุดจาก main branch
 git pull origin main
 
-# 3. รัน Migration สร้าง Performance Index ใน PostgreSQL (รันครั้งเดียวปลอดภัยด้วย IF NOT EXISTS)
-docker cp backend/app/migrations/add_performance_indexes.py irm-backend:/app/app/migrations/add_performance_indexes.py
-docker exec irm-backend python /app/app/migrations/add_performance_indexes.py
-
-# 4. สั่ง Rebuild คอนเทนเนอร์ Backend และ Frontend
+# 3. สั่ง Rebuild คอนเทนเนอร์ Backend และ Frontend
 docker compose up -d --build irm-backend irm-frontend
 
-# 5. ตรวจสอบสถานะการทำงาน
+# 4. ตรวจสอบสถานะการทำงาน
 docker compose ps
 ```
 
 ---
 
 ## 📌 6. Checkpoint สำหรับการเริ่มงานในครั้งหน้า (Next Session)
-* **สถานะปัจจุบัน:** โค้ดทั้งหมดได้รับการ Compile และทดสอบความถูกต้องผ่าน 100%, Git Commit & Push ขึ้น `main` (`commit 736b72b`) ครบถ้วน
-* **สิ่งที่ต้องทำต่อบน VPS:** รันคำสั่งในข้อ 5 เพื่อนำ Index และฟีเจอร์ใหม่ขึ้น Production
-* **เรื่องที่จะพูดคุยต่อในครั้งหน้า:** ตรวจสอบผลการใช้งานจริงบน Production หลัง Rebuild หรือขยายผลฟังก์ชันเพิ่มเติมตามที่ผู้ใช้ต้องการ
+* **สถานะปัจจุบัน:**
+  * โค้ดทั้งหมดได้รับการ Compile (`py_compile`) และ Build (`next build` 19/19 pages) ผ่าน 100%
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว
+  * บันทึกความคืบหน้างานทั้งหมดลงใน `HANDOFF.md` เรียบร้อย
+* **สิ่งที่ต้องทำต่อบน VPS:**
+  * รันคำสั่งในข้อ 5 บน VPS Production เพื่อนำโค้ดที่แก้ไขล่าสุดขึ้นใช้งาน
+* **เรื่องที่จะทำต่อในครั้งหน้า:**
+  * ตรวจสอบผลการส่งอีเมลสรุปงานรายวันเวลา 07:50 น. บน Production ว่าอีเมลและไฟล์แนบ 2-Sheet Excel ส่งถึงจัดซื้ออย่างสมบูรณ์
+  * พัฒนาฟังก์ชันเพิ่มเติมตามโจทย์งานถัดไปของผู้ใช้
