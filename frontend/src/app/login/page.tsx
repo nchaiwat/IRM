@@ -137,8 +137,8 @@ export default function LoginPage() {
           <p className="text-sm text-slate-400 mt-1">ระบบติดตามการรับวัตถุดิบ ฝ่ายจัดซื้อ</p>
         </div>
 
-        {/* Break-Glass Active Notice */}
-        {ssoConfig?.break_glass_active && (
+        {/* Break-Glass Active Notice - only when SSO is enabled and break-glass triggered */}
+        {ssoConfig?.sso_enabled && ssoConfig?.break_glass_active && (
           <div className="mb-5 p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-start gap-2.5 text-amber-300 text-xs">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
             <div className="leading-relaxed">
@@ -156,46 +156,45 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Primary Action: Central IAM SSO Button */}
-        {ssoConfig?.break_glass_active ? (
-          <div className="w-full py-2.5 px-4 bg-slate-800/80 border border-amber-500/30 rounded-xl flex items-center justify-center gap-2 text-xs text-amber-300/80 font-medium">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
-            <span>Central IAM SSO ถูกระงับ (Break-Glass Mode)</span>
-          </div>
-        ) : ssoConfig && !ssoConfig.sso_enabled ? (
-          <div className="w-full py-2.5 px-4 bg-slate-800/60 border border-slate-700/50 rounded-xl flex items-center justify-center gap-2 text-xs text-slate-400 font-medium">
-            <ShieldCheck className="w-4 h-4 text-slate-500" />
-            <span>Central IAM SSO ปิดใช้งานชั่วคราว</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleCiamSso}
-            disabled={ssoLoading}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-          >
-            {ssoLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <ShieldCheck className="w-4 h-4 text-cyan-300" />
-                <span>เข้าสู่ระบบด้วย Central IAM (SSO)</span>
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 ml-0.5" />
-              </>
-            )}
-          </button>
+        {/* Primary Action: Central IAM SSO Button (rendered ONLY when SSO is enabled) */}
+        {ssoConfig?.sso_enabled && (
+          ssoConfig.break_glass_active ? (
+            <div className="w-full py-2.5 px-4 bg-slate-800/80 border border-amber-500/30 rounded-xl flex items-center justify-center gap-2 text-xs text-amber-300/80 font-medium">
+              <ShieldAlert className="w-4 h-4 text-amber-400" />
+              <span>ระบบ SSO ถูกระงับชั่วคราว (Break-Glass Mode)</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCiamSso}
+              disabled={ssoLoading}
+              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            >
+              {ssoLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                  <span>เข้าสู่ระบบด้วย Window Asia SSO</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300 ml-0.5" />
+                </>
+              )}
+            </button>
+          )
         )}
 
-        {/* Break-Glass / Local Pass Divider */}
-        <div className="relative flex py-4 items-center">
-          <div className="flex-grow border-t border-slate-800"></div>
-          <span className="flex-shrink mx-3 text-[11px] text-slate-500 font-medium uppercase tracking-wider">
-            หรือเข้าสู่ระบบสำรอง (Break-Glass Login)
-          </span>
-          <div className="flex-grow border-t border-slate-800"></div>
-        </div>
+        {/* Divider (rendered ONLY when SSO is enabled) */}
+        {ssoConfig?.sso_enabled && (
+          <div className="relative flex py-4 items-center">
+            <div className="flex-grow border-t border-slate-800"></div>
+            <span className="flex-shrink mx-3 text-[11px] text-slate-500 font-medium tracking-wider">
+              {ssoConfig.break_glass_active ? 'เข้าสู่ระบบด้วยรหัสผ่าน' : 'หรือเข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน'}
+            </span>
+            <div className="flex-grow border-t border-slate-800"></div>
+          </div>
+        )}
 
-        {/* Fallback Login Form */}
+        {/* Standard Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username Input */}
           <div>
@@ -256,21 +255,27 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full mt-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            className={
+              ssoConfig?.sso_enabled
+                ? "w-full mt-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                : "w-full mt-2 py-3 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            }
           >
             {submitting ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
-                <span>เข้าสู่ระบบสำรอง (Sign In)</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>เข้าสู่ระบบ (Sign In)</span>
+                <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
         <div className="mt-5 text-center text-[10px] text-slate-500 font-mono">
-          ISO 27001 Business Continuity & Break-Glass Ready
+          {ssoConfig?.sso_enabled && ssoConfig?.break_glass_active
+            ? "ISO 27001 Business Continuity & Break-Glass Ready"
+            : "Window Asia Public Company Limited · IRM System"}
         </div>
       </div>
     </div>
