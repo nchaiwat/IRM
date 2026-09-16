@@ -1,6 +1,6 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 15 กันยายน 2026 (13:05 น.)  
+> **วันที่บันทึก:** 16 กันยายน 2026 (21:15 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -13,7 +13,36 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (15 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (16 กันยายน 2026)
+
+### 1) 🧹 ลบการ์ดซ้ำซ้อน Section 9 และเพิ่มช่อง Allow IP สำหรับเซิร์ฟเวอร์ CIAM ในหน้า Settings
+* **ปัญหาเดิม:**
+  * หน้าจอ System Settings มีการ์ด Central IAM ซ้ำซ้อน 2 จุด (ข้อ 6 และข้อ 9) ซึ่งมีช่องกรอกเหมือนกันทั้งหมด ทำให้เกิดความสับสนและไม่เป็นระเบียบ
+  * ในการ์ด Central IAM ไม่มีช่องระบุ **Allowed IP (IP Whitelist)** สำหรับเครื่องเซิร์ฟเวอร์ CIAM ที่จะยิงเชื่อมต่อเข้ามายัง IRM
+* **การแก้ไข:**
+  * **ลบ Section 9 ออก 100%:** จัดระเบียบหน้า Settings ให้เหลือเฉพาะ Section 6 เดียวสำหรับการตั้งค่า Central IAM Single Sign-On (OIDC / PKCE SSO)
+  * **เพิ่มช่อง CIAM Allowed IPs ใน Section 6:** เพิ่มฟิลด์ `Central IAM Server Allowed IPs (IP Whitelist สำหรับเซิร์ฟเวอร์ CIAM)` (`ciam_allowed_ips`)
+  * **เชื่อมโยง API & M2M Security:** ปรับให้ `ciam_allowed_ips` ซิงค์กับ `management_allowed_ips` และให้ [`central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) ตรวจสอบ Whitelist IP ทั้งสองค่า ช่วยให้ผู้ดูแลระบบกำหนด IP ของเซิร์ฟเวอร์ CIAM ได้จากจุดเดียว
+  * **คงกล่องคำแนะนำ Local/Docker:** ยก Notice Box สำหรับการตั้งค่า Base URL (`http://host.docker.internal:3000`) และ Redirect URI มาไว้ใน Section 6 อย่างเป็นระเบียบ
+
+### 2) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงานตอน 07:50 น. ไม่ได้รับอีเมล (PU Reminder Email)
+* **สาเหตุที่แท้จริง:**
+  1. ในหน้า System Settings เดิมมีเพียงช่อง **"อีเมลผู้รับทดสอบสรุปงาน"** ซึ่งเป็น State จำลองเฉพาะการกดปุ่มทดสอบ ไม่มีการบันทึกลง Database
+  2. เมื่อตั้งเวลาส่งอัตโนมัติ (Scheduler Triggered at `07:50 น.`) ฟังก์ชัน `send_pu_daily_reminder_email` จะพยายามดึงผู้ใช้จากฐานข้อมูล ซึ่งผู้ใช้เริ่มต้นมีอีเมลเป็น dummy (`admin@company.com`, `patcha@company.com`, `pinyada@company.com`) ทำให้ไม่มีอีเมลจริงส่งออกไป หรือถูกปฏิเสธโดย Mail Server
+  3. ไม่มีฟิลด์สำหรับระบุอีเมลผู้รับจริงสำหรับรอบเวลา Scheduler ใน System Settings
+* **การแก้ไข:**
+  * **เพิ่มฟิลด์ `pu_remind_recipient_emails` ใน Database & Settings:**
+    * เพิ่มคีย์ `pu_remind_recipient_emails` ใน `SystemSetting` และฟอร์มหน้าเว็บ Section 2
+    * รองรับการระบุอีเมลผู้รับรายงานได้หลายท่าน คั่นด้วยเครื่องหมายจุลภาค `,` (เช่น `purchasing@windowasia.com, buyer@windowasia.com`)
+  * **ปรับปรุงลอจิกใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):**
+    * เมื่อระบบ Scheduler ยิงส่ง จะตรวจสอบ `pu_remind_recipient_emails` เป็นลำดับแรก
+    * หากไม่มีการตั้งค่า จึงจะ Fallback ไปหา User ที่มีอีเมลจริง (คัดกรอง `@company.com` ออก)
+  * **เพิ่ม Debounce ป้องกันการส่งซ้ำใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** เพิ่มตัวแปร `_last_pu_remind_date` เพื่อรับประกันว่าใน 1 วันจะยิงส่งเพียงครั้งเดียวตรงตามเวลาที่ตั้งไว้ (07:50 น.)
+  * **ปรับปรุงปุ่มทดสอบส่งอีเมลสรุปงานในหน้าเว็บ:** หากช่องทดสอบเว้นว่างไว้ ระบบจะดึงอีเมลจากช่อง "อีเมลผู้รับสรุปงานประจำวัน" มาใช้ทดสอบให้อัตโนมัติ
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (15 กันยายน 2026)
 
 ### 1) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงานและทดสอบส่งอีเมล (Fix Email Service & Pure Date Bug)
 * **ปัญหาเดิม:**

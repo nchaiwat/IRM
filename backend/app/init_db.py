@@ -277,6 +277,7 @@ async def seed_data():
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
                 ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
                 ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),
+                ("pu_remind_recipient_emails", "", "รายชื่ออีเมลผู้รับสรุปงานประจำวันของฝ่ายจัดซื้อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อส่งหาผู้ใช้ในระบบ)", "email", "string"),
                 ("ad_gateway_url", "", "Active Directory Gateway API URL (e.g. https://192.168.12.11:3100/api/v2/login)", "ad", "string"),
                 ("ad_app_id", "", "Application ID registered in AD Sync Agent registry.json", "ad", "string"),
                 ("ad_secret_key", "", "Secret Key for AD Sync Agent Gateway", "ad", "string"),
@@ -293,6 +294,7 @@ async def seed_data():
                 ("ciam_ad_gateway_url", "http://192.168.12.11:3100", "URL เซิร์ฟเวอร์ AD Gateway ภายในองค์กรสำหรับโหมดฉุกเฉิน", "central_iam", "string"),
                 ("ciam_auto_provision_group", "PU User", "กลุ่มสิทธิ์เริ่มต้นสำหรับพนักงานใหม่ที่ล็อกอินผ่าน SSO ครั้งแรก", "central_iam", "string"),
                 ("ciam_session_ttl_minutes", "480", "อายุ Access Token ประจำระบบ IRM (นาที)", "central_iam", "integer"),
+                ("ciam_allowed_ips", "", "IP ของเซิร์ฟเวอร์ Central IAM ที่อนุญาตให้เชื่อมต่อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "central_iam", "string"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:

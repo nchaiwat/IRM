@@ -625,6 +625,7 @@ class CiamSsoSettingsUpdateRequest(BaseModel):
     ciam_ad_gateway_url: Optional[str] = None
     ciam_auto_provision_group: Optional[str] = None
     ciam_session_ttl_minutes: Optional[int] = None
+    ciam_allowed_ips: Optional[str] = None
 
 
 class CiamTestConnectionRequest(BaseModel):
@@ -645,6 +646,14 @@ async def get_ciam_sso_settings(
     stmt = select(func.max(SystemSetting.updated_at)).where(SystemSetting.key.like("ciam_%"))
     last_updated = (await db.execute(stmt)).scalar()
 
+    # Also check if management_allowed_ips has a value if ciam_allowed_ips is empty
+    allowed_ips_val = cfg.get("ciam_allowed_ips") or ""
+    if not allowed_ips_val:
+        stmt_mgmt = select(SystemSetting.value).where(SystemSetting.key == "management_allowed_ips")
+        mgmt_val = (await db.execute(stmt_mgmt)).scalar_one_or_none()
+        if mgmt_val:
+            allowed_ips_val = mgmt_val
+
     return {
         "status": "success",
         "settings": {
@@ -656,6 +665,7 @@ async def get_ciam_sso_settings(
             "ciam_ad_gateway_url": cfg["ciam_ad_gateway_url"],
             "ciam_auto_provision_group": cfg["ciam_auto_provision_group"],
             "ciam_session_ttl_minutes": cfg["ciam_session_ttl_minutes"],
+            "ciam_allowed_ips": allowed_ips_val,
             "updated_at": last_updated.isoformat() if last_updated else None,
         },
     }
@@ -695,6 +705,11 @@ async def update_ciam_sso_settings(
         updates["ciam_auto_provision_group"] = body.ciam_auto_provision_group.strip()
     if body.ciam_session_ttl_minutes is not None:
         updates["ciam_session_ttl_minutes"] = str(body.ciam_session_ttl_minutes)
+    if body.ciam_allowed_ips is not None:
+        cleaned_ips = body.ciam_allowed_ips.strip()
+        updates["ciam_allowed_ips"] = cleaned_ips
+        # Sync with management_allowed_ips so directory M2M API enforces same allowed IPs
+        updates["management_allowed_ips"] = cleaned_ips
 
     changed_fields = []
     for key, str_val in updates.items():
@@ -744,6 +759,7 @@ async def update_ciam_sso_settings(
             "ciam_ad_gateway_url": refreshed["ciam_ad_gateway_url"],
             "ciam_auto_provision_group": refreshed["ciam_auto_provision_group"],
             "ciam_session_ttl_minutes": refreshed["ciam_session_ttl_minutes"],
+            "ciam_allowed_ips": refreshed.get("ciam_allowed_ips", ""),
         },
     }
 

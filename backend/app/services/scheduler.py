@@ -140,11 +140,16 @@ async def job_daily_inbound_telegram_dm():
         logger.error(f"❌ [Scheduler] Error during Daily Inbound Telegram DM dispatch: {e}")
 
 
+_last_pu_remind_date: str = ""
+
+
 async def job_daily_pu_remind_email():
     """Checks every minute if current time matches pu_remind_mail_time and dispatches PU remind email."""
+    global _last_pu_remind_date
     try:
         from zoneinfo import ZoneInfo
         now_bkk = datetime.now(ZoneInfo("Asia/Bangkok"))
+        today_date_str = now_bkk.strftime("%Y-%m-%d")
         current_hm = now_bkk.strftime("%H:%M")
 
         async with AsyncSessionLocal() as session:
@@ -158,9 +163,13 @@ async def job_daily_pu_remind_email():
             target_time = s_map.get("pu_remind_mail_time", "08:30").strip()
 
             if is_enabled and current_hm == target_time:
-                logger.info(f"⏰ [Scheduler] Triggering Daily PU Reminder Email at {current_hm}...")
+                if _last_pu_remind_date == today_date_str:
+                    return  # Already dispatched today
+                logger.info(f"⏰ [Scheduler] Triggering Daily PU Reminder Email at {current_hm} (target: {target_time})...")
                 from app.services.email_service import send_pu_daily_reminder_email
                 res = await send_pu_daily_reminder_email(session, triggered_by="scheduler")
+                await session.commit()
+                _last_pu_remind_date = today_date_str
                 logger.info(f"✅ [Scheduler] Daily PU Reminder Email Dispatched: {res}")
     except Exception as e:
         logger.error(f"❌ [Scheduler] Error checking/dispatching PU Reminder Email: {e}")

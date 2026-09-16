@@ -101,13 +101,13 @@ async def verify_central_management_access(
 
     # 1. Fetch Management API Settings
     stmt = select(SystemSetting).where(
-        SystemSetting.key.in_(["management_api_key", "management_allowed_ips"])
+        SystemSetting.key.in_(["management_api_key", "management_allowed_ips", "ciam_allowed_ips"])
     )
     res = await db.execute(stmt)
     settings_map = {s.key: (s.value or "").strip() for s in res.scalars().all()}
 
     api_key_expected = settings_map.get("management_api_key")
-    allowed_ips_str = settings_map.get("management_allowed_ips", "")
+    allowed_ips_str = settings_map.get("ciam_allowed_ips") or settings_map.get("management_allowed_ips", "")
 
     # If no API key configured, reject all external calls for safety
     if not api_key_expected:

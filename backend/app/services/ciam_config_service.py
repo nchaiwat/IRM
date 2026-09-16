@@ -34,6 +34,7 @@ CIAM_DEFAULTS = {
     "ciam_ad_gateway_url": "http://192.168.12.11:3100",
     "ciam_auto_provision_group": "PU User",
     "ciam_session_ttl_minutes": 480,
+    "ciam_allowed_ips": "",
 }
 
 

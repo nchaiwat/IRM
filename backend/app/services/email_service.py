@@ -731,7 +731,7 @@ async def send_pu_daily_reminder_email(
     # 1. Fetch SMTP & Config settings
     keys = [
         "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_use_tls",
-        "smtp_from_name", "pu_remind_mail_enabled", "pu_remind_mail_time"
+        "smtp_from_name", "pu_remind_mail_enabled", "pu_remind_mail_time", "pu_remind_recipient_emails"
     ]
     settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.key.in_(keys)))).scalars().all()
     s_map = {s.key: s.value for s in settings_rows}
@@ -758,19 +758,34 @@ async def send_pu_daily_reminder_email(
     if recipient_email and recipient_email.strip():
         recipients = [recipient_email.strip()]
     else:
-        # Fetch active users in 'PU User' group
-        stmt_users = (
-            select(User)
-            .join(User.group)
-            .where(User.is_active == True)
-            .where(User.email.isnot(None))
-            .where(User.email != "")
-        )
-        pu_users = (await db.execute(stmt_users)).scalars().all()
-        recipients = list({u.email.strip() for u in pu_users if u.email and "@" in u.email})
+        # Check if configured in SystemSetting
+        custom_emails_str = (s_map.get("pu_remind_recipient_emails") or "").strip()
+        if custom_emails_str:
+            recipients = [
+                e.strip() for e in custom_emails_str.split(",")
+                if e.strip() and "@" in e.strip()
+            ]
+
+        # Fallback to active users with emails if no custom recipients configured
+        if not recipients:
+            stmt_users = (
+                select(User)
+                .join(User.group)
+                .where(User.is_active == True)
+                .where(User.email.isnot(None))
+                .where(User.email != "")
+            )
+            pu_users = (await db.execute(stmt_users)).scalars().all()
+            # First prefer non-dummy emails
+            real_emails = [u.email.strip() for u in pu_users if u.email and "@" in u.email and not u.email.endswith("@company.com")]
+            if real_emails:
+                recipients = list(set(real_emails))
+            else:
+                recipients = list({u.email.strip() for u in pu_users if u.email and "@" in u.email})
 
     if not recipients:
-        return {"status": "skipped", "message": "No active PU User email addresses found"}
+        logger.warning("⚠️ [PU Remind Email] ไม่พบบัญชีอีเมลผู้รับรายงาน! กรุณาระบุในหน้าตั้งค่า 'pu_remind_recipient_emails'")
+        return {"status": "skipped", "message": "ไม่พบอีเมลผู้รับรายงาน กรุณาระบุในหน้า System Settings (อีเมลผู้รับสรุปงานประจำวัน)"}
 
     # 3. Generate 2-Sheet Excel & Summary Statistics
     excel_bytes, stats = await generate_pu_remind_excel(db)
