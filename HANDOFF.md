@@ -1,19 +1,19 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 16 กันยายน 2026 (21:15 น.)  
+> **วันที่บันทึก:** 17 กันยายน 2026 (09:50 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
-> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
+> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main` / Commit: `640befc`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
 
 ---
 
 ## 🎯 1. ภาพรวมระบบ (System Overview)
 
-ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งต่อข้อมูลให้ระบบ **QMS**, และรองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อมทั้งการสำรองฉุกเฉินด้วย **Break-Glass Mode**
+ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ให้ทีมจัดซื้อ (**PU Reminder Email**), ส่งต่อข้อมูลให้ระบบ **QMS**, และรองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อมทั้งการสำรองฉุกเฉินด้วย **Break-Glass Mode**
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (16 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (16–17 กันยายน 2026)
 
 ### 1) 🧹 ลบการ์ดซ้ำซ้อน Section 9 และเพิ่มช่อง Allow IP สำหรับเซิร์ฟเวอร์ CIAM ในหน้า Settings
 * **ปัญหาเดิม:**
@@ -25,16 +25,17 @@
   * **เชื่อมโยง API & M2M Security:** ปรับให้ `ciam_allowed_ips` ซิงค์กับ `management_allowed_ips` และให้ [`central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) ตรวจสอบ Whitelist IP ทั้งสองค่า ช่วยให้ผู้ดูแลระบบกำหนด IP ของเซิร์ฟเวอร์ CIAM ได้จากจุดเดียว
   * **คงกล่องคำแนะนำ Local/Docker:** ยก Notice Box สำหรับการตั้งค่า Base URL (`http://host.docker.internal:3000`) และ Redirect URI มาไว้ใน Section 6 อย่างเป็นระเบียบ
 
-### 2) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงาน (PU Reminder Email) & คงสถาปัตยกรรมเดิม 100%
-* **สาเหตุที่แท้จริงที่ 07:50 น. ไม่ได้รับอีเมล:**
-  1. **การเปรียบเทียบเวลาสตริงใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** ระบบดึงเวลาปัจจุบันเป็น `"07:50"` (มีเลข 0 นำหน้าเสมอ) แต่หากค่าใน Database ถูกบันทึกเป็น `"7:50"` (ไม่มีเลข 0) เงื่อนไข `current_hm == target_time` จะเป็น `False` ทำให้ Job ไม่เคยถูกยิงทำงาน
-  2. **คำสั่ง Query ผู้ใช้ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** คำสั่งเดิมมีการ join `User.group` โดยไม่ได้ระบุเงื่อนไขกลุ่ม `Group.name == "PU User"` อย่างเจาะจง และมี logic คัดกรองอีเมลแปลกปลอมที่ไปตัดอีเมลจริงของผู้ใช้ออก
-* **การแก้ไข & คืนค่าตามข้อกำหนดเด็ดขาด (Revert Unwanted UI Field):**
-  * **ยกเลิกฟิลด์ `pu_remind_recipient_emails` ทั้งหมด:** ลบออกจาก System Settings และ Database อย่างสมบูรณ์ ไม่เพิ่ม UI/UX ที่ซ้ำซ้อน คงฟังก์ชันการจัดการบัญชีและอีเมลไว้ที่หน้า **User Management** ตามสถาปัตยกรรมเดิม 100%
+### 2) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงาน (PU Reminder Email) & คืนค่าสถาปัตยกรรมเดิม 100%
+* **สาเหตุที่แท้จริงที่เวลา 07:50 น. (16/09) ไม่ได้รับอีเมล:**
+  1. **การเปรียบเทียบเวลาสตริงใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** ระบบดึงเวลาปัจจุบันเป็น `"07:50"` (มีเลข 0 นำหน้าเสมอตามฟอร์แมต `%H:%M`) แต่หากค่าใน Database ถูกบันทึกเป็น `"7:50"` (ไม่มีเลข 0) เงื่อนไข `current_hm == target_time` จะเป็น `False` เสมอ ทำให้ APScheduler ข้ามรอบการทำงานและไม่เคยยิง Job
+  2. **คำสั่ง Query ผู้ใช้ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** คำสั่งเดิมมีการ join `User.group` รวมทุกกลุ่มโดยไม่ได้ระบุเงื่อนไขกลุ่ม `Group.name == "PU User"` อย่างเจาะจง และมี logic คัดกรองอีเมลแปลกปลอมที่ไปตัดอีเมลจริงของผู้ใช้ออก
+* **การแก้ไขและคืนค่าตามกฎเหล็ก (Strict Protocol & Zero Redundant UI):**
+  * **ยกเลิกและลบฟิลด์ `pu_remind_recipient_emails` ทั้งหมด 100%:** ลบออกจากหน้าเว็บ System Settings และตาราง `system_settings` ใน Database อย่างสมบูรณ์ คืนค่า UI/UX หน้าจอ Settings ให้สะอาด เรียบร้อย มีเฉพาะสวิตช์เปิด/ปิด และช่องกำหนดเวลาส่งประจำวัน (HH:MM)
+  * **คงสถาปัตยกรรมดั้งเดิม:** หน้าที่การจัดการบัญชีผู้ใช้และอีเมลเป็นของ **User Management** โดยตรง ระบบจะดึงรายชื่อผู้ใช้ที่ `is_active == True` และอยู่ในกลุ่ม `PU User` ส่งให้ครบถ้วนทุกท่าน ไม่สร้างฟิลด์กรอกอีเมลซ้ำซ้อนใน Settings
   * **ปรับปรุงลอจิกดึงอีเมลใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):**
-    * ดึงรายชื่อผู้ใช้ที่ `is_active == True` และอยู่ในกลุ่ม `PU User` จากตาราง `users` และ `groups` โดยตรง พร้อมดึงอีเมลจริงทุกคนที่ลงทะเบียนไว้ใน User Management ส่งให้ครบถ้วนทุกท่าน
-    * มีระบบ Log แสดงรายชื่ออีเมลผู้รับชัดเจน: `📧 [PU Remind Email] ผู้รับรายงานประจำวัน (X ท่าน จาก User Management)`
-  * **เพิ่ม Time Normalization ใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** เพิ่มฟังก์ชัน `_normalize_hm` แปลงเวลาทั้ง `07:50` และ `7:50` ให้อยู่ในฟอร์แมต `HH:MM` มาตรฐาน ทำให้ระบบตรวจสอบเวลาได้แม่นยำ 100%
+    * ดึงสมาชิกกลุ่ม `PU User` จาก `users` และ `groups` โดยตรง พร้อมอีเมลจริงทุกคนที่บันทึกไว้ใน User Management
+    * มีระบบ Log แสดงรายชื่ออีเมลผู้รับชัดเจน: `📧 [PU Remind Email] ผู้รับรายงานประจำวัน (X ท่าน จาก User Management): [...]`
+  * **เพิ่ม Time Normalization ใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** เพิ่มฟังก์ชัน `_normalize_hm` แปลงเวลาทั้ง `"07:50"` และ `"7:50"` ให้อยู่ในฟอร์แมต `HH:MM` มาตรฐาน ทำให้ระบบตรวจสอบเวลาได้แม่นยำ 100% ทุกระบบย่อย (Morning Telegram, Inbound DM, PU Reminder Email)
   * **เพิ่ม Debounce ป้องกันการส่งซ้ำ:** เพิ่ม `_last_pu_remind_date` เพื่อรับประกันว่าใน 1 วันจะยิงส่งเพียงครั้งเดียวตรงตามเวลาที่ตั้งไว้
 
 ---
@@ -140,9 +141,12 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
-| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | เพิ่ม `_to_pure_date`, แก้ไข `AttributeError: 'datetime.date' object has no attribute 'date'` ใน `generate_pu_remind_excel` |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ดึงผู้รับรายงานสรุปงานและไฟล์แนบ Excel 2 Sheet จากกลุ่ม `PU User` ใน User Management โดยตรง, แก้ไข Pure Date bug |
+| [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | เพิ่ม `_normalize_hm` จัดฟอร์แมตเวลา `HH:MM` แม่นยำทุกระบบย่อย, เพิ่ม `_last_pu_remind_date` ป้องกันการยิงส่งซ้ำใน 1 วัน |
+| [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | ลบฟิลด์ `pu_remind_recipient_emails` ออกจาก Seed Data และเพิ่มคำสั่ง DDL ลบออกจากตาราง `system_settings` |
+| [`backend/app/routers/central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) | ตรวจสอบ Allowed IP จากทั้ง `ciam_allowed_ips` และ `management_allowed_ips` สำหรับเซิร์ฟเวอร์ CIAM |
+| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | ลบ Section 9 ซ้ำซ้อน, เพิ่มฟิลด์ CIAM Allowed IPs ใน Section 6, และลบช่อง `pu_remind_recipient_emails` คืนค่า UI สะอาด |
 | [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | ปรับปรุง `POST /api/settings/test-email` รองรับ Password fallback จาก DB และรัน SMTP ผ่าน `asyncio.to_thread` |
-| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | ปลดล็อคปุ่มทดสอบส่ง Email ให้กดได้ตลอดเวลา พร้อมระบบ Alert แจ้งเตือนและเชื่อมต่อกับอีเมลสรุปงาน |
 | [`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx) | ซ่อนกล่องแจ้งเตือน SSO, ปุ่ม SSO, เส้นคั่น Break-Glass, ปรับปุ่ม Sign In เป็น Primary Gradient เมื่อปิด SSO 100% |
 | [`backend/app/migrations/add_performance_indexes.py`](file:///d:/Python/IRM/backend/app/migrations/add_performance_indexes.py) | สคริปต์รันสร้าง 13 Performance Index ใน PostgreSQL (`CREATE INDEX IF NOT EXISTS`) |
 | [`backend/app/models/po.py`](file:///d:/Python/IRM/backend/app/models/po.py) | กำหนด Index บน `status`, `closed_at`, `po_header_id`, `estimate_date` |
@@ -176,12 +180,11 @@ docker compose ps
 ---
 
 ## 📌 6. Checkpoint สำหรับการเริ่มงานในครั้งหน้า (Next Session)
-* **สถานะปัจจุบัน:**
-  * โค้ดทั้งหมดได้รับการ Compile (`py_compile`) และ Build (`next build` 19/19 pages) ผ่าน 100%
-  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว
-  * บันทึกความคืบหน้างานทั้งหมดลงใน `HANDOFF.md` เรียบร้อย
-* **สิ่งที่ต้องทำต่อบน VPS:**
-  * รันคำสั่งในข้อ 5 บน VPS Production เพื่อนำโค้ดที่แก้ไขล่าสุดขึ้นใช้งาน
-* **เรื่องที่จะทำต่อในครั้งหน้า:**
-  * ตรวจสอบผลการส่งอีเมลสรุปงานรายวันเวลา 07:50 น. บน Production ว่าอีเมลและไฟล์แนบ 2-Sheet Excel ส่งถึงจัดซื้ออย่างสมบูรณ์
-  * พัฒนาฟังก์ชันเพิ่มเติมตามโจทย์งานถัดไปของผู้ใช้
+* **สถานะความพร้อมของระบบ (System Readiness):**
+  * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`compileall` & `next build` 19/19 static pages)
+  * สถาปัตยกรรมระบบได้รับการคืนค่าตรงตามข้อตกลง: ไม่สร้าง UI ซ้ำซ้อน, จัดการสิทธิ์และอีเมลผ่าน User Management เท่านั้น
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: 640befc`)
+* **ขั้นตอนถัดไปเมื่อกลับมาเริ่มงาน (Next Steps):**
+  1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 5 บน VPS Production Hostinger
+  2. **สังเกตการณ์การส่งอีเมล PU Reminder ประจำวัน:** ตรวจสอบรอบเวลา 07:50 น. หรือเวลาที่ตั้งไว้ ว่าอีเมลและไฟล์แนบ Excel 2 Sheet ถูกส่งไปยังอีเมลของทีมจัดซื้อในกลุ่ม `PU User` อย่างครบถ้วนถูกต้อง
+  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีโดยไม่มีค้างคา

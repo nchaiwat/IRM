@@ -1,7 +1,7 @@
 # 🧠 IRM Project — MEMORY & WORKFLOW RULES
 
 > **บันทึกข้อตกลง กฎเหล็ก และบริบทสำคัญของระบบ IRM (Incoming Raw Material)**  
-> **อัปเดตล่าสุด:** 9 กันยายน 2026  
+> **อัปเดตล่าสุด:** 17 กันยายน 2026  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **Production URL:** `https://irm.windowasia.com`  
 > **VPS Hostinger Path:** `/var/www/Irm`
@@ -40,6 +40,7 @@
 ### 1.4 กฎการแก้ไขเฉพาะจุดและห้ามกระทบ Logic UX/UI เดิม (Surgical Edits & Preserve Existing Logic/UI)
 * **แก้เฉพาะจุดที่ต้องการเท่านั้น (Surgical Modifications Only):** แก้ไขตรงจุดที่ได้รับมอบหมาย ห้ามแก้ลามไปยังโมดูลหรือฟังก์ชันอื่นที่ไม่เกี่ยวข้องโดยเด็ดขาด
 * **ห้ามเปลี่ยนแปลง Logic หรือ UX/UI เดิมที่ใช้งานได้ดีอยู่แล้ว:** รักษาพฤติกรรมการทำงานเดิม, โครงสร้างหน้าตา, และ Workflow เดิมที่ทำงานถูกต้องไว้ 100% ห้ามรื้อหรือปรับแต่งส่วนอื่นโดยพลการ
+* **ห้ามเพิ่ม Setting Field ซ้ำซ้อนเมื่อมี Entity ในระบบอยู่แล้ว (Zero Redundant Settings):** หากข้อมูลใดมีการจัดเก็บและบริหารจัดการอยู่ใน **User Management** (เช่น รายชื่อผู้ใช้, อีเมล, กลุ่มสิทธิ์) หรือ Master อื่นๆ อยู่แล้ว **ห้ามไปเพิ่มช่อง Input หรือ Setting Field ใน System Settings ซ้ำซ้อนเด็ดขาด** ให้ระบบ Query อ้างอิงจากฐานข้อมูลหลักโดยตรงเท่านั้น
 * **ทิศทางและโทนสีของ UI/UX ต้องกลมกลืนและสอดคล้องกัน (Design Tone Consistency):**
   * หน้าการตั้งค่า (System Settings) และหน้าจอทำงานหลัก ต้องเน้นความสะอาด คลีน เรียบหรูในโทนเดียวกัน (Corporate Light Theme)
   * **ไม่มีอะไรให้โดดเด่นเป็นพิเศษเกินความจำเป็น:** ห้ามใช้ Dark Background หรือ Widget สีตัดที่ดึงสายตาและสร้างความซ้ำซ้อน
@@ -53,6 +54,9 @@
   * ฟังก์ชันแปลงวันที่ต้องจัดการสตริง `YYYY-MM-DD` เป็น `dd/mm/yyyy` โดยตรง ไม่ผ่าน `new Date(str)` ที่เสี่ยงต่อการโดน UTC ดึงวันถอยหลัง
   * ช่องรับค่า (Input) ต้องรับในรูปแบบ `dd/mm/yyyy` และแปลงเป็น `YYYY-MM-DD` ก่อนส่งบันทึกเข้า API
   * การเปรียบเทียบ Overdue / Near Due ให้เปรียบเทียบกับวันที่ปัจจุบันของ `Asia/Bangkok` เที่ยงคืนตรงวันเสมอ
+
+### 1.6 มาตรฐานการเปรียบเทียบเวลาสตริงใน APScheduler (Time Normalization Standard)
+* การตรวจสอบเวลาใน Minute-Checker ทุกตัว (เช่น `job_daily_pu_remind_email`, `job_daily_morning_telegram_summary`, `job_daily_inbound_telegram_dm`) ต้องแปลงเวลาเป้าหมายผ่านฟังก์ชัน `_normalize_hm(t_str)` เสมอ เพื่อรับประกันว่าไม่ว่าเวลาจะถูกป้อนเป็น `"7:50"` หรือ `"07:50"` จะถูก Normalize ให้อยู่ในรูป `"07:50"` สองหลักตรงกับ `now_bkk.strftime("%H:%M")` 100% ป้องกันกรณีเวลาไม่ตรงกันแล้ว Job ไม่ทำงาน
 
 ---
 
@@ -131,6 +135,17 @@
 * **Eliminate Cascade Queries:** ยกเลิก `lazy="selectin"` บน `Group.users` และ `Menu.auth_entries` เปลี่ยนเป็น `lazy="select"` เพื่อหยุดการโหลด User และ Menu ซ้ำซ้อนหลายสิบ Query ต่อ Request
 * **PO-Level Portal Link & Lock:** ปุ่ม `[ 🔗 ]` บนหน้า Operation สร้าง Token ระดับ PO และล็อค **ทุกรายการใน PO นั้น** เป็น `awaiting_supplier` และ `locked_by = 'supplier'`
 * **Token Expiry Standard:** ใช้วันหมดอายุรอบ PRD (พุธ 23:59 น. / อาทิตย์ 23:59 น.) พร้อม Cushion ขั้นต่ำ 12 ชม. และฟอร์แมตเวลาแสดงผลเป็น `Asia/Bangkok` (+07:00)
+
+### 3.12 ระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อ (Daily PU Reminder Email with 2-Sheet Excel)
+* **วัตถุประสงค์:** ส่งอีเมลสรุปภาพรวม PO/Item ที่ยังไม่ Confirm กำหนดส่ง และรายการที่มีกำหนดส่งของวันนี้ พร้อมแนบไฟล์ Excel 2 Sheet ให้ทีมจัดซื้อทุกเช้า
+* **การดึงผู้รับรายงาน:** ดึงอีเมลจริงของผู้ใช้ทุกคนที่ `is_active == True` และสังกัดกลุ่ม `PU User` จากฐานข้อมูล **User Management** โดยตรง ไม่สร้างฟิลด์กรอกอีเมลซ้ำซ้อนในหน้า Settings
+* **โครงสร้าง Excel 2 Sheet:**
+  * **Sheet 1 (รอ Confirm วันส่งมอบ):** หัวตารางสีน้ำเงินเข้ม สรุป PO และ Item ที่ยังไม่ได้รับการ Confirm วันส่งมอบ
+  * **Sheet 2 (กำหนดส่งมอบวันนี้):** หัวตารางสีเขียวมรกต แสดงรายการที่มี `estimate_date` ตรงกับวันที่ปัจจุบันของ `Asia/Bangkok`
+* **ระบบ Scheduler & Safeguard:**
+  * มีสวิตช์เปิด/ปิด (`pu_remind_mail_enabled`) และช่องระบุเวลาส่ง (`pu_remind_mail_time`) ใน System Settings (Section 2)
+  * ใช้ APScheduler Minute-Checker ร่วมกับฟังก์ชัน `_normalize_hm` จัดรูปแบบเวลามาตรฐาน
+  * มีตัวแปร Debounce `_last_pu_remind_date` รับประกันการยิงส่งเพียง 1 ครั้งต่อวัน
 
 ---
 
