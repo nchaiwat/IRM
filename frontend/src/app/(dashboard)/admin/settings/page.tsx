@@ -417,11 +417,10 @@ export default function SettingsPage() {
   };
 
   const handleTestPuRemindEmail = async () => {
-    const defaultRecipient = settings.pu_remind_recipient_emails?.split(',')[0]?.trim();
-    const emailToSend = puTestEmailRecipient.trim() || defaultRecipient || testEmailRecipient.trim();
+    const emailToSend = puTestEmailRecipient.trim() || testEmailRecipient.trim();
     if (!emailToSend) {
-      alert('⚠️ กรุณาระบุอีเมลผู้รับทดสอบสรุปงานในช่อง "อีเมลผู้รับทดสอบสรุปงาน" หรือระบุใน "อีเมลผู้รับสรุปงานประจำวัน" ก่อนกดส่ง');
-      setMessage({ type: 'error', text: 'กรุณาระบุอีเมลผู้รับทดสอบสรุปงานก่อนกดส่ง' });
+      alert('⚠️ กรุณาระบุอีเมลผู้รับทดสอบในช่อง "อีเมลผู้รับทดสอบสรุปงาน" ด้านบนก่อนกดส่ง');
+      setMessage({ type: 'error', text: 'กรุณาระบุอีเมลผู้รับทดสอบในช่อง "อีเมลผู้รับทดสอบสรุปงาน" ก่อนกดส่ง' });
       return;
     }
     setTestingPuRemind(true);
@@ -939,7 +938,7 @@ export default function SettingsPage() {
                   <span>ระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อ (PU Reminder Email with 2-Sheet Excel)</span>
                 </h4>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  ส่งอีเมลสรุปจำนวน PO/Item ที่ยังไม่ Confirm และของที่มีกำหนดส่งมอบวันนี้ พร้อมแนบไฟล์ Excel 2 Sheet
+                  ระบบจะดึงอีเมลของผู้ใช้ทุกคนในกลุ่ม <strong>PU User</strong> จากระบบ User Management เพื่อส่งสรุปงานและไฟล์แนบ Excel 2 Sheet โดยอัตโนมัติตามเวลาที่กำหนด
                 </p>
               </div>
 
@@ -998,22 +997,6 @@ export default function SettingsPage() {
                   placeholder="08:30"
                   className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500 outline-none font-mono"
                 />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  อีเมลผู้รับสรุปงานประจำวัน (Recipient Emails) *
-                </label>
-                <input
-                  type="text"
-                  value={settings.pu_remind_recipient_emails || ''}
-                  onChange={(e) => handleChange('pu_remind_recipient_emails', e.target.value)}
-                  placeholder="เช่น purchasing@windowasia.com, patcha@windowasia.com (คั่นด้วยจุลภาค)"
-                  className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  ระบุอีเมลผู้รับรายงานสรุปงานและไฟล์แนบ Excel ประจำวัน คั่นด้วยเครื่องหมายจุลภาค <code>,</code> (หากเว้นว่างไว้ ระบบจะส่งหาผู้ใช้ที่มีอีเมลจริงในกลุ่ม PU User)
-                </span>
               </div>
             </div>
           </div>

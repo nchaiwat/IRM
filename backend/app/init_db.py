@@ -87,6 +87,7 @@ async def run_ddl_migrations(conn):
                 ALTER TABLE po_headers ALTER COLUMN po_date TYPE DATE USING (po_date AT TIME ZONE 'Asia/Bangkok')::date;
             END IF;
         END $$;""",
+        "DELETE FROM system_settings WHERE key = 'pu_remind_recipient_emails';",
     ]
 
     for sql in migrations:
@@ -277,7 +278,6 @@ async def seed_data():
                 ("qms_api_key", "irm_qms_secure_key_2026", "Secret API Key สำหรับระบบ QMS ดึงข้อมูล Confirmed Inbound Deliveries", "integration", "string"),
                 ("pu_remind_mail_enabled", "false", "เปิด/ปิดระบบส่งอีเมลสรุปงานและของส่งวันนี้ให้จัดซื้อพร้อมแนบไฟล์ Excel", "email", "boolean"),
                 ("pu_remind_mail_time", "08:30", "เวลาส่งอีเมลสรุปงานประจำวันให้จัดซื้อ (HH:MM)", "email", "string"),
-                ("pu_remind_recipient_emails", "", "รายชื่ออีเมลผู้รับสรุปงานประจำวันของฝ่ายจัดซื้อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อส่งหาผู้ใช้ในระบบ)", "email", "string"),
                 ("ad_gateway_url", "", "Active Directory Gateway API URL (e.g. https://192.168.12.11:3100/api/v2/login)", "ad", "string"),
                 ("ad_app_id", "", "Application ID registered in AD Sync Agent registry.json", "ad", "string"),
                 ("ad_secret_key", "", "Secret Key for AD Sync Agent Gateway", "ad", "string"),

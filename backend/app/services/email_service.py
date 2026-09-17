@@ -731,7 +731,7 @@ async def send_pu_daily_reminder_email(
     # 1. Fetch SMTP & Config settings
     keys = [
         "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_use_tls",
-        "smtp_from_name", "pu_remind_mail_enabled", "pu_remind_mail_time", "pu_remind_recipient_emails"
+        "smtp_from_name", "pu_remind_mail_enabled", "pu_remind_mail_time"
     ]
     settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.key.in_(keys)))).scalars().all()
     s_map = {s.key: s.value for s in settings_rows}
@@ -753,39 +753,46 @@ async def send_pu_daily_reminder_email(
     if not smtp_user or not smtp_pass:
         return {"status": "error", "message": "SMTP user or password not configured in System Settings"}
 
-    # 2. Determine Recipients
+    # 2. Determine Recipients: Fetch all active users in 'PU User' group from User Management
     recipients = []
     if recipient_email and recipient_email.strip():
         recipients = [recipient_email.strip()]
     else:
-        # Check if configured in SystemSetting
-        custom_emails_str = (s_map.get("pu_remind_recipient_emails") or "").strip()
-        if custom_emails_str:
-            recipients = [
-                e.strip() for e in custom_emails_str.split(",")
-                if e.strip() and "@" in e.strip()
-            ]
+        from app.models.group import Group
+        from sqlalchemy import func
 
-        # Fallback to active users with emails if no custom recipients configured
+        stmt_users = (
+            select(User)
+            .join(Group, User.group_id == Group.id)
+            .where(User.is_active == True)
+            .where(func.lower(Group.name).in_(["pu user", "pu"]))
+            .where(User.email.isnot(None))
+            .where(User.email != "")
+        )
+        pu_users = (await db.execute(stmt_users)).scalars().all()
+        recipients = list({u.email.strip() for u in pu_users if u.email and "@" in u.email})
+
+        # Fallback if group name has 'pu' in it
         if not recipients:
-            stmt_users = (
+            stmt_fallback = (
                 select(User)
-                .join(User.group)
+                .join(Group, User.group_id == Group.id)
                 .where(User.is_active == True)
+                .where(func.lower(Group.name).like("%pu%"))
                 .where(User.email.isnot(None))
                 .where(User.email != "")
             )
-            pu_users = (await db.execute(stmt_users)).scalars().all()
-            # First prefer non-dummy emails
-            real_emails = [u.email.strip() for u in pu_users if u.email and "@" in u.email and not u.email.endswith("@company.com")]
-            if real_emails:
-                recipients = list(set(real_emails))
-            else:
-                recipients = list({u.email.strip() for u in pu_users if u.email and "@" in u.email})
+            fallback_users = (await db.execute(stmt_fallback)).scalars().all()
+            recipients = list({u.email.strip() for u in fallback_users if u.email and "@" in u.email})
 
     if not recipients:
-        logger.warning("⚠️ [PU Remind Email] ไม่พบบัญชีอีเมลผู้รับรายงาน! กรุณาระบุในหน้าตั้งค่า 'pu_remind_recipient_emails'")
-        return {"status": "skipped", "message": "ไม่พบอีเมลผู้รับรายงาน กรุณาระบุในหน้า System Settings (อีเมลผู้รับสรุปงานประจำวัน)"}
+        logger.warning("⚠️ [PU Remind Email] ไม่พบบัญชีผู้ใช้ในกลุ่ม PU User ที่มีอีเมลใน User Management")
+        return {
+            "status": "skipped",
+            "message": "ไม่พบผู้ใช้ในกลุ่ม PU User ที่มีอีเมลในระบบ User Management (โปรดตรวจสอบที่หน้าจัดการผู้ใช้)",
+        }
+
+    logger.info(f"📧 [PU Remind Email] ผู้รับรายงานประจำวัน ({len(recipients)} ท่าน จาก User Management): {recipients}")
 
     # 3. Generate 2-Sheet Excel & Summary Statistics
     excel_bytes, stats = await generate_pu_remind_excel(db)

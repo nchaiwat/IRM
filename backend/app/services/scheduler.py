@@ -72,6 +72,17 @@ _last_telegram_morning_date: str | None = None
 _last_telegram_inbound_dm_date: str | None = None
 
 
+def _normalize_hm(t_str: str) -> str:
+    """Normalizes 'H:M' or 'HH:MM' time string to standard 'HH:MM' format."""
+    try:
+        parts = t_str.strip().split(":")
+        if len(parts) == 2:
+            return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+    except Exception:
+        pass
+    return t_str.strip()
+
+
 async def job_daily_morning_telegram_summary():
     """Checks every minute if current time matches telegram_morning_summary_time and dispatches Morning Briefing."""
     global _last_telegram_morning_date
@@ -91,7 +102,7 @@ async def job_daily_morning_telegram_summary():
             s_map = {s.key: s.value for s in rows}
 
             is_enabled = s_map.get("telegram_morning_summary_enabled", "true").strip().lower() in ("true", "1", "yes")
-            target_time = s_map.get("telegram_morning_summary_time", "08:00").strip()
+            target_time = _normalize_hm(s_map.get("telegram_morning_summary_time", "08:00"))
 
             if is_enabled and current_hm == target_time:
                 if _last_telegram_morning_date == today_date_str:
@@ -125,7 +136,7 @@ async def job_daily_inbound_telegram_dm():
             s_map = {s.key: s.value for s in rows}
 
             is_enabled = s_map.get("telegram_inbound_dm_enabled", "false").strip().lower() in ("true", "1", "yes")
-            target_time = s_map.get("telegram_inbound_dm_time", "07:30").strip()
+            target_time = _normalize_hm(s_map.get("telegram_inbound_dm_time", "07:30"))
 
             if is_enabled and current_hm == target_time:
                 if _last_telegram_inbound_dm_date == today_date_str:
@@ -160,7 +171,7 @@ async def job_daily_pu_remind_email():
             s_map = {s.key: s.value for s in rows}
 
             is_enabled = s_map.get("pu_remind_mail_enabled", "false").strip().lower() in ("true", "1", "yes")
-            target_time = s_map.get("pu_remind_mail_time", "08:30").strip()
+            target_time = _normalize_hm(s_map.get("pu_remind_mail_time", "08:30"))
 
             if is_enabled and current_hm == target_time:
                 if _last_pu_remind_date == today_date_str:

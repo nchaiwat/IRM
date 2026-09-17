@@ -25,20 +25,17 @@
   * **เชื่อมโยง API & M2M Security:** ปรับให้ `ciam_allowed_ips` ซิงค์กับ `management_allowed_ips` และให้ [`central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py) ตรวจสอบ Whitelist IP ทั้งสองค่า ช่วยให้ผู้ดูแลระบบกำหนด IP ของเซิร์ฟเวอร์ CIAM ได้จากจุดเดียว
   * **คงกล่องคำแนะนำ Local/Docker:** ยก Notice Box สำหรับการตั้งค่า Base URL (`http://host.docker.internal:3000`) และ Redirect URI มาไว้ใน Section 6 อย่างเป็นระเบียบ
 
-### 2) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงานตอน 07:50 น. ไม่ได้รับอีเมล (PU Reminder Email)
-* **สาเหตุที่แท้จริง:**
-  1. ในหน้า System Settings เดิมมีเพียงช่อง **"อีเมลผู้รับทดสอบสรุปงาน"** ซึ่งเป็น State จำลองเฉพาะการกดปุ่มทดสอบ ไม่มีการบันทึกลง Database
-  2. เมื่อตั้งเวลาส่งอัตโนมัติ (Scheduler Triggered at `07:50 น.`) ฟังก์ชัน `send_pu_daily_reminder_email` จะพยายามดึงผู้ใช้จากฐานข้อมูล ซึ่งผู้ใช้เริ่มต้นมีอีเมลเป็น dummy (`admin@company.com`, `patcha@company.com`, `pinyada@company.com`) ทำให้ไม่มีอีเมลจริงส่งออกไป หรือถูกปฏิเสธโดย Mail Server
-  3. ไม่มีฟิลด์สำหรับระบุอีเมลผู้รับจริงสำหรับรอบเวลา Scheduler ใน System Settings
-* **การแก้ไข:**
-  * **เพิ่มฟิลด์ `pu_remind_recipient_emails` ใน Database & Settings:**
-    * เพิ่มคีย์ `pu_remind_recipient_emails` ใน `SystemSetting` และฟอร์มหน้าเว็บ Section 2
-    * รองรับการระบุอีเมลผู้รับรายงานได้หลายท่าน คั่นด้วยเครื่องหมายจุลภาค `,` (เช่น `purchasing@windowasia.com, buyer@windowasia.com`)
-  * **ปรับปรุงลอจิกใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):**
-    * เมื่อระบบ Scheduler ยิงส่ง จะตรวจสอบ `pu_remind_recipient_emails` เป็นลำดับแรก
-    * หากไม่มีการตั้งค่า จึงจะ Fallback ไปหา User ที่มีอีเมลจริง (คัดกรอง `@company.com` ออก)
-  * **เพิ่ม Debounce ป้องกันการส่งซ้ำใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** เพิ่มตัวแปร `_last_pu_remind_date` เพื่อรับประกันว่าใน 1 วันจะยิงส่งเพียงครั้งเดียวตรงตามเวลาที่ตั้งไว้ (07:50 น.)
-  * **ปรับปรุงปุ่มทดสอบส่งอีเมลสรุปงานในหน้าเว็บ:** หากช่องทดสอบเว้นว่างไว้ ระบบจะดึงอีเมลจากช่อง "อีเมลผู้รับสรุปงานประจำวัน" มาใช้ทดสอบให้อัตโนมัติ
+### 2) ✉️ แก้ไขปัญหาระบบส่งอีเมลสรุปงาน (PU Reminder Email) & คงสถาปัตยกรรมเดิม 100%
+* **สาเหตุที่แท้จริงที่ 07:50 น. ไม่ได้รับอีเมล:**
+  1. **การเปรียบเทียบเวลาสตริงใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** ระบบดึงเวลาปัจจุบันเป็น `"07:50"` (มีเลข 0 นำหน้าเสมอ) แต่หากค่าใน Database ถูกบันทึกเป็น `"7:50"` (ไม่มีเลข 0) เงื่อนไข `current_hm == target_time` จะเป็น `False` ทำให้ Job ไม่เคยถูกยิงทำงาน
+  2. **คำสั่ง Query ผู้ใช้ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** คำสั่งเดิมมีการ join `User.group` โดยไม่ได้ระบุเงื่อนไขกลุ่ม `Group.name == "PU User"` อย่างเจาะจง และมี logic คัดกรองอีเมลแปลกปลอมที่ไปตัดอีเมลจริงของผู้ใช้ออก
+* **การแก้ไข & คืนค่าตามข้อกำหนดเด็ดขาด (Revert Unwanted UI Field):**
+  * **ยกเลิกฟิลด์ `pu_remind_recipient_emails` ทั้งหมด:** ลบออกจาก System Settings และ Database อย่างสมบูรณ์ ไม่เพิ่ม UI/UX ที่ซ้ำซ้อน คงฟังก์ชันการจัดการบัญชีและอีเมลไว้ที่หน้า **User Management** ตามสถาปัตยกรรมเดิม 100%
+  * **ปรับปรุงลอจิกดึงอีเมลใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):**
+    * ดึงรายชื่อผู้ใช้ที่ `is_active == True` และอยู่ในกลุ่ม `PU User` จากตาราง `users` และ `groups` โดยตรง พร้อมดึงอีเมลจริงทุกคนที่ลงทะเบียนไว้ใน User Management ส่งให้ครบถ้วนทุกท่าน
+    * มีระบบ Log แสดงรายชื่ออีเมลผู้รับชัดเจน: `📧 [PU Remind Email] ผู้รับรายงานประจำวัน (X ท่าน จาก User Management)`
+  * **เพิ่ม Time Normalization ใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py):** เพิ่มฟังก์ชัน `_normalize_hm` แปลงเวลาทั้ง `07:50` และ `7:50` ให้อยู่ในฟอร์แมต `HH:MM` มาตรฐาน ทำให้ระบบตรวจสอบเวลาได้แม่นยำ 100%
+  * **เพิ่ม Debounce ป้องกันการส่งซ้ำ:** เพิ่ม `_last_pu_remind_date` เพื่อรับประกันว่าใน 1 วันจะยิงส่งเพียงครั้งเดียวตรงตามเวลาที่ตั้งไว้
 
 ---
 
