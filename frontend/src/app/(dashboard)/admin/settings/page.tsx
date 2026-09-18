@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Zap,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 
 function formatDateThai(dateStr?: string | null) {
@@ -61,6 +62,8 @@ export default function SettingsPage() {
   const [puTestEmailRecipient, setPuTestEmailRecipient] = useState('');
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPuRemind, setTestingPuRemind] = useState(false);
+  const [sendingPuRemindManual, setSendingPuRemindManual] = useState(false);
+  const [purgingLogs, setPurgingLogs] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Active Directory (AD) State
@@ -438,6 +441,54 @@ export default function SettingsPage() {
       alert(`❌ ${errText}`);
     } finally {
       setTestingPuRemind(false);
+    }
+  };
+
+  const handleSendPuRemindNow = async () => {
+    if (!confirm('คุณต้องการส่งอีเมลสรุปงานและไฟล์แนบ Excel ไปยังทีมจัดซื้อ (PU Users) ทุกท่านตอนนี้ใช่หรือไม่?')) {
+      return;
+    }
+    setSendingPuRemindManual(true);
+    setMessage(null);
+    try {
+      const res = await api.post<{
+        message: string;
+        sent_count: number;
+        recipients: string[];
+        unconfirmed_items: number;
+        today_deliveries: number;
+      }>('/api/settings/send-pu-remind-email-now');
+      const successText = `${res.data.message} (ยังไม่ Confirm: ${res.data.unconfirmed_items} รายการ, ส่งวันนี้: ${res.data.today_deliveries} รายการ)`;
+      setMessage({ type: 'success', text: successText });
+      alert(`✅ ${successText}\n\nผู้รับ: ${res.data.recipients.join(', ')}`);
+    } catch (err: any) {
+      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการส่งอีเมลสรุปงานจัดซื้อ';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
+    } finally {
+      setSendingPuRemindManual(false);
+    }
+  };
+
+  const handlePurgeOldLogs = async () => {
+    const days = Number(settings.log_retention_days) || 15;
+    if (!confirm(`คุณต้องการสั่งลบ Transaction Logs ที่มีอายุเกิน ${days} วัน ออกจากฐานข้อมูลทันทีใช่หรือไม่?`)) {
+      return;
+    }
+    setPurgingLogs(true);
+    setMessage(null);
+    try {
+      const res = await api.post<{ message: string; deleted_count: number; retention_days: number }>('/api/settings/purge-old-logs', null, {
+        params: { days },
+      });
+      setMessage({ type: 'success', text: res.data.message });
+      alert(`✅ ${res.data.message}`);
+    } catch (err: any) {
+      const errText = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการล้าง Transaction Logs';
+      setMessage({ type: 'error', text: errText });
+      alert(`❌ ${errText}`);
+    } finally {
+      setPurgingLogs(false);
     }
   };
 
@@ -967,7 +1018,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   สวิตช์เปิด/ปิดฟังก์ชันส่งอีเมลสรุปจัดซื้อ
@@ -997,6 +1048,26 @@ export default function SettingsPage() {
                   placeholder="08:30"
                   className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500 outline-none font-mono"
                 />
+              </div>
+
+              <div className="flex flex-col justify-end">
+                <label className="block text-xs font-semibold text-slate-700 mb-1 opacity-0 hidden sm:block">
+                  ส่งแบบ Manual
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSendPuRemindNow}
+                  disabled={sendingPuRemindManual}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs rounded-lg transition disabled:opacity-50 shadow-sm cursor-pointer h-[38px]"
+                  title="สั่งส่งอีเมลสรุปงานและไฟล์แนบ Excel ไปยังทีมจัดซื้อทุกคนทันที"
+                >
+                  {sendingPuRemindManual ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  <span>{sendingPuRemindManual ? 'กำลังส่งสรุปงาน...' : 'ส่งทันที (Manual)'}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1271,7 +1342,7 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">ระยะเวลาเก็บประวัติ (วัน)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">ระยะเวลาเก็บประวัติ PO (วัน)</label>
               <input
                 type="number"
                 value={settings.history_retention_days ?? ''}
@@ -1295,6 +1366,65 @@ export default function SettingsPage() {
                 <label htmlFor="mail_schedule_enabled" className="text-xs font-bold text-red-800 cursor-pointer">
                   {settings.mail_schedule_enabled === 'true' ? '🟢 เปิดใช้งาน' : '🛑 ระงับ (ช่วง Implement)'}
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-Card: Transaction Logs Retention & Storage Policy */}
+          <div className="bg-gradient-to-br from-slate-50 via-sky-50/40 to-slate-100/60 border border-slate-200 rounded-xl p-4 mt-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-sky-600" />
+                  <span>กำหนดระยะเวลาจัดเก็บและแสดงผล Transaction Logs (Log Retention Policy)</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700 border border-sky-200">
+                    Default 15 วัน
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  ระบบจะแสดงผลและจัดเก็บข้อมูล Log ย้อนหลังตามจำนวนวันที่กำหนด โดยรายการที่เก่ากว่ากำหนดจะถูกลบออกจากระบบอัตโนมัติทุกวัน เพื่อประหยัดพื้นที่จัดเก็บข้อมูล
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handlePurgeOldLogs}
+                disabled={purgingLogs}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-xs rounded-lg transition disabled:opacity-50 flex-shrink-0 cursor-pointer"
+                title="สั่งลบ Transaction Logs ที่มีอายุเกินจำนวนวันที่กำหนดทันที"
+              >
+                {purgingLogs ? (
+                  <div className="w-3.5 h-3.5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>ล้าง Log เก่ากว่ากำหนดทันที</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ระยะเวลาจัดเก็บและแสดงผล Log (วัน)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={settings.log_retention_days ?? '15'}
+                    onChange={(e) => handleChange('log_retention_days', e.target.value)}
+                    placeholder="15"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-1 focus:ring-sky-500 outline-none font-bold text-slate-800"
+                  />
+                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">วัน (Default: 15)</span>
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <p className="text-[11px] text-slate-500 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200 w-full">
+                  💡 <span className="font-semibold text-slate-700">คำแนะนำ:</span> ทุกวันเวลา 00:30 น. ระบบ Background Scheduler จะตรวจสอบและล้าง Log ที่เก่ากว่า <strong className="text-slate-800">{settings.log_retention_days || 15} วัน</strong> ออกจากฐานข้อมูล PostgreSQL โดยอัตโนมัติ
+                </p>
               </div>
             </div>
           </div>

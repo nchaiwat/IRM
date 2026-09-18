@@ -227,6 +227,97 @@ async def test_pu_remind_email(
         )
 
 
+@router.post("/send-pu-remind-email-now")
+async def send_pu_remind_email_now(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+):
+    """
+    Manually triggers sending the Daily PU Reminder Email with 2-Sheet Excel attachment
+    to ALL active users in PU User group.
+    """
+    from app.services.email_service import send_pu_daily_reminder_email
+    try:
+        res = await send_pu_daily_reminder_email(
+            db=db,
+            recipient_email=None,  # All PU Users
+            triggered_by=f"manual_by_{current_user.username}",
+        )
+        if res.get("status") == "error":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
+        if res.get("status") == "skipped":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
+        if res.get("status") != "success" or res.get("sent_count", 0) == 0:
+            err_details = "; ".join(res.get("errors", [])) or "ไม่สามารถส่งอีเมลได้ (โปรดตรวจสอบการตั้งค่า SMTP หรืออีเมลผู้รับ)"
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"การส่งอีเมลล้มเหลว: {err_details}")
+
+        stats = res.get("stats", {})
+        recipients = res.get("recipients", [])
+        return {
+            "message": f"ส่งอีเมลสรุปงานพร้อมไฟล์แนบ Excel ไปยังทีมจัดซื้อสำเร็จ {len(recipients)} ท่าน เรียบร้อยแล้ว!",
+            "sent_count": len(recipients),
+            "recipients": recipients,
+            "unconfirmed_items": stats.get("unconfirmed_item_count", 0),
+            "today_deliveries": stats.get("today_delivery_item_count", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"เกิดข้อผิดพลาดในการส่งอีเมลสรุปงานจัดซื้อ: {str(e)}"
+        )
+
+
+@router.post("/purge-old-logs")
+async def purge_old_logs_now(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/settings", "edit"))],
+    days: Optional[int] = None,
+):
+    """
+    Purges transaction logs older than the configured log_retention_days (Default 15 days).
+    """
+    from datetime import timezone, timedelta
+    from sqlalchemy import delete
+    from app.models.transaction_log import TransactionLog
+
+    if days is None or days <= 0:
+        stmt = select(SystemSetting).where(SystemSetting.key == "log_retention_days")
+        ret_setting = (await db.execute(stmt)).scalar_one_or_none()
+        try:
+            retention_days = int(ret_setting.value) if ret_setting and ret_setting.value else 15
+        except Exception:
+            retention_days = 15
+    else:
+        retention_days = days
+
+    now_dt = datetime.now(timezone.utc)
+    purge_threshold = now_dt - timedelta(days=retention_days)
+
+    del_stmt = delete(TransactionLog).where(TransactionLog.created_at < purge_threshold)
+    res = await db.execute(del_stmt)
+    deleted_count = res.rowcount or 0
+    await db.commit()
+
+    # Record log
+    await record_transaction_log(
+        category="system",
+        action="purge_old_logs",
+        status="SUCCESS",
+        message=f"ผู้ดูแลระบบ ({current_user.full_name}) สั่งล้างประวัติ Transaction Logs ที่เก่ากว่า {retention_days} วัน สำเร็จจำนวน {deleted_count} รายการ",
+        details=f"Threshold: < {purge_threshold.strftime('%Y-%m-%d %H:%M:%S UTC')} | Retention: {retention_days} days",
+        triggered_by=f"user:{current_user.username}",
+        db=db,
+    )
+    await db.commit()
+
+    return {
+        "message": f"ล้างประวัติ Log ที่เก่ากว่า {retention_days} วัน เรียบร้อยแล้ว (ลบทั้งหมด {deleted_count} รายการ)",
+        "deleted_count": deleted_count,
+        "retention_days": retention_days,
+    }
+
 
 @router.post("/test-telegram-group")
 async def test_telegram_group(

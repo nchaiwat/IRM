@@ -751,45 +751,67 @@ async def send_pu_daily_reminder_email(
     use_tls = s_map.get("smtp_use_tls", "true").lower() == "true"
 
     if not smtp_user or not smtp_pass:
-        return {"status": "error", "message": "SMTP user or password not configured in System Settings"}
+        warn_smtp = "ไม่สามารถส่งอีเมลสรุปงานจัดซื้อได้: ยังไม่ได้กำหนด SMTP User หรือ App Password ใน System Settings"
+        logger.error(f"❌ [PU Remind Email] {warn_smtp}")
+        try:
+            await record_transaction_log(
+                category="pu_remind_email",
+                action="send_daily_remind",
+                status="FAILED",
+                message=warn_smtp,
+                details=f"Trigger: {triggered_by} | Host: {smtp_host}:{smtp_port}",
+                db=db,
+            )
+            await db.commit()
+        except Exception:
+            pass
+        return {"status": "error", "message": warn_smtp}
 
-    # 2. Determine Recipients: Fetch all active users in 'PU User' group from User Management
+    # 2. Determine Recipients: Fetch all active users in 'PU User' / 'จัดซื้อ' groups from User Management
     recipients = []
     if recipient_email and recipient_email.strip():
         recipients = [recipient_email.strip()]
     else:
         from app.models.group import Group
-        from sqlalchemy import func
+        from sqlalchemy import func, or_
 
+        target_groups = ["pu user", "pu", "purchasing", "จัดซื้อ", "ฝ่ายจัดซื้อ"]
         stmt_users = (
             select(User)
             .join(Group, User.group_id == Group.id)
             .where(User.is_active == True)
-            .where(func.lower(Group.name).in_(["pu user", "pu"]))
+            .where(
+                or_(
+                    func.lower(Group.name).in_(target_groups),
+                    func.lower(Group.name).like("%pu%"),
+                    Group.name.like("%จัดซื้อ%"),
+                    Group.name.like("%purchasing%"),
+                )
+            )
             .where(User.email.isnot(None))
             .where(User.email != "")
         )
         pu_users = (await db.execute(stmt_users)).scalars().all()
         recipients = list({u.email.strip() for u in pu_users if u.email and "@" in u.email})
 
-        # Fallback if group name has 'pu' in it
-        if not recipients:
-            stmt_fallback = (
-                select(User)
-                .join(Group, User.group_id == Group.id)
-                .where(User.is_active == True)
-                .where(func.lower(Group.name).like("%pu%"))
-                .where(User.email.isnot(None))
-                .where(User.email != "")
-            )
-            fallback_users = (await db.execute(stmt_fallback)).scalars().all()
-            recipients = list({u.email.strip() for u in fallback_users if u.email and "@" in u.email})
-
     if not recipients:
-        logger.warning("⚠️ [PU Remind Email] ไม่พบบัญชีผู้ใช้ในกลุ่ม PU User ที่มีอีเมลใน User Management")
+        warn_recipients = "ไม่สามารถส่งอีเมลสรุปงานได้: ไม่พบบัญชีผู้ใช้ในกลุ่มจัดซื้อ (PU User / จัดซื้อ) ที่มีอีเมลในระบบ User Management"
+        logger.warning(f"⚠️ [PU Remind Email] {warn_recipients}")
+        try:
+            await record_transaction_log(
+                category="pu_remind_email",
+                action="send_daily_remind",
+                status="WARNING",
+                message=warn_recipients,
+                details=f"Trigger: {triggered_by} | โปรดตรวจสอบข้อมูลผู้ใช้และอีเมลที่หน้า User Management (/admin/users)",
+                db=db,
+            )
+            await db.commit()
+        except Exception:
+            pass
         return {
             "status": "skipped",
-            "message": "ไม่พบผู้ใช้ในกลุ่ม PU User ที่มีอีเมลในระบบ User Management (โปรดตรวจสอบที่หน้าจัดการผู้ใช้)",
+            "message": warn_recipients,
         }
 
     logger.info(f"📧 [PU Remind Email] ผู้รับรายงานประจำวัน ({len(recipients)} ท่าน จาก User Management): {recipients}")

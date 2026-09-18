@@ -258,6 +258,7 @@ async def seed_data():
                 ("sap_sync_time", "06:45", "Time of day to sync open POs from SAP (HH:MM)", "schedule", "time"),
                 ("scheduler_enabled", "true", "Enable background email and SAP sync scheduler", "schedule", "boolean"),
                 ("history_retention_days", "7", "Days to retain closed PO history (7-15 days)", "general", "integer"),
+                ("log_retention_days", "15", "ระยะเวลาจัดเก็บและแสดงผล Transaction Logs (วัน)", "general", "integer"),
                 ("date_format", "dd/MM/yyyy", "System date display format", "general", "string"),
                 ("app_base_url", "https://irm.windowasia.com", "System Base URL & Supplier Portal Domain", "general", "string"),
                 ("sap_sync_mode", "outbound_agent", "SAP Sync Mode: 'outbound_agent' (Push via Python Script), 'sql' (Direct MS SQL), or 'api'", "sap", "string"),

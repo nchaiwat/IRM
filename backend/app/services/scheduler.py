@@ -186,6 +186,48 @@ async def job_daily_pu_remind_email():
         logger.error(f"❌ [Scheduler] Error checking/dispatching PU Reminder Email: {e}")
 
 
+async def job_daily_purge_old_logs():
+    """Daily Transaction Log Purge: Removes logs older than log_retention_days (Default 15 days)."""
+    logger.info("🧹 [Scheduler] Executing Daily Transaction Log Purge...")
+    try:
+        async with AsyncSessionLocal() as session:
+            from app.models.system_setting import SystemSetting
+            from app.models.transaction_log import TransactionLog
+            from sqlalchemy import select, delete
+            from datetime import timedelta
+            from app.services.log_service import record_transaction_log
+
+            stmt = select(SystemSetting).where(SystemSetting.key == "log_retention_days")
+            ret_setting = (await session.execute(stmt)).scalar_one_or_none()
+            try:
+                retention_days = int(ret_setting.value) if ret_setting and ret_setting.value else 15
+            except Exception:
+                retention_days = 15
+
+            now_dt = datetime.now(timezone.utc)
+            purge_threshold = now_dt - timedelta(days=retention_days)
+
+            del_stmt = delete(TransactionLog).where(TransactionLog.created_at < purge_threshold)
+            res = await session.execute(del_stmt)
+            deleted_count = res.rowcount or 0
+            await session.commit()
+
+            if deleted_count > 0:
+                logger.info(f"✅ [Scheduler] Purged {deleted_count} logs older than {retention_days} days.")
+                await record_transaction_log(
+                    category="system",
+                    action="purge_old_logs",
+                    status="SUCCESS",
+                    message=f"ล้างประวัติ Transaction Logs ที่เก่ากว่า {retention_days} วัน สำเร็จจำนวน {deleted_count} รายการ",
+                    details=f"Threshold: < {purge_threshold.strftime('%Y-%m-%d %H:%M:%S UTC')} | Retention: {retention_days} days",
+                    triggered_by="system_cron",
+                    db=session,
+                )
+                await session.commit()
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Error during daily log purge: {e}")
+
+
 def start_scheduler():
     """Start APScheduler with defined cron jobs."""
     if scheduler.running:
@@ -245,8 +287,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 7: Daily 00:30 AM Transaction Log Purge (Log Retention)
+    scheduler.add_job(
+        job_daily_purge_old_logs,
+        trigger=CronTrigger(hour=0, minute=30, timezone="Asia/Bangkok"),
+        id="transaction_log_daily_purge",
+        name="Daily 00:30 AM Transaction Log Purge",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("🚀 [Scheduler] APScheduler started with Mon/Thu Supplier Broadcast, Daily 06:45 SAP Sync, Morning Summary, Inbound DM Dispatcher, and PU Reminder Dispatcher.")
+    logger.info("🚀 [Scheduler] APScheduler started with Supplier Broadcast, Daily SAP Sync, Morning Summary, Inbound DM, PU Reminder, and Log Purge.")
 
 
 def stop_scheduler():

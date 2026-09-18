@@ -1,8 +1,8 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 17 กันยายน 2026 (09:50 น.)  
+> **วันที่บันทึก:** 18 กันยายน 2026 (08:12 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
-> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main` / Commit: `640befc`)  
+> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`
 
 ---
@@ -13,7 +13,36 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (16–17 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (18 กันยายน 2026)
+
+### 1) ✉️ แก้ปัญหาอีเมลสรุปงาน PU Reminder & เพิ่ม 100% Audit Trail ใน Transaction Logs
+* **สาเหตุที่เวลา 07:50 น. ไม่ได้รับอีเมลและไม่มีใน Log:**
+  * โค้ดเดิมวางคำสั่ง `record_transaction_log()` ไว้หลังส่งสำเร็จเท่านั้น หากเกิดกรณีสวิตช์ใน DB ปิดอยู่, หรือไม่พบรายชื่อผู้ใช้ในกลุ่ม `PU User` ที่มีอีเมล, หรือไม่ได้ตั้งค่า SMTP ตัวระบบจะ return ออกทันทีโดยไม่มีการลง Log ทำให้ในหน้า Transaction Logs ว่างเปล่า
+  * คำสั่ง Query กลุ่มตรวจจับเฉพาะชื่อภาษาอังกฤษ (`PU User`, `PU`) หากกลุ่มในฐานข้อมูลจริงเป็นภาษาไทย เช่น `จัดซื้อ` หรือ `ฝ่ายจัดซื้อ` จะไม่พบผู้ใช้
+* **การแก้ไข:**
+  * **100% Audit Trail ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** บันทึก Transaction Log ทุกสถานะ ทั้ง `SUCCESS`, `WARNING` (ไม่พบบัญชีผู้ใช้ที่มีอีเมลในกลุ่มจัดซื้อ พร้อมคำแนะนำให้ไปตั้งค่าที่ User Management), และ `FAILED` (ไม่ได้ตั้งค่า SMTP User / Password)
+  * **ขยาย Group Matching:** รองรับทั้ง `pu user`, `pu`, `purchasing`, `จัดซื้อ`, `ฝ่ายจัดซื้อ`
+  * **Time & Setting Normalization:** รองรับเวลาทั้ง `7:50` และ `07:50` อย่างแม่นยำ
+
+### 2) ⚡ เพิ่มปุ่ม "ส่งทันที (Manual)" สำหรับอีเมลสรุปงานจัดซื้อ
+* **UI ในหน้า System Settings ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):**
+  * เพิ่มปุ่ม **`[ ⚡ ส่งทันที (Manual) ]`** ในแถวเดียวกับเวลาส่งอีเมลสรุปประจำวัน (Section 2) ตรงตามตำแหน่งที่ User ต้องการ 100%
+* **API Backend ([`settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py)):**
+  * สร้าง Endpoint `POST /api/settings/send-pu-remind-email-now` ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ไปยังทีมจัดซื้อทุกคนทันที พร้อมบันทึก Transaction Log แสดงสถิติและรายชื่อผู้รับชัดเจน
+
+### 3) 🧹 เพิ่ม Card กำหนดระยะเวลาจัดเก็บ Log ย้อนหลัง (Default 15 วัน) & Auto Purge
+* **Card ใหม่ในหน้า Settings:**
+  * เพิ่ม Sub-card **"กำหนดระยะเวลาจัดเก็บและแสดงผล Transaction Logs (Log Retention Policy)"** ใน Section 4
+  * กำหนดค่า Default ที่ **15 วัน** (`log_retention_days`)
+  * มีปุ่ม **`[ 🗑️ ล้าง Log เก่ากว่ากำหนดทันที ]`** ให้ Admin สั่งล้างแบบ Manual ได้ทันที
+* **Backend Auto Purge & Log Filter:**
+  * ใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py): เพิ่ม Job ประจำวัน (00:30 น.) สั่งลบแถวใน `transaction_logs` ที่เก่ากว่ากำหนด (`created_at < now - log_retention_days`) อัตโนมัติ เพื่อประหยัดพื้นที่ดิสก์
+  * ใน [`logs.py`](file:///d:/Python/IRM/backend/app/routers/logs.py): เพิ่มลอจิก Filter ข้อมูลย้อนหลังตาม `log_retention_days` (15 วัน) เป็นค่าเริ่มต้นเมื่อผู้ใช้ไม่ได้ระบุวันเริ่มต้น
+  * ใน [`init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py): เพิ่ม Seed Setting `log_retention_days` = `"15"`
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (16–17 กันยายน 2026)
 
 ### 1) 🧹 ลบการ์ดซ้ำซ้อน Section 9 และเพิ่มช่อง Allow IP สำหรับเซิร์ฟเวอร์ CIAM ในหน้า Settings
 * **ปัญหาเดิม:**

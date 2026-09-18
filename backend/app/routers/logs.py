@@ -93,6 +93,16 @@ async def list_transaction_logs(
             query = query.where(TransactionLog.created_at >= d_from)
         except Exception:
             pass
+    else:
+        # Default display filter according to log_retention_days (Default: 15 days)
+        try:
+            stmt_ret = select(SystemSetting.value).where(SystemSetting.key == "log_retention_days")
+            ret_val = (await db.execute(stmt_ret)).scalar_one_or_none()
+            ret_days = int(ret_val) if ret_val else 15
+        except Exception:
+            ret_days = 15
+        default_from = datetime.now(timezone.utc) - timedelta(days=ret_days)
+        query = query.where(TransactionLog.created_at >= default_from)
 
     if date_to:
         try:
