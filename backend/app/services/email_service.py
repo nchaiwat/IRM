@@ -759,10 +759,9 @@ async def send_pu_daily_reminder_email(
                 action="send_daily_remind",
                 status="FAILED",
                 message=warn_smtp,
-                details=f"Trigger: {triggered_by} | Host: {smtp_host}:{smtp_port}",
-                db=db,
+                details=f"Host: {smtp_host}:{smtp_port}",
+                triggered_by=triggered_by,
             )
-            await db.commit()
         except Exception:
             pass
         return {"status": "error", "message": warn_smtp}
@@ -803,10 +802,9 @@ async def send_pu_daily_reminder_email(
                 action="send_daily_remind",
                 status="WARNING",
                 message=warn_recipients,
-                details=f"Trigger: {triggered_by} | โปรดตรวจสอบข้อมูลผู้ใช้และอีเมลที่หน้า User Management (/admin/users)",
-                db=db,
+                details="โปรดตรวจสอบข้อมูลผู้ใช้และอีเมลที่หน้า User Management (/admin/users)",
+                triggered_by=triggered_by,
             )
-            await db.commit()
         except Exception:
             pass
         return {
@@ -925,10 +923,10 @@ async def send_pu_daily_reminder_email(
             action="send_daily_remind",
             status="SUCCESS" if sent_recipients else "FAILED",
             message=f"ส่งอีเมลสรุปงานให้จัดซื้อสำเร็จ {len(sent_recipients)} ท่าน (Unconfirmed: {stats['unconfirmed_item_count']} รายการ, Today: {stats['today_delivery_item_count']} รายการ)",
-            details=f"Recipients: {', '.join(sent_recipients)} | Trigger: {triggered_by} | Errors: {errors}",
-            db=db,
+            details=f"Recipients: {', '.join(sent_recipients)} | Errors: {errors}",
+            records_count=len(sent_recipients),
+            triggered_by=triggered_by,
         )
-        await db.commit()
     except Exception:
         pass
 

@@ -49,14 +49,10 @@ async def record_transaction_log(
     )
 
     try:
-        if db is not None:
-            db.add(log_entry)
-            await db.commit()
-        else:
-            async with AsyncSessionLocal() as session:
-                session.add(log_entry)
-                await session.commit()
-                await session.refresh(log_entry)
+        async with AsyncSessionLocal() as session:
+            session.add(log_entry)
+            await session.commit()
+            await session.refresh(log_entry)
         return log_entry
     except Exception as e:
         logger.error(f"Failed to write transaction log: {e}", exc_info=True)

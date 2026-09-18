@@ -73,10 +73,13 @@ async def list_transaction_logs(
     query = select(TransactionLog)
 
     if category and category != "all":
-        query = query.where(TransactionLog.category == category)
+        if category == "supplier_email":
+            query = query.where(TransactionLog.category.in_(["supplier_email", "pu_remind_email"]))
+        else:
+            query = query.where(TransactionLog.category == category)
 
     if status_filter and status_filter != "all":
-        query = query.where(TransactionLog.status == status_filter)
+        query = query.where(func.lower(TransactionLog.status) == status_filter.lower())
 
     if search:
         s = f"%{search.strip()}%"
@@ -143,10 +146,22 @@ async def get_log_summary_stats(
     """
     total_logs = (await db.execute(select(func.count(TransactionLog.id)))).scalar() or 0
     sap_sync = (await db.execute(select(func.count(TransactionLog.id)).where(TransactionLog.category == "sap_sync"))).scalar() or 0
-    email_count = (await db.execute(select(func.count(TransactionLog.id)).where(TransactionLog.category == "supplier_email"))).scalar() or 0
+    email_count = (
+        await db.execute(
+            select(func.count(TransactionLog.id)).where(
+                TransactionLog.category.in_(["supplier_email", "pu_remind_email"])
+            )
+        )
+    ).scalar() or 0
     qms_count = (await db.execute(select(func.count(TransactionLog.id)).where(TransactionLog.category == "qms_export"))).scalar() or 0
     portal_count = (await db.execute(select(func.count(TransactionLog.id)).where(TransactionLog.category == "supplier_portal"))).scalar() or 0
-    errors = (await db.execute(select(func.count(TransactionLog.id)).where(TransactionLog.status == "failed"))).scalar() or 0
+    errors = (
+        await db.execute(
+            select(func.count(TransactionLog.id)).where(
+                func.lower(TransactionLog.status).in_(["failed", "error"])
+            )
+        )
+    ).scalar() or 0
 
     return LogSummaryStats(
         total_logs=total_logs,

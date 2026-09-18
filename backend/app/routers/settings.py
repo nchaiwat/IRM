@@ -202,7 +202,7 @@ async def test_pu_remind_email(
         res = await send_pu_daily_reminder_email(
             db=db,
             recipient_email=data.recipient_email,
-            triggered_by=f"manual_test_by_{current_user.username}",
+            triggered_by=f"user:{current_user.username}",
         )
         if res.get("status") == "error":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
@@ -241,7 +241,7 @@ async def send_pu_remind_email_now(
         res = await send_pu_daily_reminder_email(
             db=db,
             recipient_email=None,  # All PU Users
-            triggered_by=f"manual_by_{current_user.username}",
+            triggered_by=f"user:{current_user.username}",
         )
         if res.get("status") == "error":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=res.get("message"))
