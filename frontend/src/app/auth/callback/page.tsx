@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -14,6 +14,7 @@ function CallbackContent() {
   const [statusText, setStatusText] = useState('กำลังตรวจสอบ One-Time Ticket กับ Central IAM...');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const executedRef = useRef(false);
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -23,6 +24,12 @@ function CallbackContent() {
       setError('ไม่พบ Authorization Code ใน URL Redirect จาก Central IAM');
       return;
     }
+
+    // Prevent double execution in React StrictMode / state updates
+    if (executedRef.current) {
+      return;
+    }
+    executedRef.current = true;
 
     const exchangeToken = async () => {
       try {
