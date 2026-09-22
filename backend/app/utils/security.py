@@ -28,22 +28,43 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    subject: str | Any = None,
+    expires_delta: timedelta | None = None,
+    data: dict[str, Any] | None = None,
+) -> str:
     """Create a JWT access token."""
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode = {"exp": expire, "type": "access"}
+    if data:
+        to_encode.update(data)
+    if subject is not None:
+        to_encode["sub"] = str(subject)
+    elif "sub" not in to_encode:
+        raise ValueError("Token must contain a subject (sub)")
+
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 
-def create_refresh_token(subject: str | Any) -> str:
+def create_refresh_token(
+    subject: str | Any = None,
+    data: dict[str, Any] | None = None,
+) -> str:
     """Create a JWT refresh token."""
     expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {"exp": expire, "type": "refresh"}
+    if data:
+        to_encode.update(data)
+    if subject is not None:
+        to_encode["sub"] = str(subject)
+    elif "sub" not in to_encode:
+        raise ValueError("Token must contain a subject (sub)")
+
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
