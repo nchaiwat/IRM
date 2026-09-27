@@ -1,10 +1,10 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 18 กันยายน 2026 (11:45 น.)  
+> **วันที่บันทึก:** 27 กันยายน 2026 (23:00 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `29a21dc` (fix(logs): ensure transaction logs commit independently and align email category badges)  
-> **VPS Hostinger Path:** `/var/www/Irm`
+> **Latest Commit:** `0a3a5c1` (feat(users): allow editing User ID/Username and deleting inactive accounts)  
+> **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
 
@@ -14,75 +14,58 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (18 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (27 กันยายน 2026)
 
-### 1) ✉️ แก้ปัญหาอีเมลสรุปงาน PU Reminder & เพิ่ม 100% Audit Trail ใน Transaction Logs
-* **สาเหตุที่เวลา 07:50 น. ไม่ได้รับอีเมลและไม่มีใน Log:**
-  * โค้ดเดิมวางคำสั่ง `record_transaction_log()` ไว้หลังส่งสำเร็จเท่านั้น หากเกิดกรณีสวิตช์ใน DB ปิดอยู่, หรือไม่พบรายชื่อผู้ใช้ในกลุ่ม `PU User` ที่มีอีเมล, หรือไม่ได้ตั้งค่า SMTP ตัวระบบจะ return ออกทันทีโดยไม่มีการลง Log ทำให้ในหน้า Transaction Logs ว่างเปล่า
-  * คำสั่ง Query กลุ่มตรวจจับเฉพาะชื่อภาษาอังกฤษ (`PU User`, `PU`) หากกลุ่มในฐานข้อมูลจริงเป็นภาษาไทย เช่น `จัดซื้อ` หรือ `ฝ่ายจัดซื้อ` จะไม่พบผู้ใช้
-* **การแก้ไข:**
-  * **100% Audit Trail ใน [`email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py):** บันทึก Transaction Log ทุกสถานะ ทั้ง `SUCCESS`, `WARNING` (ไม่พบบัญชีผู้ใช้ที่มีอีเมลในกลุ่มจัดซื้อ พร้อมคำแนะนำให้ไปตั้งค่าที่ User Management), และ `FAILED` (ไม่ได้ตั้งค่า SMTP User / Password)
-  * **ขยาย Group Matching:** รองรับทั้ง `pu user`, `pu`, `purchasing`, `จัดซื้อ`, `ฝ่ายจัดซื้อ`
-  * **Time & Setting Normalization:** รองรับเวลาทั้ง `7:50` และ `07:50` อย่างแม่นยำ
+### 1) 👤 แก้ไข User ID (Username) ให้ปรับตรงกับ Active Directory (AD) ได้
+* **ความเป็นมา:** เดิมในหน้า User Management ไม่มีช่องแก้ไข Username ทำให้เมื่อจำเป็นต้องปรับเปลี่ยน User ID ให้สอดคล้องกับบัญชี AD ขององค์กร ผู้ดูแลระบบไม่สามารถปรับได้โดยตรงจากหน้าจอ
+* **การพัฒนา Backend ([`backend/app/schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py), [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py)):**
+  * เพิ่ม `username: str | None = None` ใน `UserUpdate` Schema
+  * ใน `PUT /api/users/{user_id}`:
+    * ตรวจสอบความถูกต้องและไม่เป็นสตริงว่าง
+    * ตรวจสอบความซ้ำซ้อนกับผู้ใช้อื่นในฐานข้อมูล (`select(User).where(User.username == new_username, User.id != user_id)`)
+    * ป้องกันการเปลี่ยนชื่อของ root `admin`
+    * บันทึก Transaction Audit Log หมวดหมู่ `user_management` (Action: `update_username`) บันทึก User ID เดิมและใหม่
+* **การพัฒนา Frontend ([`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)):**
+  * เพิ่มช่องกรอก **"User ID / Username"** ใน Edit Modal เป็นช่องแรก
+  * กำกับข้อความช่วยเหลือ *"ปรับให้ตรงกับ Active Directory (AD) ได้"*
+  * ปิดการแก้ไข (Disabled) อัตโนมัติหากผู้ใช้งานเป้าหมายคือ `admin` เพื่อความปลอดภัย
 
-### 2) ⚡ เพิ่มปุ่ม "ส่งทันที (Manual)" สำหรับอีเมลสรุปงานจัดซื้อ
-* **UI ในหน้า System Settings ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):**
-  * เพิ่มปุ่ม **`[ ⚡ ส่งทันที (Manual) ]`** ในแถวเดียวกับเวลาส่งอีเมลสรุปประจำวัน (Section 2) ตรงตามตำแหน่งที่ User ต้องการ 100%
-* **API Backend ([`settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py)):**
-  * สร้าง Endpoint `POST /api/settings/send-pu-remind-email-now` ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ไปยังทีมจัดซื้อทุกคนทันที พร้อมบันทึก Transaction Log แสดงสถิติและรายชื่อผู้รับชัดเจน
+### 2) 🗑️ เพิ่มฟังก์ชันลบบัญชีผู้ใช้งานที่ไม่ใช้งานแล้ว (Delete User Account) พร้อมระบบความปลอดภัย
+* **ความเป็นมา:** เดิมระบบรองรับเฉพาะการกด "ปิดใช้งาน" (Deactivate) แต่ยังไม่มีปุ่มสำหรับลบบัญชีที่ไม่ใช้งานแล้วหรือบัญชีทดสอบออกจากฐานข้อมูล
+* **การพัฒนา Backend ([`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py)):**
+  * สร้าง Endpoint `DELETE /api/users/{user_id}` ควบคุมสิทธิ์ด้วย `require_permission("/admin/users", "delete")`
+  * **กลไกความปลอดภัย (Safety Safeguards):**
+    * ป้องกันไม่ให้ผู้ใช้ลบบัญชีของตนเองที่กำลังล็อกอินอยู่ (`user.id == current_user.id`)
+    * ป้องกันไม่ให้ลบบัญชีผู้ดูแลระบบหลัก (`admin`)
+  * ลบข้อมูลออกจากฐานข้อมูลอย่างสมบูรณ์ (`await db.delete(user)`)
+  * บันทึก Transaction Audit Log หมวดหมู่ `user_management` (Action: `delete_user`) พร้อมข้อมูลชื่อผู้ใช้งานและผู้สั่งลบ
+* **การพัฒนา Frontend ([`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)):**
+  * เพิ่มปุ่มไอคอนถังขยะ (`Trash2`) ในคอลัมน์ "การจัดการ" (Actions) ด้านขวาสุดของตาราง
+  * ปุ่มจะ Disable อัตโนมัติและแสดง Tooltip เตือนหากเป็นบัญชี `admin` หรือบัญชีของตนเอง
+  * เพิ่ม **Modal ยืนยันการลบ (Delete Confirmation Modal)** โทนสะอาด ปลอดภัย แสดงรายละเอียดบัญชี (User ID, ชื่อ-นามสกุล, แผนก, อีเมล) อย่างชัดเจนก่อนกดยืนยัน
 
-### 3) 🧹 เพิ่ม Card กำหนดระยะเวลาจัดเก็บ Log ย้อนหลัง (Default 15 วัน) & Auto Purge
-* **Card ใหม่ในหน้า Settings:**
-  * เพิ่ม Sub-card **"กำหนดระยะเวลาจัดเก็บและแสดงผล Transaction Logs (Log Retention Policy)"** ใน Section 4
-  * กำหนดค่า Default ที่ **15 วัน** (`log_retention_days`)
-  * มีปุ่ม **`[ 🗑️ ล้าง Log เก่ากว่ากำหนดทันที ]`** ให้ Admin สั่งล้างแบบ Manual ได้ทันที
-* **Backend Auto Purge & Log Filter:**
-  * ใน [`scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py): เพิ่ม Job ประจำวัน (00:30 น.) สั่งลบแถวใน `transaction_logs` ที่เก่ากว่ากำหนด (`created_at < now - log_retention_days`) อัตโนมัติ เพื่อประหยัดพื้นที่ดิสก์
-  * ใน [`logs.py`](file:///d:/Python/IRM/backend/app/routers/logs.py): เพิ่มลอจิก Filter ข้อมูลย้อนหลังตาม `log_retention_days` (15 วัน) เป็นค่าเริ่มต้นเมื่อผู้ใช้ไม่ได้ระบุวันเริ่มต้น
-  * ใน [`init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py): เพิ่ม Seed Setting `log_retention_days` = `"15"`
-
-### 4) 🔍 แก้ไขปัญหา Transaction Log ไม่บันทึกเมื่อกดส่งแบบ Manual (Isolated Commit & Category Alignment)
-* **ปัญหาที่พบ:** ผู้ใช้กดปุ่ม `[ ⚡ ส่งทันที (Manual) ]` ในหน้า Settings แต่เมื่อสลับไปดูหน้า Transaction Logs (`/admin/logs`) กลับไม่พบประวัติรายการ
-* **สาเหตุเชิงลึก:**
-  1. **FastAPI Dependency Rollback:** ใน `get_db()` มีการครอบ `except Exception: await session.rollback()` เมื่อฟังก์ชันส่งอีเมลพบข้อผิดพลาดหรือข้อความเตือน (`res.status in ["skipped", "error"]`) แล้ว route ทำการ `raise HTTPException(...)` ตัว FastAPI จะถือว่าเป็น Exception และสั่ง **Rollback request session** ส่งผลให้ Transaction Log ที่ถูกเขียนผ่าน session เดียวกันถูกลบล้างไปด้วย
-  2. **Category Filter Mismatch:** อีเมลจัดซื้อบันทึกด้วย `category="pu_remind_email"` แต่แท็บ `[ 📧 ส่ง Email ]` บนหน้าเว็บและตัวนับสถิติ Backend ฟิลเตอร์เฉพาะ `category="supplier_email"` ทำให้ไม่ปรากฏในแท็บอีเมล
-  3. **Case-Sensitive Status Badge:** ในหน้าเว็บเปรียบเทียบ `status` แบบตรงตัว ทำให้ `SUCCESS`, `ERROR`, `WARNING` (ตัวพิมพ์ใหญ่) ไม่เข้าเงื่อนไข และแสดงเป็น badge สีเทาข้อความดิบ
-  4. **หน้าจอไม่ได้ Auto-Polling:** หน้าจอ Transaction Logs โหลดข้อมูลเฉพาะตอนเปิดหน้าหรือกดปุ่ม `[ 🔄 ]` (Refresh) เท่านั้น (ภาพที่ผู้ใช้เปิดไว้ข้อมูลค้างที่ 08:00 น. ก่อนกดส่ง)
-* **การแก้ไข:**
-  * **Isolated Transaction Log Commit ([`log_service.py`](file:///d:/Python/IRM/backend/app/services/log_service.py)):** ปรับ `record_transaction_log()` ให้สร้างและ commit ด้วย Session อิสระเด็ดขาด (`AsyncSessionLocal()`) แยกขาดจาก Business Transaction เสมอ ทำให้ไม่ว่าจะเกิด Error หรือ Rollback ใดๆ ใน Endpoint ตัว Audit Log จะได้รับการบันทึกถาวร 100%
-  * **ระบุผู้ทำรายการจริง ([`settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py)):** ส่ง `triggered_by=f"user:{current_user.username}"` เข้าไปใน Log เพื่อให้แสดงเป็น `user:Chaiwat.N` ในคอลัมน์ผู้ทำรายการ
-  * **รวมหมวดหมู่อีเมล ([`logs.py`](file:///d:/Python/IRM/backend/app/routers/logs.py)):** ขยายแท็บ `supplier_email` และตัวนับสถิติ `email_sent_count` ให้ดึงทั้ง `supplier_email` และ `pu_remind_email`, ปรับการค้นหาสถานะให้เป็น Case-insensitive (`func.lower(status)`)
-  * **ปรับปรุง UI Badge ([`admin/logs/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/logs/page.tsx)):** เพิ่ม Badge `📧 อีเมลสรุปจัดซื้อ (PU)` สีครามสวยงาม และปรับ `getStatusBadge` ให้แปลงเป็น `.toLowerCase()` รองรับทั้ง `SUCCESS`, `FAILED`, `ERROR`, `WARNING` แสดงสีเขียว/แดง/ส้มถูกต้องตาม Design System
-
-### 5) 👤 ระบบ User Management: แก้ไข User ID (Username) และ ลบบัญชีผู้ใช้งานที่ไม่ใช้งานแล้ว
-* **การแก้ไข User ID (Username):**
-  * เพิ่มฟิลด์ `username: str | None = None` ใน [`schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py) (`UserUpdate`)
-  * ปรับปรุง Endpoint `PUT /api/users/{user_id}` ใน [`routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) ให้รองรับการเปลี่ยน `username` เพื่อปรับให้ตรงกับใน Active Directory (AD) พร้อมระบบตรวจสอบไม่ให้ซ้ำกับผู้ใช้อื่น และป้องกันไม่ให้เปลี่ยน Username ของ root `admin`
-  * ในหน้าเว็บ ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)): เพิ่มช่อง Input "User ID / Username" ใน Edit Modal
-* **การลบบัญชีผู้ใช้งาน (Delete User Account):**
-  * สร้าง Endpoint `DELETE /api/users/{user_id}` ใน [`routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) ควบคุมสิทธิ์ด้วย `require_permission("/admin/users", "delete")`
-  * **กลไกความปลอดภัย:** ป้องกันการลบบัญชีของตนเองที่กำลังล็อกอินอยู่ และป้องกันการลบบัญชีผู้ดูแลระบบหลัก (`admin`)
-  * **100% Audit Trail:** บันทึก Transaction Log หมวดหมู่ `user_management` ทุกครั้งที่มีการลบหรือเปลี่ยน Username
-  * ในหน้าเว็บ ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)): เพิ่มปุ่มไอคอนถังขยะ (`Trash2`) ในคอลัมน์การจัดการ พร้อม Modal ยืนยันการลบ (Delete Confirmation Modal) สไตล์คลีนเรียบหรูแสดงรายละเอียดผู้ใช้ก่อนลบอย่างปลอดภัย
+### 3) 📄 จัดทำเอกสารข้อกำหนดระบบที่เป็นทางการ ([`PRD.md`](file:///d:/Python/IRM/PRD.md))
+* รวบรวมและจัดหมวดหมู่ข้อกำหนด สถาปัตยกรรม 5 คอนเทนเนอร์, กฎความปลอดภัย, ลำดับเมนูที่เป็นทางการ 9 หน้า, กฎ Pure Date Standard, กลไก Append-Only Masters, ตารางเวลาอัตโนมัติ และข้อตกลงการเชื่อมโยงระบบ SAP B1 / Central IAM / QMS ไว้ในเอกสาร [`PRD.md`](file:///d:/Python/IRM/PRD.md) อย่างสมบูรณ์
 
 ---
 
-## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (15–17 กันยายน 2026)
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (18–26 กันยายน 2026)
 
-### 1) 🧹 จัดระเบียบหน้า Settings: ลบการ์ดซ้ำซ้อน Section 9 และเพิ่มช่อง Allow IP สำหรับเซิร์ฟเวอร์ CIAM
-* **การแก้ไข:** ลบ Section 9 ซ้ำซ้อนออก เหลือเฉพาะ Section 6 เดียวสำหรับการตั้งค่า Central IAM Single Sign-On (OIDC / PKCE SSO), เพิ่มฟิลด์ `Central IAM Server Allowed IPs (IP Whitelist สำหรับเซิร์ฟเวอร์ CIAM)` (`ciam_allowed_ips`), และซิงค์การตรวจสอบร่วมกับ `management_allowed_ips` ใน [`central_management.py`](file:///d:/Python/IRM/backend/app/routers/central_management.py)
+### 1) 🔐 ระบบ Central IAM SSO & Duplicate Token Prevention
+* แก้ไขการแลกเปลี่ยน SSO Token โดยใช้ `executedRef` เพื่อป้องกันการเกิด Duplicate Token Exchange ใน React Strict Mode
+* ปรับปรุงฟังก์ชัน `create_access_token` และ `create_refresh_token` ให้รองรับ Data Payload ได้ยืดหยุ่น
 
-### 2) ✉️ ปรับปรุงระบบส่งอีเมลสรุปงาน (PU Reminder Email) & คืนค่าสถาปัตยกรรมเดิม 100%
-* **การแก้ไข:** ลบฟิลด์ `pu_remind_recipient_emails` ออกจากระบบ 100% เพื่อไม่ให้ซ้ำซ้อนกับ User Management, ยึดหลักดึงสมาชิกกลุ่ม `PU User` จากฐานข้อมูลหลักโดยตรง, แก้ไข Pure Date bug (`AttributeError: 'datetime.date' object has no attribute 'date'`) ในการสร้างไฟล์แนบ Excel 2 Sheet
+### 2) ✉️ ปรับปรุงระบบอีเมลสรุปงานจัดซื้อ (PU Reminder) & ปุ่มส่งทันที (Manual)
+* เพิ่มปุ่ม **`[ ⚡ ส่งทันที (Manual) ]`** ใน System Settings Section 2
+* ปรับปรุง `email_service.py` ให้ใช้ Isolated Session (`AsyncSessionLocal()`) ในการบันทึก Audit Log ทุกสถานะ (`SUCCESS`, `WARNING`, `FAILED`) ป้องกันการโดน Rollback จาก FastAPI Dependency
 
-### 3) 🔐 ปรับแต่งหน้า Login เมื่อปิดใช้งานระบบ SSO (Clean Login when SSO Disabled)
-* **การแก้ไข:** เมื่อปิดระบบ SSO (`sso_enabled = false`) หน้า Login (`/login`) จะซ่อนกล่องแจ้งเตือน Central IAM, ซ่อนปุ่ม SSO, ซ่อนเส้นคั่น Break-Glass ทั้งหมด และปรับปุ่มเข้าสู่ระบบหลักเป็น **Primary Gradient Button** สีน้ำเงินหรูหรา (`bg-gradient-to-r from-sky-500 to-indigo-600`) สะอาดตา
+### 3) 🧹 ระบบ Log Retention Policy (15 วัน) & Auto Purge
+* เพิ่ม Card กำหนดระยะเวลาจัดเก็บ Log ย้อนหลัง (Default 15 วัน) ใน System Settings Section 4
+* เพิ่ม Background Job ใน `scheduler.py` เวลา 00:30 น. สั่งลบแถว `transaction_logs` ที่เก่ากว่ากำหนดอัตโนมัติ
 
-### 4) ⚡ การเพิ่มประสิทธิภาพฐานข้อมูล (Database Performance & Indexing)
-* **การแก้ไข:** เพิ่ม 13 Performance Index ใน PostgreSQL ผ่าน [`add_performance_indexes.py`](file:///d:/Python/IRM/backend/app/migrations/add_performance_indexes.py) บน `po_items`, `po_headers`, `sub_items`, `supplier_portal_tokens` และปรับ SQLAlchemy Relationship จาก `lazy="selectin"` เป็น `lazy="select"` เพื่อตัด Cascading Queries ซ้ำซ้อน
-
-### 5) 🔗 ปุ่ม Link หน้า Operation: ส่งและล็อคทั้ง PO (PO-Level Portal Token)
-* **การแก้ไข:** ปรับปรุงปุ่ม `[ 🔗 ]` บนตารางหน้า Operation ให้สร้าง Portal Token คลุม **ทุก Item ใน PO นั้น** พร้อมกัน, ล็อคสถานะทุก Item เป็น `awaiting_supplier`, แปลงวันหมดอายุเป็นเวลาไทย (+07:00 BKK) และเพิ่ม 12-Hour Cushion ป้องกันลิงก์หมดอายุเร็วเกินไป
+### 4) ⚡ เพิ่มประสิทธิภาพฐานข้อมูล (PostgreSQL Performance Indexes)
+* สร้าง 13 ดัชนี (Indexes) บน `po_items`, `sub_items`, `po_headers`, `po_item_audit_logs`, `users`
+* เปลี่ยน Relationship จาก `lazy="selectin"` เป็น `lazy="select"` เพื่อตัด Cascade Queries ซ้ำซ้อน
 
 ---
 
@@ -104,14 +87,14 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
-| [`backend/app/services/log_service.py`](file:///d:/Python/IRM/backend/app/services/log_service.py) | ฟังก์ชัน `record_transaction_log` ใช้ Isolated Session (`AsyncSessionLocal()`) บันทึก Log ทุกสถานะอย่างถาวร ไม่โดน Rollback |
-| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ดึงผู้รับรายงานสรุปงานและไฟล์แนบ Excel 2 Sheet จากกลุ่ม `PU User` ใน User Management โดยตรง, บันทึก Log ทุกสถานะ (`SUCCESS`, `WARNING`, `FAILED`) |
-| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | Endpoint `POST /api/settings/send-pu-remind-email-now` (ส่งทันที) และ `POST /api/settings/purge-old-logs` (สั่งล้าง Log เก่าทันที) |
-| [`backend/app/routers/logs.py`](file:///d:/Python/IRM/backend/app/routers/logs.py) | ปรับปรุงแท็บ `supplier_email` และสถิติให้ครอบคลุม `pu_remind_email`, รองรับ Case-insensitive status filter, และ Default Date Filter 15 วัน |
-| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | เพิ่มปุ่ม `[ ⚡ ส่งทันที (Manual) ]` ใน Section 2 และเพิ่ม Card Log Retention Policy ใน Section 4 |
-| [`frontend/src/app/(dashboard)/admin/logs/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/logs/page.tsx) | เพิ่ม Badge `📧 อีเมลสรุปจัดซื้อ (PU)` และรองรับ Badge สถานะทุกรูปแบบ (`SUCCESS`, `ERROR`, `WARNING`) |
-| [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | Job เวลา 00:30 น. ลบ Transaction Log เก่ากว่า 15 วันอัตโนมัติ, Minute-checker สำหรับ PU Reminder Email |
-| [`backend/app/init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) | Seed Setting `log_retention_days = "15"` |
+| [`backend/app/schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py) | เพิ่ม `username: str | None = None` ใน `UserUpdate` |
+| [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) | รองรับการเปลี่ยน Username พร้อมตรวจซ้ำ และเพิ่ม `DELETE /api/users/{user_id}` พร้อมระบบ Safeguards |
+| [`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) | ช่องกรอก User ID ใน Edit Modal, ปุ่มไอคอนถังขยะ `Trash2`, และ Modal ยืนยันการลบบัญชี |
+| [`PRD.md`](file:///d:/Python/IRM/PRD.md) | เอกสาร Product Requirements Document ฉบับสมบูรณ์ของระบบ IRM |
+| [`backend/app/services/log_service.py`](file:///d:/Python/IRM/backend/app/services/log_service.py) | ฟังก์ชัน `record_transaction_log` บันทึก Audit Log แบบ Isolated Session ไม่โดน Rollback |
+| [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ดึงผู้รับ PU Reminder จากกลุ่ม `PU User` ใน User Management โดยตรง พร้อมไฟล์แนบ Excel 2 Sheet |
+| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | Endpoint `POST /api/settings/send-pu-remind-email-now` (ส่งทันที) และ Purge Logs |
+| [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | Auto Purge Logs เวลา 00:30 น., Minute-Checker สำหรับ PU Reminder Email |
 
 ---
 
@@ -137,10 +120,11 @@ docker compose ps
 
 * **สถานะความพร้อมของระบบ (System Readiness):**
   * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `next build` 19/19 static pages)
-  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: 29a21dc`)
-  * ปัญหาเรื่อง Log ส่งเมล์ไม่ขึ้นได้รับการแก้ไขอย่างสมบูรณ์ด้วย Isolated Session Commit และ Badge/Tab Alignment
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: 0a3a5c1` และ commit อัปเดตเอกสารล่าสุด)
+  * ระบบ User Management รองรับการแก้ User ID ให้ตรงกับ AD และการลบบัญชีที่ไม่ใช้งานแล้วอย่างปลอดภัย
 * **ขั้นตอนถัดไปเมื่อกลับมาเริ่มงาน (Next Steps):**
   1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 6 บน VPS Production Hostinger
-  2. **ทดสอบกดปุ่ม `[ ⚡ ส่งทันที (Manual) ]`:** ตรวจสอบ Alert ผลการส่ง และตรวจเช็คในหน้า Transaction Logs (`/admin/logs`) หลังกด Refresh `[ 🔄 ]` ว่ามีรายการ `📧 อีเมลสรุปจัดซื้อ (PU)` แสดงสถานะ Success พร้อมชื่อผู้ทำรายการ `user:Chaiwat.N`
-  3. **สังเกตการณ์รอบเวลาส่งอัตโนมัติ:** ตรวจสอบรอบเวลาประจำวัน (เช่น 07:50 น.) ว่า APScheduler ยิงส่งอีเมลและบันทึก Transaction Log อัตโนมัติเรียบร้อย
-  4. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
+  2. **ทดสอบฟังก์ชัน User Management บน Production:**
+     - ทดสอบแก้ไข User ID ของผู้ใช้ทั่วไป เพื่อตรวจสอบการซิงค์และบันทึกข้อมูล
+     - ทดสอบลบบัญชีผู้ใช้งานที่ไม่ใช้งาน พร้อมสังเกต Modal ยืนยันการลบและผลใน Audit Log
+  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
