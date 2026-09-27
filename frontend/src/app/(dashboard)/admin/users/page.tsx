@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { Group, User } from '@/types';
-import { Users, UserPlus, Key, Edit, CheckCircle2, XCircle, Search, Shield, Send, Clock } from 'lucide-react';
+import { Users, UserPlus, Key, Edit, CheckCircle2, XCircle, Search, Shield, Send, Clock, Trash2, AlertTriangle } from 'lucide-react';
 
 const STANDARD_ITEM_GROUPS = [
   { code: 'RM-กระจก', label: 'RM-กระจก', desc: 'กระจกและผลิตภัณฑ์กระจก' },
@@ -15,6 +16,7 @@ const STANDARD_ITEM_GROUPS = [
 ];
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,7 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState<User | null>(null);
   const [showResetModal, setShowResetModal] = useState<User | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -124,6 +127,7 @@ export default function UsersPage() {
     setSubmitting(true);
     try {
       await api.put(`/api/users/${showEditModal.id}`, {
+        username: formData.username.trim(),
         full_name: formData.full_name,
         email: formData.email,
         department: formData.department.trim() || null,
@@ -138,6 +142,20 @@ export default function UsersPage() {
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการแก้ไขผู้ใช้งาน');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!showDeleteModal) return;
+    setSubmitting(true);
+    try {
+      await api.delete(`/api/users/${showDeleteModal.id}`);
+      setShowDeleteModal(null);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการลบผู้ใช้งาน');
     } finally {
       setSubmitting(false);
     }
@@ -507,6 +525,32 @@ export default function UsersPage() {
                     >
                       <Key className="w-3.5 h-3.5" />
                     </button>
+
+                    {(() => {
+                      const isRootAdmin = u.username.toLowerCase() === 'admin';
+                      const isSelf = currentUser?.id === u.id;
+                      const isDisabled = isRootAdmin || isSelf;
+                      const tooltip = isRootAdmin
+                        ? 'ไม่สามารถลบผู้ดูแลระบบหลัก (admin) ได้'
+                        : isSelf
+                        ? 'ไม่สามารถลบบัญชีของตนเองที่กำลังเข้าสู่ระบบอยู่ได้'
+                        : 'ลบบัญชีผู้ใช้งาน';
+
+                      return (
+                        <button
+                          onClick={() => setShowDeleteModal(u)}
+                          disabled={isDisabled}
+                          title={tooltip}
+                          className={`p-1.5 rounded-lg transition border ${
+                            isDisabled
+                              ? 'text-slate-300 border-slate-100 cursor-not-allowed'
+                              : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50 border-slate-200'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>
@@ -660,6 +704,29 @@ export default function UsersPage() {
             </h3>
             <form onSubmit={handleUpdateUser} className="space-y-3">
               <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">User ID / Username *</label>
+                  <span className="text-[10px] text-sky-600 font-medium">ปรับให้ตรงกับ Active Directory (AD) ได้</span>
+                </div>
+                <input
+                  type="text"
+                  required
+                  disabled={showEditModal.username.toLowerCase() === 'admin'}
+                  placeholder="เช่น Chaiwat.N, Patcha.S"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-lg text-xs outline-none font-mono ${
+                    showEditModal.username.toLowerCase() === 'admin'
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
+                      : 'focus:border-sky-500'
+                  }`}
+                />
+                {showEditModal.username.toLowerCase() === 'admin' && (
+                  <p className="text-[10px] text-slate-400 mt-1">ไม่อนุญาตให้เปลี่ยน Username ของผู้ดูแลระบบหลัก (admin)</p>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
                 <input
                   type="text"
@@ -812,6 +879,72 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Delete User Confirmation */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">ยืนยันการลบบัญชีผู้ใช้งาน</h3>
+                <p className="text-xs text-slate-500">การกระทำนี้จะลบบัญชีออกจากระบบอย่างถาวร</p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3.5 text-xs text-slate-700 space-y-1.5">
+              <div>
+                <span className="text-slate-500">User ID (Username):</span>{' '}
+                <span className="font-mono font-bold text-rose-700">{showDeleteModal.username}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">ชื่อ-นามสกุล:</span>{' '}
+                <span className="font-semibold text-slate-800">{showDeleteModal.full_name}</span>
+              </div>
+              {showDeleteModal.department && (
+                <div>
+                  <span className="text-slate-500">แผนก:</span>{' '}
+                  <span className="text-slate-700">{showDeleteModal.department}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-slate-500">อีเมล:</span>{' '}
+                <span className="text-slate-700">{showDeleteModal.email}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีผู้ใช้งาน <strong className="text-slate-900">{showDeleteModal.username}</strong>? ข้อมูลบัญชีและสิทธิ์ของผู้ใช้งานนี้จะถูกลบออกจากระบบ IRM อย่างถาวร
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(null)}
+                disabled={submitting}
+                className="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-rose-600/20 transition cursor-pointer"
+              >
+                {submitting ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>ยืนยันการลบ</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

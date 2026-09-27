@@ -92,6 +92,30 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    old_username = user.username
+    if data.username is not None:
+        new_username = data.username.strip()
+        if not new_username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username / User ID ไม่สามารถเป็นค่าว่างได้",
+            )
+        if new_username != user.username:
+            existing = await db.execute(
+                select(User).where(User.username == new_username, User.id != user_id)
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Username '{new_username}' ถูกใช้งานแล้วโดยผู้ใช้อื่น",
+                )
+            if user.username.lower() == "admin" and new_username.lower() != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="ไม่อนุญาตให้เปลี่ยน Username ของผู้ดูแลระบบหลัก (admin)",
+                )
+            user.username = new_username
+
     if data.full_name is not None:
         user.full_name = data.full_name
     if data.email is not None:
@@ -113,7 +137,78 @@ async def update_user(
 
     await db.commit()
     await db.refresh(user)
+
+    if data.username is not None and old_username != user.username:
+        try:
+            from app.services.log_service import record_transaction_log
+            await record_transaction_log(
+                category="user_management",
+                action="update_username",
+                status="success",
+                message=f"แก้ไข User ID จาก '{old_username}' เป็น '{user.username}'",
+                details={
+                    "user_id": user.id,
+                    "old_username": old_username,
+                    "new_username": user.username,
+                },
+                triggered_by=f"user:{current_user.username}",
+            )
+        except Exception as log_err:
+            print(f"⚠️ Could not write update_username audit log: {log_err}")
+
     return user
+
+
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "delete"))],
+):
+    """Delete an unneeded or inactive user account."""
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ไม่สามารถลบบัญชีผู้ใช้งานที่คุณกำลังเข้าสู่ระบบอยู่ได้",
+        )
+
+    if user.username.lower() == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ไม่สามารถลบบัญชีผู้ดูแลระบบหลัก (admin) ได้",
+        )
+
+    username_deleted = user.username
+    full_name_deleted = user.full_name
+
+    await db.delete(user)
+    await db.commit()
+
+    # Record audit trail in transaction logs
+    try:
+        from app.services.log_service import record_transaction_log
+        await record_transaction_log(
+            category="user_management",
+            action="delete_user",
+            status="success",
+            message=f"ลบบัญชีผู้ใช้งาน '{username_deleted}' ({full_name_deleted}) ออกจากระบบ",
+            details={
+                "user_id": user_id,
+                "username": username_deleted,
+                "full_name": full_name_deleted,
+            },
+            triggered_by=f"user:{current_user.username}",
+        )
+    except Exception as log_err:
+        print(f"⚠️ Could not write delete_user audit log: {log_err}")
+
+    return {"message": f"ลบบัญชีผู้ใช้งาน '{username_deleted}' สำเร็จเรียบร้อยแล้ว"}
 
 
 @router.post("/{user_id}/reset-password")

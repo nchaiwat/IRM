@@ -54,6 +54,17 @@
   * **รวมหมวดหมู่อีเมล ([`logs.py`](file:///d:/Python/IRM/backend/app/routers/logs.py)):** ขยายแท็บ `supplier_email` และตัวนับสถิติ `email_sent_count` ให้ดึงทั้ง `supplier_email` และ `pu_remind_email`, ปรับการค้นหาสถานะให้เป็น Case-insensitive (`func.lower(status)`)
   * **ปรับปรุง UI Badge ([`admin/logs/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/logs/page.tsx)):** เพิ่ม Badge `📧 อีเมลสรุปจัดซื้อ (PU)` สีครามสวยงาม และปรับ `getStatusBadge` ให้แปลงเป็น `.toLowerCase()` รองรับทั้ง `SUCCESS`, `FAILED`, `ERROR`, `WARNING` แสดงสีเขียว/แดง/ส้มถูกต้องตาม Design System
 
+### 5) 👤 ระบบ User Management: แก้ไข User ID (Username) และ ลบบัญชีผู้ใช้งานที่ไม่ใช้งานแล้ว
+* **การแก้ไข User ID (Username):**
+  * เพิ่มฟิลด์ `username: str | None = None` ใน [`schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py) (`UserUpdate`)
+  * ปรับปรุง Endpoint `PUT /api/users/{user_id}` ใน [`routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) ให้รองรับการเปลี่ยน `username` เพื่อปรับให้ตรงกับใน Active Directory (AD) พร้อมระบบตรวจสอบไม่ให้ซ้ำกับผู้ใช้อื่น และป้องกันไม่ให้เปลี่ยน Username ของ root `admin`
+  * ในหน้าเว็บ ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)): เพิ่มช่อง Input "User ID / Username" ใน Edit Modal
+* **การลบบัญชีผู้ใช้งาน (Delete User Account):**
+  * สร้าง Endpoint `DELETE /api/users/{user_id}` ใน [`routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) ควบคุมสิทธิ์ด้วย `require_permission("/admin/users", "delete")`
+  * **กลไกความปลอดภัย:** ป้องกันการลบบัญชีของตนเองที่กำลังล็อกอินอยู่ และป้องกันการลบบัญชีผู้ดูแลระบบหลัก (`admin`)
+  * **100% Audit Trail:** บันทึก Transaction Log หมวดหมู่ `user_management` ทุกครั้งที่มีการลบหรือเปลี่ยน Username
+  * ในหน้าเว็บ ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)): เพิ่มปุ่มไอคอนถังขยะ (`Trash2`) ในคอลัมน์การจัดการ พร้อม Modal ยืนยันการลบ (Delete Confirmation Modal) สไตล์คลีนเรียบหรูแสดงรายละเอียดผู้ใช้ก่อนลบอย่างปลอดภัย
+
 ---
 
 ## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (15–17 กันยายน 2026)
