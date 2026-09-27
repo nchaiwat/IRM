@@ -3,7 +3,7 @@
 > **วันที่บันทึก:** 27 กันยายน 2026 (23:00 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `0a3a5c1` (feat(users): allow editing User ID/Username and deleting inactive accounts)  
+> **Latest Commit:** `fe0b111` (docs: update HANDOFF.md with latest user management features and session checkpoint)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
