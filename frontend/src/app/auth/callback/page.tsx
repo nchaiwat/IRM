@@ -57,6 +57,11 @@ function CallbackContent() {
         setSuccess(true);
         setStatusText('ยืนยันตัวตนสำเร็จ! กำลังเข้าสู่ระบบ IRM...');
 
+        // Record SSO auth provider in browser storage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('irm_auth_provider', 'sso');
+        }
+
         // Perform login in auth context
         await login(res.data.access_token, res.data.refresh_token);
         router.push('/');

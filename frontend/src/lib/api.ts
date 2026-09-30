@@ -31,10 +31,21 @@ api.interceptors.response.use(
   async (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       const isLoginPage = window.location.pathname === '/login';
-      if (!isLoginPage) {
+      const isAuthCallback = window.location.pathname === '/auth/callback';
+      if (!isLoginPage && !isAuthCallback) {
+        const authProvider = localStorage.getItem('irm_auth_provider');
+        const portalUrl = localStorage.getItem('irm_ciam_portal_url') || 'https://ciam.windowasia.com/portal';
+
         localStorage.removeItem('irm_access_token');
         localStorage.removeItem('irm_refresh_token');
-        window.location.href = '/login';
+        localStorage.removeItem('irm_auth_provider');
+
+        if (authProvider === 'local') {
+          window.location.href = '/login';
+        } else {
+          // SSO session expired -> return seamlessly to Central IAM Portal
+          window.location.href = portalUrl;
+        }
       }
     }
     return Promise.reject(error);

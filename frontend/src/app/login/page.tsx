@@ -37,6 +37,9 @@ export default function LoginPage() {
     api.get('/api/auth/sso/config')
       .then((res) => {
         setSsoConfig(res.data);
+        if (res.data?.ciam_base_url) {
+          localStorage.setItem('irm_ciam_portal_url', res.data.ciam_base_url + '/portal');
+        }
       })
       .catch((err) => {
         console.warn('Unable to load SSO config:', err);
@@ -99,6 +102,9 @@ export default function LoginPage() {
         localStorage.removeItem('irm_remembered_username');
         localStorage.setItem('irm_remember_me', 'false');
       }
+
+      // Record local auth provider in browser storage
+      localStorage.setItem('irm_auth_provider', 'local');
 
       await login(res.data.access_token, res.data.refresh_token);
     } catch (err: any) {

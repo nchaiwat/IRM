@@ -82,6 +82,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     fetchUser();
+    // Cache Central IAM portal URL
+    api.get('/api/auth/sso/config')
+      .then((res) => {
+        if (res.data?.ciam_base_url && typeof window !== 'undefined') {
+          localStorage.setItem('irm_ciam_portal_url', res.data.ciam_base_url + '/portal');
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const login = async (accessToken: string, refreshToken: string) => {
@@ -100,10 +108,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('irm_access_token');
-    localStorage.removeItem('irm_refresh_token');
+    const authProvider = typeof window !== 'undefined' ? localStorage.getItem('irm_auth_provider') : null;
+    const portalUrl =
+      (typeof window !== 'undefined' && localStorage.getItem('irm_ciam_portal_url')) ||
+      'https://ciam.windowasia.com/portal';
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('irm_access_token');
+      localStorage.removeItem('irm_refresh_token');
+      localStorage.removeItem('irm_auth_provider');
+    }
     setUser(null);
-    router.push('/login');
+
+    if (authProvider === 'local') {
+      router.push('/login');
+    } else {
+      window.location.href = portalUrl;
+    }
   };
 
   const hasPermission = (menuPath: string, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {
