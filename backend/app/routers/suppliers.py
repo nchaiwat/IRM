@@ -178,18 +178,23 @@ async def update_supplier(
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
 
-    if data.supplier_name:
-        supplier.supplier_name = data.supplier_name
-    if data.telephone is not None:
-        supplier.telephone = data.telephone
-    if data.email is not None:
-        supplier.email = data.email
-    if data.contact_person is not None:
-        supplier.contact_person = data.contact_person
-    if data.allow_over_delivery is not None:
-        supplier.allow_over_delivery = data.allow_over_delivery
-    if data.is_new is not None:
-        supplier.is_new = data.is_new
+    update_data = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else data.dict(exclude_unset=True)
+
+    if "supplier_name" in update_data and update_data["supplier_name"]:
+        supplier.supplier_name = str(update_data["supplier_name"]).strip()
+    if "telephone" in update_data:
+        val = str(update_data["telephone"]).strip() if update_data["telephone"] else None
+        supplier.telephone = None if not val or val.lower() in ["-", "--", "none", "null"] else val
+    if "email" in update_data:
+        val = str(update_data["email"]).strip() if update_data["email"] else None
+        supplier.email = None if not val or val.lower() in ["-", "--", "none", "null"] or "@" not in val else val
+    if "contact_person" in update_data:
+        val = str(update_data["contact_person"]).strip() if update_data["contact_person"] else None
+        supplier.contact_person = None if not val or val.lower() in ["-", "--", "none", "null"] else val
+    if "allow_over_delivery" in update_data and update_data["allow_over_delivery"] is not None:
+        supplier.allow_over_delivery = bool(update_data["allow_over_delivery"])
+    if "is_new" in update_data and update_data["is_new"] is not None:
+        supplier.is_new = bool(update_data["is_new"])
 
     await db.commit()
     await db.refresh(supplier)
