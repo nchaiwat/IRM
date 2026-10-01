@@ -112,7 +112,10 @@ export default function SuppliersPage() {
 
   const fetchSuppliers = async () => {
     try {
-      const res = await api.get<SupplierMaster[]>('/api/suppliers');
+      const res = await api.get<SupplierMaster[]>('/api/suppliers', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
       setSuppliers(res.data);
     } catch (err) {
       console.error('Failed to fetch suppliers:', err);
@@ -155,9 +158,12 @@ export default function SuppliersPage() {
     try {
       const cleaned = editingEmailVal.trim();
       const finalEmail = isEmailValid(cleaned) ? cleaned : null;
-      await api.put(`/api/suppliers/${supplierId}`, { email: finalEmail });
+      const res = await api.put<SupplierMaster>(`/api/suppliers/${supplierId}`, { email: finalEmail });
       
       setEditingEmailId(null);
+      if (res.data) {
+        setSuppliers((prev) => prev.map((s) => (s.id === supplierId ? { ...s, ...res.data, email: res.data.email ?? finalEmail } : s)));
+      }
       setSavedEmailIndicator((prev) => ({ ...prev, [supplierId]: true }));
       setTimeout(() => {
         setSavedEmailIndicator((prev) => ({ ...prev, [supplierId]: false }));
@@ -188,10 +194,13 @@ export default function SuppliersPage() {
       const cleanedEmail = formData.email.trim();
       const finalEmail = isEmailValid(cleanedEmail) ? cleanedEmail : null;
 
-      await api.put(`/api/suppliers/${showEditModal.id}`, {
+      const res = await api.put<SupplierMaster>(`/api/suppliers/${showEditModal.id}`, {
         ...formData,
         email: finalEmail,
       });
+      if (res.data) {
+        setSuppliers((prev) => prev.map((s) => (s.id === showEditModal.id ? { ...s, ...res.data, email: res.data.email ?? finalEmail } : s)));
+      }
       setShowEditModal(null);
       fetchSuppliers();
     } catch (err: any) {

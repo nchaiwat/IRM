@@ -152,6 +152,23 @@ async def handle_sso_callback(
     cfg = await get_ciam_settings(db)
     sso_client = await get_ciam_sso_client(db)
 
+    # Step 0: Enforce SSO Active Check (Break-Glass & SSO Disabled Guard)
+    if not cfg.get("ciam_sso_enabled", True) or cfg.get("ciam_break_glass_active", False):
+        logger.warning("SSO Callback rejected: SSO is disabled (Break-Glass Active) for IP %s", client_ip)
+        await record_transaction_log(
+            category="ciam_sso",
+            action="login_rejected",
+            status="failed",
+            message="ปฏิเสธการเข้าสู่ระบบผ่าน SSO: ระบบลูกปิดการใช้งาน SSO ชั่วคราว (Break-Glass Active)",
+            details={"error": "SsoDisabled", "ip": client_ip},
+            triggered_by=f"ip:{client_ip}",
+            db=db,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ระบบ IRM ปิดการเข้าสู่ระบบผ่าน Central IAM Single Sign-On ชั่วคราว (Break-Glass Mode Active) กรุณาเข้าสู่ระบบด้วยบัญชี Local หรือ AD โดยตรง",
+        )
+
     # Step 1: Exchange code for tokens
     try:
         tokens = sso_client.exchange_code_for_tokens(

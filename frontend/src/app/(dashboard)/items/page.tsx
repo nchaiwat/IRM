@@ -231,7 +231,10 @@ export default function ItemsPage() {
 
   const fetchItems = async () => {
     try {
-      const res = await api.get<ItemMaster[]>('/api/items');
+      const res = await api.get<ItemMaster[]>('/api/items', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
       setItems(res.data);
     } catch (err) {
       console.error('Failed to fetch items:', err);
@@ -259,11 +262,14 @@ export default function ItemsPage() {
   const handleSaveModal = async () => {
     if (!editingItem) return;
     try {
-      await api.put(`/api/items/${editingItem.id}`, {
+      const res = await api.put<ItemMaster>(`/api/items/${editingItem.id}`, {
         lead_time_days: editLeadTime,
         notify_alert_days: editNotifyAlert,
         item_group: editGroup,
       });
+      if (res.data) {
+        setItems((prev) => prev.map((item) => (item.id === editingItem.id ? { ...item, ...res.data } : item)));
+      }
       setEditingItem(null);
       fetchItems();
     } catch (err: any) {
@@ -273,7 +279,10 @@ export default function ItemsPage() {
 
   const handleAcceptItem = async (itemId: number) => {
     try {
-      await api.post(`/api/items/${itemId}/accept`);
+      const res = await api.post<ItemMaster>(`/api/items/${itemId}/accept`);
+      if (res.data) {
+        setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...res.data, is_new: false } : item)));
+      }
       fetchItems();
     } catch (err: any) {
       alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการยืนยัน Accept Item Master');
