@@ -1,9 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 27 กันยายน 2026 (23:00 น.)  
+> **วันที่บันทึก:** 1 ตุลาคม 2026 (12:00 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `fe0b111` (docs: update HANDOFF.md with latest user management features and session checkpoint)  
+> **Latest Commit:** `754323e` (fix(suppliers): allow clearing email and contact fields to null/blank in update_supplier)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -14,7 +14,33 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (27 กันยายน 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (1 ตุลาคม 2026)
+
+### 1) 🔐 มาตรฐาน Step 0 Guard สำหรับ Central IAM SSO Callback (Commit `704b646`)
+* **ปัญหาเดิม:** เมื่อผู้ดูแลระบบปิดการใช้งาน SSO ในหน้าตั้งค่า IRM (`ciam_sso_enabled = false` หรือเปิด Break-Glass) หน้าจอ Login ตรงของ IRM จะซ่อนปุ่ม SSO ถูกต้อง แต่หากพนักงานคลิกปุ่มเปิดระบบ IRM มาจากหน้า Central-IAM Portal ตัว endpoint `/api/auth/sso/callback` ของ IRM ยังคงยอมรับ authorization code และทำ login สำเร็จ เนื่องจากขาดการตรวจสอบสถานะ SSO ภายใน callback
+* **การแก้ไขใน Backend ([`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py)):**
+  * เพิ่ม **Step 0 Guard** ที่จุดเริ่มต้นของฟังก์ชัน `handle_sso_callback`
+  * ตรวจสอบเงื่อนไข: หาก `not sso_settings.ciam_sso_enabled` หรือ `sso_settings.ciam_break_glass_active`
+  * ปฏิเสธการเข้าสู่ระบบทันทีด้วย `HTTP 503 Service Unavailable`: *"Single Sign-On (Central IAM) ถูกปิดใช้งานหรืออยู่ในโหมดฉุกเฉิน (Break-Glass) กรุณาเข้าสู่ระบบด้วยบัญชี Local ของ IRM"*
+  * บันทึก Transaction Audit Log หมวดหมู่ `ciam_sso` (Action: `sso_callback_rejected_inactive`)
+
+### 2) 🔄 ระบบ Auto-Refresh ทันทีหลังอัปเดตข้อมูล Supplier Master & Item Master (Commit `704b646`)
+* **ปัญหาเดิม:** เมื่อผู้ใช้งานแก้ไขข้อมูล Supplier Master หรือ Item Master แล้วกดบันทึก หน้าจอไม่รีเฟรชค่าใหม่ทันที ต้องกด F5 / Hard Reload
+* **การแก้ไขใน Frontend ([`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx), [`frontend/src/app/(dashboard)/items/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/items/page.tsx)):**
+  * **Optimistic Local State Update:** นำ object ผลลัพธ์ `res.data` ที่ได้จาก Backend มา Map อัปเดตลง State `suppliers` และ `items` ทันทีหลังการบันทึกสำเร็จ ทำให้หน้าจอสะท้อนข้อมูลใหม่ทันทีในระดับ Millisecond
+  * **Anti-Cache Guard:** ปรับปรุงฟังก์ชัน `fetchSuppliers()` และ `fetchItems()` ให้ส่ง `{ params: { _t: Date.now() }, headers: { 'Cache-Control': 'no-cache' } }` เพื่อป้องกันปัญหา Browser HTTP 304 / Memory Caching อย่างเด็ดขาด
+
+### 3) ✉️ ปลดล็อกการลบ Email, Phone, และ Contact ใน Supplier Master ให้เป็นค่าว่าง (Commit `754323e`)
+* **ปัญหาเดิม:** เมื่อผู้ใช้ต้องการลบอีเมลที่ไม่ถูกต้องของ Supplier ออกให้เป็นค่าว่าง (Blank) ระบบกลับไม่ยอมเซฟค่าว่าง และยังคงแสดงอีเมลเดิมค้างอยู่
+* **Root Cause:** ใน FastAPI Endpoint `update_supplier` เดิมเขียนตรวจสอบเงื่อนไข `if data.email is not None:` ทำให้เมื่อฝั่ง Frontend ส่ง `email: null` เข้ามา Python จะข้ามการอัปเดตฟิลด์ดังกล่าวไป
+* **การแก้ไขใน Backend ([`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py)):**
+  * ปรับมาใช้ `update_data = data.model_dump(exclude_unset=True)` ตรวจสอบว่ามีคีย์ `email`, `phone`, `contact_person` ถูกส่งมาหรือไม่
+  * หากถูกส่งมา (แม้จะเป็น `None` หรือ `""`) ระบบจะทำความสะอาดสตริงและบันทึกลงฐานข้อมูลเป็น `None` (`NULL` ใน PostgreSQL) ทันที
+  * หน้าตารางจะแสดงสถานะ `ยังไม่มี Email` อย่างถูกต้องตามที่ผู้ใช้ต้องการ
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (27 กันยายน 2026)
 
 ### 1) 👤 แก้ไข User ID (Username) ให้ปรับตรงกับ Active Directory (AD) ได้
 * **ความเป็นมา:** เดิมในหน้า User Management ไม่มีช่องแก้ไข Username ทำให้เมื่อจำเป็นต้องปรับเปลี่ยน User ID ให้สอดคล้องกับบัญชี AD ขององค์กร ผู้ดูแลระบบไม่สามารถปรับได้โดยตรงจากหน้าจอ
@@ -87,6 +113,10 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
+| [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py) | เพิ่ม Step 0 Check ตรวจสอบ `ciam_sso_enabled` ป้องกันการ bypass SSO จาก CIAM Portal เมื่อ Spoke ปิด SSO |
+| [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | รองรับการล้างอีเมล/เบอร์โทรให้เป็น Blank/NULL (`model_dump(exclude_unset=True)`) |
+| [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | Optimistic State Update + Anti-Cache header ป้องกัน browser cache รีเฟรชทันทีหลังบันทึก |
+| [`frontend/src/app/(dashboard)/items/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/items/page.tsx) | Optimistic State Update + Anti-Cache header รีเฟรชทันทีหลังบันทึก |
 | [`backend/app/schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py) | เพิ่ม `username: str | None = None` ใน `UserUpdate` |
 | [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) | รองรับการเปลี่ยน Username พร้อมตรวจซ้ำ และเพิ่ม `DELETE /api/users/{user_id}` พร้อมระบบ Safeguards |
 | [`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) | ช่องกรอก User ID ใน Edit Modal, ปุ่มไอคอนถังขยะ `Trash2`, และ Modal ยืนยันการลบบัญชี |
