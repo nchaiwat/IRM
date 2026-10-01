@@ -1,9 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 1 ตุลาคม 2026 (12:00 น.)  
+> **วันที่บันทึก:** 1 ตุลาคม 2026 (13:15 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `754323e` (fix(suppliers): allow clearing email and contact fields to null/blank in update_supplier)  
+> **Latest Commit:** `ea88597` (feat(realtime): add global anti-cache, window focus revalidation, and silent auto-refresh)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -121,6 +121,13 @@
 
 | ไฟล์ (File Path) | หน้าที่ / การทำงาน |
 | :--- | :--- |
+| [`backend/app/main.py`](file:///d:/Python/IRM/backend/app/main.py) | เพิ่ม HTTP Anti-Cache Response Headers Middleware สำหรับทุก `/api/*` endpoint |
+| [`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts) | เพิ่ม Global Axios Interceptor แนบ Header ห้ามแคช และพารามิเตอร์ `_t: Date.now()` อัตโนมัติทุกคำขอ `GET` |
+| [`frontend/next.config.js`](file:///d:/Python/IRM/frontend/next.config.js) | กำหนด `experimental.staleTimes: { dynamic: 0, static: 0 }` ป้องกัน Next.js Router Cache จำหน้าจอเก่า |
+| [`frontend/src/components/layout/Sidebar.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Sidebar.tsx) | เพิ่ม `prefetch={false}` ในทุกลิงก์เมนู ป้องกัน Client Router Cache เกาะข้อมูลเก่า |
+| [`frontend/src/app/(dashboard)/dashboard/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/dashboard/page.tsx) | เพิ่ม Window Focus Revalidation และ 30s Background Silent Polling อัปเดตทันทีเมื่อกลับเข้าหน้าเว็บ |
+| [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | เพิ่ม Window Focus Revalidation และ 30s Background Silent Polling พร้อม Modal Editing Safeguard |
+| [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | เพิ่ม Window Focus Revalidation และ Silent Refresh ซิงค์วันส่งมอบทันทีเมื่อสลับแท็บ |
 | [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py) | เพิ่ม Step 0 Check ตรวจสอบ `ciam_sso_enabled` ป้องกันการ bypass SSO จาก CIAM Portal เมื่อ Spoke ปิด SSO |
 | [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | รองรับการล้างอีเมล/เบอร์โทรให้เป็น Blank/NULL (`model_dump(exclude_unset=True)`) |
 | [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | Optimistic State Update + Anti-Cache header ป้องกัน browser cache รีเฟรชทันทีหลังบันทึก |
@@ -157,12 +164,13 @@ docker compose ps
 ## 📌 7. Checkpoint สำหรับการเริ่มงานในครั้งหน้า (Next Session)
 
 * **สถานะความพร้อมของระบบ (System Readiness):**
-  * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `next build` 19/19 static pages)
-  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: 0a3a5c1` และ commit อัปเดตเอกสารล่าสุด)
-  * ระบบ User Management รองรับการแก้ User ID ให้ตรงกับ AD และการลบบัญชีที่ไม่ใช้งานแล้วอย่างปลอดภัย
+  * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `next build` 19/19 static pages รหัสผ่าน 0)
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: ea88597` และ commit อัปเดตเอกสารล่าสุด)
+  * ระบบตัดวงจร Cache อย่างสมบูรณ์: Anti-cache Middleware + Axios Interceptor + Next.js staleTimes + Focus Revalidation + 30s Silent Polling
 * **ขั้นตอนถัดไปเมื่อกลับมาเริ่มงาน (Next Steps):**
   1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 6 บน VPS Production Hostinger
-  2. **ทดสอบฟังก์ชัน User Management บน Production:**
-     - ทดสอบแก้ไข User ID ของผู้ใช้ทั่วไป เพื่อตรวจสอบการซิงค์และบันทึกข้อมูล
-     - ทดสอบลบบัญชีผู้ใช้งานที่ไม่ใช้งาน พร้อมสังเกต Modal ยืนยันการลบและผลใน Audit Log
-  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
+  2. **ทดสอบฟังก์ชัน Realtime Auto-Refresh บน Production:**
+     - ทดสอบเปิดหน้า Dashboard หรือ Operation แล้วให้ Supplier กดยืนยันผ่าน Portal
+     - ทดสอบคลิกสลับแท็บเบราว์เซอร์ไป-มา หรือสลับหน้าเมนู แล้วสังเกตว่าข้อมูลตัวเลขและสถานะอัปเดตทันทีโดยไม่ต้องกด F5
+     - ทดสอบเปิด Modal แก้ไขข้อมูลใน Operation เพื่อยืนยันว่า Silent Polling ไม่ขัดจังหวะการกรอกข้อมูล
+  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements หรือ Feature ใหม่จากผู้ใช้ได้ทันทีครับ
