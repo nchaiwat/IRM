@@ -85,6 +85,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_anti_cache_headers(request, call_next):
+    """Ensure all API endpoints instruct browsers and proxies not to cache responses."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # Include Routers
 app.include_router(auth_router)
 app.include_router(users_router)

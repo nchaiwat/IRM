@@ -11,13 +11,24 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor: attach token
+// Request interceptor: attach token & Anti-Cache for GET requests
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('irm_access_token');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+      // Anti-Cache Guard: Ensure browsers/proxies always fetch fresh data on GET requests
+      if (!config.method || config.method.toLowerCase() === 'get') {
+        config.headers = config.headers || {};
+        config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        config.headers['Pragma'] = 'no-cache';
+        config.headers['Expires'] = '0';
+        config.params = {
+          ...config.params,
+          _t: Date.now(),
+        };
       }
     }
     return config;

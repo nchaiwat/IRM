@@ -90,20 +90,42 @@ export default function DashboardPage() {
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [hoveredDay, setHoveredDay] = useState<any | null>(null);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get<DashboardData>('/api/dashboard/analytics');
       setData(res.data);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
+
+    // 1. Instant re-fetch when user switches back to this browser tab or window
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 2. Periodic background silent polling (every 30 seconds)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      clearInterval(interval);
+    };
   }, []);
 
   // Filtered Suppliers
@@ -192,7 +214,7 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={fetchDashboardData}
+            onClick={() => fetchDashboardData()}
             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-slate-200"
             title="รีเฟรชข้อมูลล่าสุด"
           >

@@ -115,9 +115,11 @@ export default function OperationPage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Track if any modal is actively open to avoid silent background refetch interrupting user input
+  const isEditingRef = useRef(false);
   useEffect(() => {
-    fetchItems();
-  }, []);
+    isEditingRef.current = !!(showEditModal || showEditSubItem || forceOverrideModal.isOpen || submitting);
+  }, [showEditModal, showEditSubItem, forceOverrideModal.isOpen, submitting]);
 
   // Sync scroll between Top Scrollbar and Table container
   const handleTopScroll = () => {
@@ -140,16 +142,44 @@ export default function OperationPage() {
     }
   }, [items, loading]);
 
-  const fetchItems = async () => {
+  const fetchItems = async (isSilent = false) => {
+    if (isSilent && isEditingRef.current) return;
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get<POItemResponse[]>('/api/operation');
       setItems(res.data);
     } catch (err) {
       console.error('Failed to fetch operation items:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchItems();
+
+    // 1. Instant re-fetch when user switches back to this browser tab or window
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible' && !isEditingRef.current) {
+        fetchItems(true);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    // 2. Periodic background silent polling (every 30 seconds)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible' && !isEditingRef.current) {
+        fetchItems(true);
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
 
   const isSupplierLocked = (item: POItemResponse) => {
     if (item.locked_by === 'supplier' && item.lock_expires_at) {

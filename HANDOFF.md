@@ -38,6 +38,14 @@
   * หากถูกส่งมา (แม้จะเป็น `None` หรือ `""`) ระบบจะทำความสะอาดสตริงและบันทึกลงฐานข้อมูลเป็น `None` (`NULL` ใน PostgreSQL) ทันที
   * หน้าตารางจะแสดงสถานะ `ยังไม่มี Email` อย่างถูกต้องตามที่ผู้ใช้ต้องการ
 
+### 4) ⚡ ระบบ Realtime Auto-Refresh & Global Anti-Cache ทุกหน้าจอ
+* **ปัญหาเดิม:** เมื่อผู้ใช้คลิกสลับหน้าไป-มา เช่น จาก Dashboard ไปหน้าอื่นแล้วกลับมา หรือ Supplier เพิ่งกดยืนยันวันส่งมอบ ข้อมูลไม่เปลี่ยนทันที ต้องกดปุ่ม Refresh บนเบราว์เซอร์
+* **การแก้ไข:**
+  * **Backend ([`backend/app/main.py`](file:///d:/Python/IRM/backend/app/main.py)):** ติดตั้ง HTTP Anti-Cache Middleware ให้ทุก endpoint `/api/*` ส่ง Response Headers `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` และ `Pragma: no-cache`
+  * **Axios Interceptor ([`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts)):** บังคับให้ทุกคำขอ `GET` แนบพารามิเตอร์ Cache-Buster `_t: Date.now()` และ Headers ห้ามแคชอัตโนมัติแบบครอบคลุมทั้งระบบ
+  * **Next.js Router Cache ([`frontend/next.config.js`](file:///d:/Python/IRM/frontend/next.config.js)):** กำหนด `experimental.staleTimes: { dynamic: 0, static: 0 }` และตั้ง `prefetch={false}` บนทุกลิงก์ใน Sidebar ([`Sidebar.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Sidebar.tsx)) เพื่อให้ดึงข้อมูลสดทุกครั้งที่คลิกเปลี่ยนหน้า
+  * **Window Focus & Silent Background Polling:** เพิ่มตัวจับสัญญาณ `window.focus` และ `visibilitychange` พร้อม Silent Background Polling ทุก 30 วินาทีใน Dashboard ([`dashboard/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/dashboard/page.tsx)), Operation ([`operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx)), และ Calendar ([`calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx)) โดยมี Safeguard ข้ามการรีเฟรชหากผู้ใช้กำลังเปิด Modal แก้ไขข้อมูลอยู่
+
 ---
 
 ## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (27 กันยายน 2026)

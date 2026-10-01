@@ -129,6 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <Link
                         key={child.id}
                         href={child.path || '#'}
+                        prefetch={false}
                         onClick={() => {
                           if (isMobileView && onCloseMobile) {
                             onCloseMobile();
@@ -158,6 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Link
             key={menu.id}
             href={menu.path || '#'}
+            prefetch={false}
             onClick={() => {
               if (isMobileView && onCloseMobile) {
                 onCloseMobile();

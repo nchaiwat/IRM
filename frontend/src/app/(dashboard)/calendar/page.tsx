@@ -108,6 +108,19 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchEvents();
     fetchItemGroups();
+
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchEvents(true);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, []);
 
   // Close search dropdown on click outside
@@ -130,14 +143,15 @@ export default function CalendarPage() {
     }
   };
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await api.get<CalendarEvent[]>('/api/calendar');
       setEvents(res.data);
     } catch (err) {
       console.error('Failed to fetch calendar events:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
