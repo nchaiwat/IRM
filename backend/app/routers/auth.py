@@ -6,12 +6,13 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, get_effective_user_allowed_groups
 from app.models.auth_matrix import AuthMatrix
+from app.models.group import Group
 from app.models.menu import Menu
 from app.models.transaction_log import TransactionLog
 from app.models.user import User
@@ -22,12 +23,13 @@ from app.schemas.auth import (
     TokenResponse,
     UserMeResponse,
 )
-from app.services.ad_service import verify_ad_credentials
+from app.services.ad_service import get_ad_settings, verify_ad_credentials
 from app.services.log_service import record_transaction_log
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
     verify_password,
 )
 
@@ -46,7 +48,7 @@ async def login(
     if "," in client_ip:
         client_ip = client_ip.split(",")[0].strip()
 
-    stmt = select(User).where(User.username == username_clean)
+    stmt = select(User).where(func.lower(User.username) == username_clean.lower())
 
     try:
         result = await db.execute(stmt)
@@ -59,23 +61,71 @@ async def login(
         )
 
     if not user:
-        print(f"❌ Login attempt failed: User '{username_clean}' not found in DB")
-        try:
-            await record_transaction_log(
-                category="user_auth",
-                action="login_unknown",
-                status="failed",
-                message=f"เข้าสู่ระบบล้มเหลว: ไม่พบบัญชีผู้ใช้ '{username_clean}'",
-                details={"username": username_clean, "ip": client_ip},
-                triggered_by=f"user:{username_clean}",
+        # Check if AD authentication is available and enabled for auto-provisioning
+        ad_cfg = await get_ad_settings(db)
+        if ad_cfg.get("ad_enabled") and ad_cfg.get("ad_gateway_url"):
+            ad_success, ad_message, raw_resp = await verify_ad_credentials(
+                db=db,
+                username=username_clean,
+                password=req.password,
             )
-        except Exception as log_err:
-            print(f"⚠️ Could not write login_unknown log: {log_err}")
+            if ad_success:
+                target_grp_stmt = select(Group).where(Group.name == "PU User")
+                default_grp = (await db.execute(target_grp_stmt)).scalar_one_or_none()
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-        )
+                user_name = ""
+                user_email = ""
+                user_dept = ""
+                if isinstance(raw_resp, dict):
+                    user_name = raw_resp.get("name") or raw_resp.get("full_name") or ""
+                    user_email = raw_resp.get("email") or ""
+                    user_dept = raw_resp.get("department") or ""
+
+                user = User(
+                    username=username_clean,
+                    password_hash=hash_password("AD_MANAGED_ACCOUNT"),
+                    full_name=user_name or username_clean,
+                    email=user_email or f"{username_clean.lower()}@windowasia.com",
+                    department=user_dept or "Purchasing",
+                    group_id=default_grp.id if default_grp else None,
+                    use_ad_auth=True,
+                    is_active=True,
+                )
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+
+                try:
+                    await record_transaction_log(
+                        category="user_auth",
+                        action="auto_provision_ad_user",
+                        status="success",
+                        message=f"สร้างบัญชีผู้ใช้ใหม่อัตโนมัติจาก Active Directory (AD): '{username_clean}'",
+                        details={"username": username_clean, "ip": client_ip},
+                        triggered_by=f"user:{username_clean}",
+                        db=db,
+                    )
+                except Exception as log_err:
+                    print(f"⚠️ Could not write auto_provision_ad_user log: {log_err}")
+
+        if not user:
+            print(f"❌ Login attempt failed: User '{username_clean}' not found in DB")
+            try:
+                await record_transaction_log(
+                    category="user_auth",
+                    action="login_unknown",
+                    status="failed",
+                    message=f"เข้าสู่ระบบล้มเหลว: ไม่พบบัญชีผู้ใช้ '{username_clean}'",
+                    details={"username": username_clean, "ip": client_ip},
+                    triggered_by=f"user:{username_clean}",
+                )
+            except Exception as log_err:
+                print(f"⚠️ Could not write login_unknown log: {log_err}")
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+            )
 
     if not user.is_active:
         print(f"❌ Login attempt failed: User '{username_clean}' is deactivated")
@@ -154,15 +204,32 @@ async def login(
             print(f"⚠️ Could not write login_ad success log: {log_err}")
 
     else:
-        # Authenticate via Local App Password
-        if not verify_password(req.password, user.password_hash):
-            print(f"❌ Local Password mismatch for user '{username_clean}'")
+        # Authenticate via Local App Password with AD Fallback
+        local_matched = verify_password(req.password, user.password_hash)
+
+        if not local_matched:
+            # Fallback check against AD if enabled globally
+            ad_cfg = await get_ad_settings(db)
+            if ad_cfg.get("ad_enabled") and ad_cfg.get("ad_gateway_url"):
+                ad_success, ad_message, _ = await verify_ad_credentials(
+                    db=db,
+                    username=username_clean,
+                    password=req.password,
+                )
+                if ad_success:
+                    local_matched = True
+                    user.use_ad_auth = True
+                    await db.commit()
+                    print(f"🔑 AD Fallback Login successful for user '{username_clean}' (switched to AD auth)")
+
+        if not local_matched:
+            print(f"❌ Password mismatch for user '{username_clean}'")
             try:
                 await record_transaction_log(
                     category="user_auth",
                     action="login_local",
                     status="failed",
-                    message="เข้าสู่ระบบผ่าน Local App Password ล้มเหลว: รหัสผ่านไม่ถูกต้อง",
+                    message="เข้าสู่ระบบล้มเหลว: รหัสผ่านไม่ถูกต้อง",
                     details={
                         "username": username_clean,
                         "auth_method": "LOCAL",

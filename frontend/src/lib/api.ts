@@ -51,11 +51,11 @@ api.interceptors.response.use(
         localStorage.removeItem('irm_refresh_token');
         localStorage.removeItem('irm_auth_provider');
 
-        if (authProvider === 'local') {
-          window.location.href = '/login';
-        } else {
+        if (authProvider === 'sso') {
           // SSO session expired -> return seamlessly to Central IAM Portal
           window.location.href = portalUrl;
+        } else {
+          window.location.href = '/login';
         }
       }
     }

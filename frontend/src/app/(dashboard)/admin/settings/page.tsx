@@ -156,6 +156,11 @@ export default function SettingsPage() {
       const res = await api.get('/api/settings/ciam-sso');
       if (res.data?.settings) {
         setCiamSettings(res.data.settings);
+        setSettings((prev) => ({
+          ...prev,
+          ciam_sso_enabled: res.data.settings.ciam_sso_enabled ? 'true' : 'false',
+          ciam_break_glass_active: res.data.settings.ciam_break_glass_active ? 'true' : 'false',
+        }));
       }
     } catch (err) {
       console.error('Failed to fetch CIAM SSO settings:', err);
@@ -209,6 +214,11 @@ export default function SettingsPage() {
       const res = await api.put('/api/settings/ciam-sso', payload);
       if (res.data?.settings) {
         setCiamSettings(res.data.settings);
+        setSettings((prev) => ({
+          ...prev,
+          ciam_sso_enabled: res.data.settings.ciam_sso_enabled ? 'true' : 'false',
+          ciam_break_glass_active: res.data.settings.ciam_break_glass_active ? 'true' : 'false',
+        }));
       }
       setEditingSecret(false);
       setNewClientSecret('');
@@ -286,10 +296,12 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage(null);
 
-    const payload = Object.entries(settings).map(([key, value]) => ({
-      key,
-      value,
-    }));
+    const payload = Object.entries(settings)
+      .filter(([key]) => !key.startsWith('ciam_'))
+      .map(([key, value]) => ({
+        key,
+        value,
+      }));
 
     try {
       await api.put('/api/settings', { settings: payload });
@@ -1867,7 +1879,11 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 checked={ciamSettings.ciam_sso_enabled}
-                onChange={(e) => setCiamSettings({ ...ciamSettings, ciam_sso_enabled: e.target.checked })}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  setCiamSettings((prev) => ({ ...prev, ciam_sso_enabled: val }));
+                  setSettings((prev) => ({ ...prev, ciam_sso_enabled: val ? 'true' : 'false' }));
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>

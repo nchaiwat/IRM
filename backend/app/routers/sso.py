@@ -355,7 +355,7 @@ async def toggle_break_glass_mode(
     if "," in client_ip:
         client_ip = client_ip.split(",")[0].strip()
 
-    # Update ciam_break_glass_active and ciam_sso_enabled in system_settings
+    # Update ciam_break_glass_active in system_settings
     stmt_bg = select(SystemSetting).where(SystemSetting.key == "ciam_break_glass_active")
     row_bg = (await db.execute(stmt_bg)).scalar_one_or_none()
     if row_bg:
@@ -367,19 +367,6 @@ async def toggle_break_glass_mode(
             category="central_iam",
             data_type="boolean",
             description="โหมดปลดระบบฉุกเฉิน",
-        ))
-
-    stmt_sso = select(SystemSetting).where(SystemSetting.key == "ciam_sso_enabled")
-    row_sso = (await db.execute(stmt_sso)).scalar_one_or_none()
-    if row_sso:
-        row_sso.value = "false" if req.break_glass_active else "true"
-    else:
-        db.add(SystemSetting(
-            key="ciam_sso_enabled",
-            value="false" if req.break_glass_active else "true",
-            category="central_iam",
-            data_type="boolean",
-            description="สวิตช์เปิด/ปิด SSO",
         ))
 
     await db.commit()

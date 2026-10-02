@@ -82,11 +82,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     fetchUser();
-    // Cache Central IAM portal URL
+    // Cache Central IAM portal URL only when SSO is enabled
     api.get('/api/auth/sso/config')
       .then((res) => {
-        if (res.data?.ciam_base_url && typeof window !== 'undefined') {
-          localStorage.setItem('irm_ciam_portal_url', res.data.ciam_base_url + '/portal');
+        if (typeof window !== 'undefined') {
+          if (res.data?.sso_enabled && res.data?.ciam_base_url) {
+            localStorage.setItem('irm_ciam_portal_url', res.data.ciam_base_url + '/portal');
+          } else {
+            localStorage.removeItem('irm_ciam_portal_url');
+          }
         }
       })
       .catch(() => {});
@@ -120,10 +124,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     setUser(null);
 
-    if (authProvider === 'local') {
-      router.push('/login');
-    } else {
+    if (authProvider === 'sso') {
       window.location.href = portalUrl;
+    } else {
+      router.push('/login');
     }
   };
 

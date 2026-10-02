@@ -97,6 +97,7 @@ async def bulk_update_settings(
             updated_count += 1
 
     await db.commit()
+    invalidate_ciam_cache()
     return {"message": f"Successfully updated {updated_count} settings"}
 
 

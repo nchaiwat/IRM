@@ -1,9 +1,8 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 1 ตุลาคม 2026 (13:15 น.)  
+> **วันที่บันทึก:** 2 ตุลาคม 2026 (23:20 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `ea88597` (feat(realtime): add global anti-cache, window focus revalidation, and silent auto-refresh)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -14,7 +13,46 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (1 ตุลาคม 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (2 ตุลาคม 2026)
+
+### 1) 🚪 แก้ไขการ Logout & Session Expiration ให้กลับมาหน้า Login ของ IRM เสมอ
+* **ปัญหาเดิม:** การล็อกอินผ่านหน้า Login ของ IRM เองโดยตรง (Direct/Local Login) เมื่อกด Logout หรือเมื่อ Token หมดอายุ (HTTP 401) ระบบจะ Redirect ผู้ใช้กระโดดไปยังหน้า Central IAM Portal (`https://ciam.windowasia.com/portal`) แทนที่จะกลับมาหน้า Login ของ IRM
+* **Root Cause:** ใน [`frontend/src/lib/auth-context.tsx`](file:///d:/Python/IRM/frontend/src/lib/auth-context.tsx) และ [`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts) เขียนเงื่อนไขผิดพลาดว่าถ้า `authProvider === 'local'` ให้ไป `/login` แต่นอกเหนือจากนั้นทั้งหมด (`else`) ให้เด้งไป CIAM Portal ส่งผลให้เมื่อค่า `authProvider` เป็น `null` (เปิดแท็บใหม่ หรือ Token ค้าง) จะถูกเตะไปหน้า CIAM ทันที
+* **การแก้ไข:**
+  * ปรับ Logic ให้ Invert Safeguard: **จะ Redirect ไป CIAM Portal เฉพาะเมื่อ `authProvider === 'sso'` เท่านั้น**
+  * นอกเหนือจากนั้นทั้งหมด (Local, ค้นไม่พบ, หรือ SSO ถูกปิด) ให้ Redirect กลับมาที่ `/login` ของ IRM เสมอ 100%
+  * ใน `auth-context.tsx` และ `login/page.tsx`: ตรวจสอบสถานะ SSO หาก SSO ปิดอยู่ จะสั่งลบ `irm_ciam_portal_url` ออกจาก Browser Storage ทันที
+
+### 2) 🏢 ปลดล็อกการเข้าสู่ระบบด้วย Active Directory (AD) จากหน้า Login พร้อมระบบ Auto-Provisioning & Fallback
+* **ปัญหาเดิม:** เมื่อผู้ใช้เข้าสู่ระบบจากหน้า Login ด้วย Username และ Password ของ Active Directory:
+  * หากพนักงานยังไม่มีชื่อในตาราง `users` ของ IRM ระบบจะ Reject ทันที (ไม่มีระบบ Auto-provision บัญชีใหม่)
+  * หาก Admin ลืมติ๊ก Checkbox `use_ad_auth` ใน User Management ระบบจะตรวจเทียบเฉพาะ Local Password เท่านั้น ทำให้พนักงานล็อกอินด้วยรหัส AD ไม่ได้
+* **การแก้ไขใน Backend ([`backend/app/routers/auth.py`](file:///d:/Python/IRM/backend/app/routers/auth.py)):**
+  * **AD Auto-Provisioning:** หากไม่พบบัญชีใน IRM แต่มีการเปิดใช้งาน AD Gateway ไว้ ระบบจะส่งคำขอไปตรวจสอบกับ AD Gateway ทันที หากรหัสผ่านถูกต้อง ระบบจะสร้างบัญชีผู้ใช้ใหม่ใน IRM ให้อัตโนมัติ (`PU User`, `use_ad_auth=True`, `is_active=True`)
+  * **AD Fallback Verification:** หากพนักงานมีชื่อใน IRM แต่รหัสผ่าน Local ไม่ตรง ระบบจะตรวจสอบไปยัง AD Gateway สำรองให้ทันที หากยืนยันตัวตนสำเร็จ ระบบจะอัปเดตสถานะเป็น `use_ad_auth = True` ให้อัตโนมัติ
+  * **Case-Insensitive Match:** ค้นหาชื่อผู้ใช้ด้วย `func.lower(User.username) == username_clean.lower()` เพื่อรองรับรูปแบบตัวพิมพ์เล็ก-ใหญ่ของ AD
+* **การแก้ไขใน Frontend ([`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx)):**
+  * ปรับข้อความปุ่มและฟอร์มจาก *"เข้าสู่ระบบด้วยบัญชี Local (กรณีฉุกเฉิน)"* ให้เป็น **"เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน (AD / Local Account)"** เพื่อความเข้าใจที่ถูกต้องของผู้ใช้งาน
+
+### 3) 🛡️ แก้ไขปัญหาสวิตช์ Disable SSO เปลี่ยนกลับเอง และแยกตัวออกจาก CIAM อย่างเด็ดขาด
+* **ปัญหาเดิม:** เมื่อ Admin ปิดการใช้งาน SSO ในหน้า Admin Settings แล้วกดบันทึก เมื่อรีเฟรชหรือกลับมาที่หน้า Login พบว่าปุ่ม SSO ยังแสดงอยู่ และสวิตช์ใน Admin Settings เด้งกลับมาเปิดเอง
+* **Root Cause:**
+  1. ใน [`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) มี State 2 ตัว (`settings` และ `ciamSettings`) เมื่อเลื่อนสวิตช์ปิด SSO ตัว State `settings` หลักไม่ได้ถูกอัปเดตตาม และเมื่อกดปุ่ม "บันทึกการตั้งค่า" หลักที่ด้านล่างสุด โค้ดส่งค่า `ciam_sso_enabled: "true"` เดิมไปทับค่าในฐานข้อมูล
+  2. `bulk_update_settings` ใน Backend ไม่ได้เรียก `invalidate_ciam_cache()` ทำให้ In-memory cache ยังคงจำค่าเก่า
+  3. ฟังก์ชัน `break_glass_toggle` ใน `sso.py` เดิมมีคำสั่งบังคับเขียน `ciam_sso_enabled = true` เมื่อปิด Break-Glass
+* **การแก้ไข:**
+  * **Frontend ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):**
+    * กรองคีย์ `ciam_*` ออกจาก Payload ของปุ่ม `handleSave` หลัก เพื่อไม่ให้การกดบันทึกการตั้งค่าทั่วไปมารบกวนหรือทับการตั้งค่าของ CIAM SSO
+    * ซิงค์ค่า `ciam_sso_enabled` และ `ciam_break_glass_active` ระหว่าง State ทั้งสองตัวตลอดเวลาทั้งตอนโหลด, ตอนสลับสวิตช์, และตอนกดบันทึก
+  * **Backend ([`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py), [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py)):**
+    * เรียก `invalidate_ciam_cache()` ทันทีหลังการบันทึกการตั้งค่าทุกครั้ง
+    * ตัดคำสั่งที่ฮาร์ดโค้ดบังคับเปิด SSO ใน `break_glass_toggle` ออก ทำให้เมื่อปิดโหมดฉุกเฉิน ค่าสถานะ SSO ที่ Admin ตั้งใจปิดไว้จะไม่ถูกทับกลับเป็นเปิดอีกต่อไป
+  * **Frontend Login ([`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx)):**
+    * เมื่อ `sso_enabled == false`: แสดงแบบฟอร์มล็อกอินปกติ (Username & Password) ทันที 100% โดยซ่อนปุ่ม SSO, ซ่อนข้อความเตือน, และซ่อนปุ่มสลับโหมดใดๆ ทั้งสิ้น แยกตัวออกจาก CIAM อย่างเป็นทางการและสมบูรณ์
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (1 ตุลาคม 2026)
 
 ### 1) 🔐 มาตรฐาน Step 0 Guard สำหรับ Central IAM SSO Callback (Commit `704b646`)
 * **ปัญหาเดิม:** เมื่อผู้ดูแลระบบปิดการใช้งาน SSO ในหน้าตั้งค่า IRM (`ciam_sso_enabled = false` หรือเปิด Break-Glass) หน้าจอ Login ตรงของ IRM จะซ่อนปุ่ม SSO ถูกต้อง แต่หากพนักงานคลิกปุ่มเปิดระบบ IRM มาจากหน้า Central-IAM Portal ตัว endpoint `/api/auth/sso/callback` ของ IRM ยังคงยอมรับ authorization code และทำ login สำเร็จ เนื่องจากขาดการตรวจสอบสถานะ SSO ภายใน callback

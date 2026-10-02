@@ -37,8 +37,10 @@ export default function LoginPage() {
     api.get('/api/auth/sso/config')
       .then((res) => {
         setSsoConfig(res.data);
-        if (res.data?.ciam_base_url) {
+        if (res.data?.sso_enabled && res.data?.ciam_base_url) {
           localStorage.setItem('irm_ciam_portal_url', res.data.ciam_base_url + '/portal');
+        } else {
+          localStorage.removeItem('irm_ciam_portal_url');
         }
       })
       .catch((err) => {
@@ -48,7 +50,7 @@ export default function LoginPage() {
 
   const handleCiamSso = async () => {
     if (ssoConfig?.break_glass_active) {
-      setError('ระบบกำลังทำงานในโหมดฉุกเฉิน (Break-Glass Mode) กรุณาใช้รหัสผ่านเฉพาะระบบ IRM');
+      setError('ระบบกำลังทำงานในโหมดฉุกเฉิน (Break-Glass Mode) กรุณาใช้รหัสผ่านเฉพาะระบบ IRM หรือ AD');
       return;
     }
     if (ssoConfig && !ssoConfig.sso_enabled) {
@@ -150,7 +152,7 @@ export default function LoginPage() {
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
             <div className="leading-relaxed">
               <strong className="block font-semibold text-amber-200">โหมดฉุกเฉิน (Break-Glass Active)</strong>
-              ระบบกำลังทำงานในโหมดฉุกเฉิน กรุณาใช้รหัสผ่านเฉพาะระบบ IRM เพื่อเข้าใช้งาน
+              ระบบกำลังทำงานในโหมดฉุกเฉิน กรุณาใช้รหัสผ่าน Active Directory หรือ Local ของ IRM
             </div>
           </div>
         )}
@@ -196,7 +198,7 @@ export default function LoginPage() {
                     onClick={() => setShowLocalLogin(true)}
                     className="text-xs text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
                   >
-                    <span>เข้าสู่ระบบด้วยบัญชี Local (กรณีฉุกเฉิน)</span>
+                    <span>เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน (AD / Local Account)</span>
                     <ArrowRight className="w-3 h-3 text-slate-500" />
                   </button>
                 </div>
@@ -210,7 +212,7 @@ export default function LoginPage() {
           <div className="space-y-4 pt-2">
             {ssoConfig?.sso_enabled && !ssoConfig.break_glass_active && (
               <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs">
-                <span className="text-slate-400 font-medium">เข้าสู่ระบบด้วยบัญชี Local</span>
+                <span className="text-slate-400 font-medium">เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน (AD / Local)</span>
                 <button
                   type="button"
                   onClick={() => setShowLocalLogin(false)}
@@ -233,7 +235,7 @@ export default function LoginPage() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="กรอกชื่อผู้ใช้ (เช่น admin)"
+                    placeholder="ชื่อผู้ใช้ AD หรือ Local (เช่น Somchai.P, admin)"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
                   />
                 </div>
