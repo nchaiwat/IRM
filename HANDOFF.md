@@ -1,8 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 2 ตุลาคม 2026 (23:20 น.)  
+> **วันที่บันทึก:** 3 ตุลาคม 2026 (15:40 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
+> **Latest Commit:** `eff470f` (fix(auth): fix logout redirect, support AD auto-provisioning, and decouple SSO setting)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -155,18 +156,19 @@
 
 ---
 
-## 📂 5. โครงสร้างไฟล์สำคัญที่ปรับปรุงล่าสุด (Key Files Reference)
-
-| ไฟล์ (File Path) | หน้าที่ / การทำงาน |
-| :--- | :--- |
+| [`backend/app/routers/auth.py`](file:///d:/Python/IRM/backend/app/routers/auth.py) | Direct Login รองรับ AD Auto-Provisioning บัญชีใหม่อัตโนมัติ, AD Fallback เมื่อรหัส Local ไม่ตรง, และ Case-Insensitive Username match |
+| [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py) | ตัดการฮาร์ดโค้ด override `ciam_sso_enabled = true` ใน `break_glass_toggle` ป้องกันการทับสวิตช์ SSO ของ Admin |
+| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | เพิ่ม `invalidate_ciam_cache()` ใน `bulk_update_settings` ล้าง In-memory cache ทันทีหลังบันทึก |
+| [`frontend/src/lib/auth-context.tsx`](file:///d:/Python/IRM/frontend/src/lib/auth-context.tsx) | Invert Safeguard ใน `logout` เด้งไป CIAM Portal เฉพาะเมื่อ `authProvider === 'sso'` เท่านั้น นอกนั้นกลับไป `/login` ของ IRM เสมอ |
+| [`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts) | ปรับ 401 Response Interceptor ให้ส่งกลับ `/login` ของ IRM เสมอยกเว้นกรณี SSO session |
+| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | กรองคีย์ `ciam_*` ออกจาก `handleSave` และซิงค์ State สวิตช์ SSO ไม่ให้เด้งกลับเปิดเอง |
+| [`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx) | Decoupled Clean Login UI เมื่อปิด SSO ซ่อนปุ่ม SSO และการอ้างถึง CIAM พร้อมปรับข้อความปุ่มรองรับ AD/Local |
 | [`backend/app/main.py`](file:///d:/Python/IRM/backend/app/main.py) | เพิ่ม HTTP Anti-Cache Response Headers Middleware สำหรับทุก `/api/*` endpoint |
-| [`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts) | เพิ่ม Global Axios Interceptor แนบ Header ห้ามแคช และพารามิเตอร์ `_t: Date.now()` อัตโนมัติทุกคำขอ `GET` |
 | [`frontend/next.config.js`](file:///d:/Python/IRM/frontend/next.config.js) | กำหนด `experimental.staleTimes: { dynamic: 0, static: 0 }` ป้องกัน Next.js Router Cache จำหน้าจอเก่า |
 | [`frontend/src/components/layout/Sidebar.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Sidebar.tsx) | เพิ่ม `prefetch={false}` ในทุกลิงก์เมนู ป้องกัน Client Router Cache เกาะข้อมูลเก่า |
 | [`frontend/src/app/(dashboard)/dashboard/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/dashboard/page.tsx) | เพิ่ม Window Focus Revalidation และ 30s Background Silent Polling อัปเดตทันทีเมื่อกลับเข้าหน้าเว็บ |
 | [`frontend/src/app/(dashboard)/operation/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/operation/page.tsx) | เพิ่ม Window Focus Revalidation และ 30s Background Silent Polling พร้อม Modal Editing Safeguard |
 | [`frontend/src/app/(dashboard)/calendar/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/calendar/page.tsx) | เพิ่ม Window Focus Revalidation และ Silent Refresh ซิงค์วันส่งมอบทันทีเมื่อสลับแท็บ |
-| [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py) | เพิ่ม Step 0 Check ตรวจสอบ `ciam_sso_enabled` ป้องกันการ bypass SSO จาก CIAM Portal เมื่อ Spoke ปิด SSO |
 | [`backend/app/routers/suppliers.py`](file:///d:/Python/IRM/backend/app/routers/suppliers.py) | รองรับการล้างอีเมล/เบอร์โทรให้เป็น Blank/NULL (`model_dump(exclude_unset=True)`) |
 | [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | Optimistic State Update + Anti-Cache header ป้องกัน browser cache รีเฟรชทันทีหลังบันทึก |
 | [`frontend/src/app/(dashboard)/items/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/items/page.tsx) | Optimistic State Update + Anti-Cache header รีเฟรชทันทีหลังบันทึก |
@@ -176,7 +178,6 @@
 | [`PRD.md`](file:///d:/Python/IRM/PRD.md) | เอกสาร Product Requirements Document ฉบับสมบูรณ์ของระบบ IRM |
 | [`backend/app/services/log_service.py`](file:///d:/Python/IRM/backend/app/services/log_service.py) | ฟังก์ชัน `record_transaction_log` บันทึก Audit Log แบบ Isolated Session ไม่โดน Rollback |
 | [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ดึงผู้รับ PU Reminder จากกลุ่ม `PU User` ใน User Management โดยตรง พร้อมไฟล์แนบ Excel 2 Sheet |
-| [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | Endpoint `POST /api/settings/send-pu-remind-email-now` (ส่งทันที) และ Purge Logs |
 | [`backend/app/services/scheduler.py`](file:///d:/Python/IRM/backend/app/services/scheduler.py) | Auto Purge Logs เวลา 00:30 น., Minute-Checker สำหรับ PU Reminder Email |
 
 ---
@@ -203,12 +204,15 @@ docker compose ps
 
 * **สถานะความพร้อมของระบบ (System Readiness):**
   * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `next build` 19/19 static pages รหัสผ่าน 0)
-  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: ea88597` และ commit อัปเดตเอกสารล่าสุด)
-  * ระบบตัดวงจร Cache อย่างสมบูรณ์: Anti-cache Middleware + Axios Interceptor + Next.js staleTimes + Focus Revalidation + 30s Silent Polling
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: eff470f` และ commit เอกสารล่าสุด)
+  * ระบบ Authentication & SSO ได้รับการปรับปรุงครบทั้ง 3 จุด:
+    1. Logout จาก Direct/Local Login ส่งกลับหน้า `/login` ของ IRM เสมอ (Invert Safeguard)
+    2. รองรับ Active Directory (AD) Direct Login พร้อม Auto-Provisioning พนักงานใหม่ และ Fallback อัตโนมัติ
+    3. ป้องกันสวิตช์ Disable SSO เด้งกลับมาเปิดเอง พร้อมหน้า Login แบบ Clean Standalone เมื่อแยกตัวออกจาก CIAM
 * **ขั้นตอนถัดไปเมื่อกลับมาเริ่มงาน (Next Steps):**
   1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 6 บน VPS Production Hostinger
-  2. **ทดสอบฟังก์ชัน Realtime Auto-Refresh บน Production:**
-     - ทดสอบเปิดหน้า Dashboard หรือ Operation แล้วให้ Supplier กดยืนยันผ่าน Portal
-     - ทดสอบคลิกสลับแท็บเบราว์เซอร์ไป-มา หรือสลับหน้าเมนู แล้วสังเกตว่าข้อมูลตัวเลขและสถานะอัปเดตทันทีโดยไม่ต้องกด F5
-     - ทดสอบเปิด Modal แก้ไขข้อมูลใน Operation เพื่อยืนยันว่า Silent Polling ไม่ขัดจังหวะการกรอกข้อมูล
-  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements หรือ Feature ใหม่จากผู้ใช้ได้ทันทีครับ
+  2. **ทดสอบผลการทำงานบน Production:**
+     - ทดสอบกด Logout จากบัญชี Local หรือ AD ว่ากลับมาหน้า Login ของ IRM โดยไม่กระโดดไป CIAM Portal
+     - ทดสอบล็อกอินด้วย AD Account ทั้งบัญชีที่มีอยู่แล้วและบัญชีใหม่
+     - ทดสอบปิด SSO ในหน้า Settings ตรวจสอบว่าสวิตช์ไม่เปลี่ยนกลับเอง และหน้า Login แสดงแบบ Standalone สะอาดตา
+  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
