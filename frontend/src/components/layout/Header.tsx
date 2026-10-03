@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { LogOut, User as UserIcon, Shield, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogOut, User as UserIcon, Shield, Menu, PanelLeftClose, PanelLeftOpen, Building2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 interface HeaderProps {
@@ -16,6 +16,19 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
 }) => {
   const { user, logout } = useAuth();
+  const [isSsoUser, setIsSsoUser] = useState(false);
+  const [portalUrl, setPortalUrl] = useState('https://ciam.windowasia.com/portal');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const provider = localStorage.getItem('irm_auth_provider');
+      setIsSsoUser(provider === 'sso');
+      const cachedPortal = localStorage.getItem('irm_ciam_portal_url');
+      if (cachedPortal) {
+        setPortalUrl(cachedPortal);
+      }
+    }
+  }, []);
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between sticky top-0 z-10 shadow-sm">
@@ -77,6 +90,18 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Central IAM Portal Return / Switcher */}
+        {isSsoUser && (
+          <a
+            href={portalUrl}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-sky-700 bg-sky-50/80 hover:bg-sky-100 border border-sky-200 hover:border-sky-300 transition-all duration-150"
+            title="กลับสู่ Central Single Sign-On App Portal เพื่อสลับระบบงาน"
+          >
+            <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
+            <span className="hidden sm:inline">สลับระบบ (Portal)</span>
+          </a>
         )}
 
         {/* Logout Button */}
