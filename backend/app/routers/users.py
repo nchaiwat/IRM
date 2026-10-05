@@ -244,14 +244,7 @@ async def test_telegram_user(
     if not user.telegram_chat_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User does not have a Telegram Chat ID")
 
-    # Fetch Telegram Settings
-    settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
-    s_map = {s.key: s.value for s in settings_rows}
-
-    bot_token = s_map.get("telegram_bot_token") or "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw"
-    api_url = s_map.get("telegram_api_url") or "https://api.telegram.org"
-
-    from app.services.telegram_service import format_telegram_header
+    from app.services.telegram_service import format_telegram_header, send_telegram_message_detailed
 
     msg = (
         f"{format_telegram_header('🔔 <b>ทดสอบการส่งข้อความส่วนตัว (Direct Message)</b>')}\n\n"
@@ -260,23 +253,15 @@ async def test_telegram_user(
         f"• ⚡ <b>สถานะ:</b> เชื่อมต่อการแจ้งเตือนส่วนบุคคลกับระบบ IRM สำเร็จเรียบร้อยแล้ว"
     )
 
-    try:
-        async with httpx.AsyncClient() as client:
-            res = await client.post(
-                f"{api_url}/bot{bot_token}/sendMessage",
-                json={
-                    "chat_id": user.telegram_chat_id,
-                    "text": msg,
-                    "parse_mode": "HTML",
-                },
-                timeout=10.0,
-            )
-            data = res.json()
-            if not data.get("ok"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Telegram API Error: {data.get('description', 'Unknown error')}",
-                )
-            return {"message": f"ส่งข้อความ Telegram DM หาคุณ {user.full_name} สำเร็จแล้ว"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to send Telegram message: {str(e)}")
+    success, detail_msg = await send_telegram_message_detailed(
+        db=db,
+        message_text=msg,
+        category="user_management",
+        chat_id=user.telegram_chat_id,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg,
+        )
+    return {"message": f"ส่งข้อความ Telegram DM หาคุณ {user.full_name} สำเร็จแล้ว"}

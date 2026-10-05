@@ -1,9 +1,8 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 3 ตุลาคม 2026 (15:40 น.)  
+> **วันที่บันทึก:** 5 ตุลาคม 2026 (14:00 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `eff470f` (fix(auth): fix logout redirect, support AD auto-provisioning, and decouple SSO setting)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -14,7 +13,24 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (2 ตุลาคม 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (5 ตุลาคม 2026)
+
+### 1) 🤖 ปรับปรุงระบบวินิจฉัยและแจ้งเตือนข้อผิดพลาด Telegram Bot API ให้เข้าใจปัญหาที่แท้จริง
+* **ปัญหาเดิม:** เมื่อการส่ง Telegram DM ล้มเหลวด้วย `400 Bad Request: chat not found` ระบบแจ้งเตือนว่า *"ไม่พบ Chat ID ในระบบ Telegram (กรุณาตรวจสอบ Chat ID ให้ถูกต้อง)"* ทำให้ผู้ดูแลระบบเข้าใจผิดว่าตัวเลข ID ผิด ทั้งที่จริงแล้วเป็น ID ที่ใช้งานกับ App อื่นของบริษัทได้อยู่แล้ว แต่เกิดจากกฎความปลอดภัยของ Telegram ที่ผู้ใช้ยังไม่เคยกด `/start` กับบอทตัวของ IRM
+* **การแก้ไขใน Backend ([`backend/app/services/telegram_service.py`](file:///d:/Python/IRM/backend/app/services/telegram_service.py)):**
+  * ปรับข้อความ Humanized Error สำหรับกรณี `chat not found` หรือ `bot can't initiate conversation`:
+    * กรณี User DM (Chat ID เป็นบวก): ระบุสาเหตุที่แท้จริงอย่างชัดเจนว่า *"ไม่พบการสนทนากับ Chat ID ... (สาเหตุหลัก: ผู้รับยังไม่เคยกดเริ่มคุย (/start) กับบอทตัวนี้ของ IRM ใน Telegram หรือหากใช้ Chat ID เดียวกับระบบอื่น ให้ตรวจสอบว่า Bot Token ตรงกับบอทตัวที่เคยเริ่มคุยหรือไม่)"*
+    * กรณี Group Chat (Chat ID ติดลบ): ตรวจสอบการเชิญบอทเข้ากลุ่ม
+    * กรณี User บล็อกบอท (`bot was blocked by user`): แจ้งให้ผู้ใช้ Unblock บอท
+  * ปรับแยกระบุ `action="telegram_broadcast"` และ `action="telegram_dm"` ให้ตรงตามลักษณะ Chat ID อัตโนมัติ
+* **การแก้ไขใน Backend Endpoints ([`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py), [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py)):**
+  * ปรับปรุง endpoint `POST /api/users/{user_id}/test-telegram` และ `POST /api/settings/test-telegram-group` ให้เรียกใช้ `send_telegram_message_detailed` จาก Service กลาง เพื่อให้ข้อความ Error ในหน้าจอ Alert และ Audit Logs มีคำอธิบายตรงกันและครอบคลุม
+* **การแก้ไขใน Frontend ([`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)):**
+  * เพิ่มข้อความกำกับใต้ช่อง Telegram Chat ID ทั้งใน Create Modal และ Edit Modal: `* ผู้รับต้องเคยค้นหาบอท IRM ใน Telegram แล้วกดปุ่ม /start ก่อน 1 ครั้ง บอทจึงจะมีสิทธิ์ส่ง DM ได้` เพื่อป้องกันความสับสนตั้งแต่ขั้นตอนบันทึกข้อมูลพนักงาน
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (2 ตุลาคม 2026)
 
 ### 1) 🚪 แก้ไขการ Logout & Session Expiration ให้กลับมาหน้า Login ของ IRM เสมอ
 * **ปัญหาเดิม:** การล็อกอินผ่านหน้า Login ของ IRM เองโดยตรง (Direct/Local Login) เมื่อกด Logout หรือเมื่อ Token หมดอายุ (HTTP 401) ระบบจะ Redirect ผู้ใช้กระโดดไปยังหน้า Central IAM Portal (`https://ciam.windowasia.com/portal`) แทนที่จะกลับมาหน้า Login ของ IRM

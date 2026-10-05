@@ -81,10 +81,13 @@ async def send_telegram_message_detailed(
             res = await client.post(endpoint, json=payload)
             data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
 
+            is_group = str(target_chat).startswith("-")
+            default_action = "telegram_broadcast" if is_group else "telegram_dm"
+
             if res.status_code == 200 and data.get("ok"):
                 await record_transaction_log(
                     category=category,
-                    action="telegram_broadcast" if not chat_id else "telegram_dm",
+                    action=default_action,
                     status="SUCCESS",
                     message="ส่งแจ้งเตือน Telegram สำเร็จ",
                     details=f"To: {target_chat} | {message_text[:250]}",
@@ -97,13 +100,24 @@ async def send_telegram_message_detailed(
                 # Humanize common Telegram API errors for Thai users
                 if res.status_code == 401 or "unauthorized" in desc.lower():
                     human_err = f"Telegram Bot Token ไม่ถูกต้องหรือถูกเพิกถอน (401 Unauthorized: {desc})"
-                elif res.status_code == 403 or "bot can't initiate conversation with a user" in desc.lower():
+                elif "bot was blocked by the user" in desc.lower() or "user is deactivated" in desc.lower():
                     human_err = (
-                        f"Telegram ปฏิเสธ (403 Forbidden): ผู้รับ (Chat ID: {target_chat}) ยังไม่เคยกดเริ่มคุยกับ Bot "
-                        f"กรุณาเปิดค้นหา Bot ใน Telegram แล้วกดปุ่ม /start ก่อน 1 ครั้ง บอทจึงจะได้รับอนุญาตให้ส่งข้อความส่วนตัว (DM) หาได้"
+                        f"Telegram ปฏิเสธ ({res.status_code}): ผู้รับ (Chat ID: {target_chat}) ได้บล็อกบอท (Blocked) หรือปิดบัญชี Telegram "
+                        f"กรุณาให้ผู้ใช้เปิด Telegram และยกเลิกการบล็อกบอท IRM ก่อน"
                     )
-                elif "chat not found" in desc.lower():
-                    human_err = f"ไม่พบ Chat ID: {target_chat} ในระบบ Telegram (กรุณาตรวจสอบ Chat ID ให้ถูกต้อง)"
+                elif "chat not found" in desc.lower() or "bot can't initiate conversation with a user" in desc.lower() or res.status_code == 403:
+                    if is_group:
+                        human_err = (
+                            f"ไม่พบกลุ่ม Telegram (Group ID: {target_chat}) — "
+                            f"กรุณาตรวจสอบว่าได้เชิญ Bot เข้ากลุ่มและตั้งสิทธิ์ส่งข้อความเรียบร้อยแล้วหรือไม่"
+                        )
+                    else:
+                        human_err = (
+                            f"ไม่พบการสนทนากับ Chat ID: {target_chat} (Telegram: {desc}) — "
+                            f"สาเหตุหลัก: ผู้รับยังไม่เคยกดเริ่มคุย (/start) กับบอทตัวนี้ของ IRM ใน Telegram "
+                            f"(กรุณาให้ผู้รับค้นหาบอท IRM แล้วกดปุ่ม /start ก่อน 1 ครั้ง) "
+                            f"หรือหากใช้ Chat ID เดียวกับระบบอื่น ให้ตรวจสอบว่า Bot Token ในหน้า Settings ตรงกับบอทตัวที่ผู้ใช้เคยเริ่มคุยหรือไม่"
+                        )
                 elif "can't parse entities" in desc.lower():
                     human_err = f"รูปแบบ HTML ในข้อความผิดพลาด: {desc}"
                 else:
@@ -112,7 +126,7 @@ async def send_telegram_message_detailed(
                 print(f"Telegram API Error: {human_err}")
                 await record_transaction_log(
                     category=category,
-                    action="telegram_broadcast" if not chat_id else "telegram_dm",
+                    action=default_action,
                     status="ERROR",
                     message="ส่งแจ้งเตือน Telegram ล้มเหลว",
                     details=f"To: {target_chat} | Error: {human_err}",

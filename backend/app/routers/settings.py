@@ -329,11 +329,9 @@ async def test_telegram_group(
     settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
     s_map = {s.key: s.value for s in settings_rows}
 
-    bot_token = s_map.get("telegram_bot_token") or "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw"
     group_id = s_map.get("telegram_group_id") or "-5394050672"
-    api_url = s_map.get("telegram_api_url") or "https://api.telegram.org"
 
-    from app.services.telegram_service import format_telegram_header
+    from app.services.telegram_service import format_telegram_header, send_telegram_message_detailed
 
     msg = (
         f"{format_telegram_header('📢 <b>ทดสอบการส่งข้อความเข้ากลุ่ม (Group Broadcast)</b>')}\n\n"
@@ -343,26 +341,18 @@ async def test_telegram_group(
         f"• ⚡ <b>สถานะ:</b> ระบบพร้อมจัดส่งการแจ้งเตือนงานจัดซื้อและ SAP Real-time ทั้งหมด"
     )
 
-    try:
-        async with httpx.AsyncClient() as client:
-            res = await client.post(
-                f"{api_url}/bot{bot_token}/sendMessage",
-                json={
-                    "chat_id": group_id,
-                    "text": msg,
-                    "parse_mode": "HTML",
-                },
-                timeout=10.0,
-            )
-            data = res.json()
-            if not data.get("ok"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Telegram API Error: {data.get('description', 'Unknown error')}",
-                )
-            return {"message": "ส่งข้อความทดสอบไปยังกลุ่ม Telegram สำเร็จแล้ว!"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to send Telegram group message: {str(e)}")
+    success, detail_msg = await send_telegram_message_detailed(
+        db=db,
+        message_text=msg,
+        category="telegram_test",
+        chat_id=group_id,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg,
+        )
+    return {"message": "ส่งข้อความทดสอบไปยังกลุ่ม Telegram สำเร็จแล้ว!"}
 
 
 @router.post("/test-telegram-morning-summary")

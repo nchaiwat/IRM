@@ -653,6 +653,9 @@ export default function UsersPage() {
                   placeholder="เช่น 123456789"
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  * ผู้รับต้องเคยค้นหาบอท IRM ใน Telegram แล้วกดปุ่ม <b>/start</b> ก่อน 1 ครั้ง บอทจึงจะมีสิทธิ์ส่ง DM ได้
+                </p>
               </div>
 
               <div>
@@ -788,6 +791,9 @@ export default function UsersPage() {
                   placeholder="เช่น 123456789"
                   className="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-sky-500 font-mono"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  * ผู้รับต้องเคยค้นหาบอท IRM ใน Telegram แล้วกดปุ่ม <b>/start</b> ก่อน 1 ครั้ง บอทจึงจะมีสิทธิ์ส่ง DM ได้
+                </p>
               </div>
 
               <div>
