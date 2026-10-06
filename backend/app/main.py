@@ -31,6 +31,7 @@ from app.routers import (
     receiving_checklist_router,
     central_management_router,
     sso_router,
+    telegram_router,
 )
 
 settings = get_settings()
@@ -117,6 +118,7 @@ app.include_router(qms_integration_router)
 app.include_router(receiving_checklist_router)
 app.include_router(central_management_router)
 app.include_router(sso_router)
+app.include_router(telegram_router)
 
 
 @app.get("/", tags=["Health"])

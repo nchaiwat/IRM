@@ -35,6 +35,8 @@ class UserMeResponse(BaseModel):
     username: str
     full_name: str
     email: str
+    telegram_chat_id: str | None = None
+    telegram_inbound_notify: bool = True
     group_id: int | None
     group_name: str | None
     allowed_item_groups: str | None = "*"

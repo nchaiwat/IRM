@@ -31,6 +31,7 @@ import {
   Zap,
   AlertTriangle,
   Trash2,
+  Globe,
 } from 'lucide-react';
 
 function formatDateThai(dateStr?: string | null) {
@@ -95,11 +96,13 @@ export default function SettingsPage() {
   const [copiedQmsKey, setCopiedQmsKey] = useState(false);
   const [regeneratingQmsKey, setRegeneratingQmsKey] = useState(false);
 
-  // Telegram Inbound DM State
+  // Telegram Inbound DM & Webhook State
   const [userList, setUserList] = useState<{ id: number; username: string; full_name: string; telegram_chat_id?: string | null; allowed_item_groups?: string | null }[]>([]);
   const [selectedTestUserId, setSelectedTestUserId] = useState<number | ''>('');
   const [testInboundChatId, setTestInboundChatId] = useState('');
   const [testingInboundDm, setTestingInboundDm] = useState(false);
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
+  const [webhookInfo, setWebhookInfo] = useState<any>(null);
 
   // Central IAM SSO State
   const [ciamSettings, setCiamSettings] = useState<{
@@ -386,6 +389,28 @@ export default function SettingsPage() {
       alert(`❌ ${errText}`);
     } finally {
       setTestingInboundDm(false);
+    }
+  };
+
+  const handleRegisterWebhook = async () => {
+    setRegisteringWebhook(true);
+    try {
+      const res = await api.post('/api/telegram/register-webhook');
+      alert(`✅ ${res.data.message || 'ลงทะเบียน Webhook สำเร็จ'}`);
+      handleFetchWebhookInfo();
+    } catch (err: any) {
+      alert(`❌ ${err.response?.data?.detail || 'เกิดข้อผิดพลาดในการลงทะเบียน Webhook'}`);
+    } finally {
+      setRegisteringWebhook(false);
+    }
+  };
+
+  const handleFetchWebhookInfo = async () => {
+    try {
+      const res = await api.get('/api/telegram/webhook-info');
+      setWebhookInfo(res.data.result || res.data);
+    } catch (err) {
+      console.error('Failed to fetch webhook info:', err);
     }
   };
 
@@ -1110,7 +1135,7 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">API Base URL</label>
               <input
@@ -1133,6 +1158,17 @@ export default function SettingsPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Bot Username (ไม่มี @)</label>
+              <input
+                type="text"
+                value={settings.telegram_bot_username || ''}
+                onChange={(e) => handleChange('telegram_bot_username', e.target.value)}
+                placeholder="PRORGBOT"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Group ID</label>
               <input
                 type="text"
@@ -1142,6 +1178,65 @@ export default function SettingsPage() {
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none font-mono text-xs"
               />
             </div>
+          </div>
+
+          {/* Sub-Card: Automated Webhook Sync & Deep Linking */}
+          <div className="bg-gradient-to-r from-sky-50/90 via-white to-sky-50/50 border border-sky-200 rounded-xl p-4 mt-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <span className="text-base">🤖</span>
+                  <span>ระบบ Webhook & Telegram Deep Linking (Automated User Sync)</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  เชื่อมต่อ Telegram Bot API Webhook ไปยัง <code className="text-sky-700 bg-sky-100/70 px-1.5 py-0.5 rounded font-mono text-[10px]">https://irm.windowasia.com/api/telegram/webhook</code> เพื่อรองรับการสแกน QR Code แล้วผูก Chat ID ให้อัตโนมัติ
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRegisterWebhook}
+                  disabled={registeringWebhook}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-lg shadow-xs transition disabled:opacity-50 cursor-pointer"
+                  title="ลงทะเบียน Webhook ไปยัง Telegram Server"
+                >
+                  {registeringWebhook ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Globe className="w-3.5 h-3.5" />
+                  )}
+                  <span>ลงทะเบียน Webhook อัตโนมัติ</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFetchWebhookInfo}
+                  className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-white rounded-lg border border-slate-200 transition cursor-pointer"
+                  title="ตรวจสอบสถานะ Webhook ล่าสุด"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {webhookInfo && (
+              <div className="bg-white/90 border border-sky-100 rounded-lg p-2.5 text-xs font-mono text-slate-700 space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-500 font-sans">Webhook URL:</span>
+                  <span className="text-sky-800 font-bold truncate max-w-xs">{webhookInfo.url || 'ยังไม่ได้ตั้งค่า'}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-500 font-sans">Pending Updates:</span>
+                  <span className="text-slate-800 font-bold">{webhookInfo.pending_update_count ?? 0} รายการ</span>
+                </div>
+                {webhookInfo.last_error_message && (
+                  <div className="text-rose-600 text-[10px] pt-1 border-t border-rose-100">
+                    ⚠️ ล่าสุดพบข้อผิดพลาด: {webhookInfo.last_error_message}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Sub-Card: Telegram Morning Daily Briefing Schedule & Controls */}

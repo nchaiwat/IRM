@@ -1,6 +1,6 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 5 ตุลาคม 2026 (14:00 น.)  
+> **วันที่บันทึก:** 6 ตุลาคม 2026 (11:10 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
@@ -13,7 +13,29 @@
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (5 ตุลาคม 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (6 ตุลาคม 2026)
+
+### 1) 🚀 ระบบเชื่อมต่อ Telegram อัตโนมัติด้วย Deep Linking & Webhook Sync (Zero Manual Input)
+* **โจทย์ความต้องการ:** ตัดขั้นตอนที่พนักงานต้องไปค้นหาตัวเลข Chat ID ส่งให้ Admin กรอก โดยต้องการวิธีที่ High-Tech และ Automate ที่สุด พนักงานเพียงสแกน QR Code แล้วกดปุ่ม START ใน Telegram ระบบจะดึง Chat ID และผูกบัญชีให้อัตโนมัติทันที
+* **การพัฒนา Backend:**
+  * **Database Model ([`telegram_bind_token.py`](file:///d:/Python/IRM/backend/app/models/telegram_bind_token.py)):** สร้างตาราง `telegram_bind_tokens` สำหรับจัดเก็บ Token ผูกบัญชีแบบ One-Time (อายุ 15 นาที) พร้อม Cascade Foreign Key ไปยังตาราง `users`
+  * **Telegram Router ([`telegram.py`](file:///d:/Python/IRM/backend/app/routers/telegram.py)):**
+    * `POST /api/telegram/webhook`: รับ Webhook จาก Telegram Server เมื่อผู้ใช้กด `/start bind_<token>` บอทจะดึง `chat_id` มาอัปเดตลง `user.telegram_chat_id` ให้อัตโนมัติ พร้อมส่งข้อความตอบกลับต้อนรับยืนยันใน Telegram ทันที
+    * `POST /api/telegram/register-webhook`: สั่ง `setWebhook` ไปยัง `https://irm.windowasia.com/api/telegram/webhook` อัตโนมัติ
+    * `GET /api/telegram/webhook-info`: ดึงสถานะสุขภาพของ Webhook จาก Telegram API
+  * **User Router ([`users.py`](file:///d:/Python/IRM/backend/app/routers/users.py)):**
+    * `POST /api/users/me/telegram-bind-token`: สร้าง Deep Link URL (`https://t.me/PRORGBOT?start=bind_xxx`) สำหรับผู้ใช้ปัจจุบัน
+    * `POST /api/users/{user_id}/telegram-bind-token`: สร้าง Deep Link สำหรับ Admin จัดการให้พนักงาน
+    * `GET /api/users/telegram-bind-status`: ตรวจสอบสถานะการเชื่อมต่อแบบ Real-time Polling
+* **การพัฒนา Frontend:**
+  * **Dynamic QR Component ([`TelegramSyncModal.tsx`](file:///d:/Python/IRM/frontend/src/components/common/TelegramSyncModal.tsx)):** ป๊อปอัปสร้าง QR Code สดด้วยไลบรารี `qrcode` แสดงแถบ Countdown 15 นาที, ปุ่ม `เปิดแอป Telegram ทันที`, ปุ่ม `คัดลอกลิงก์`, และไฟกระพริบรอตรวจจับสถานะ เมื่อพนักงานกด Start ใน Telegram หน้าจอจะเปลี่ยนเป็นสีเขียวแจ้งเตือนความสำเร็จแบบ Real-time
+  * **Header Button ([`Header.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Header.tsx)):** เพิ่มปุ่ม `[ 📱 เชื่อมต่อ Telegram ]` ที่มุมขวาบนข้างชื่อผู้ใช้ (หากเชื่อมต่อแล้วจะแสดงสถานะ `[ 🟢 Telegram ]`)
+  * **Admin User Actions ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)):** เพิ่มปุ่มไอคอน `QrCode` ในตารางพนักงาน ให้ Admin สามารถเปิด QR หรือคัดลอกลิงก์ส่งให้พนักงานใน LINE ได้ทันที
+  * **Admin Settings Webhook Sub-Card ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):** เพิ่มช่องตั้งค่า `telegram_bot_username` และการ์ดควบคุม Webhook พร้อมปุ่ม `[ ลงทะเบียน Webhook อัตโนมัติ ]`
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (5 ตุลาคม 2026)
 
 ### 1) 🤖 ปรับปรุงระบบวินิจฉัยและแจ้งเตือนข้อผิดพลาด Telegram Bot API ให้เข้าใจปัญหาที่แท้จริง
 * **ปัญหาเดิม:** เมื่อการส่ง Telegram DM ล้มเหลวด้วย `400 Bad Request: chat not found` ระบบแจ้งเตือนว่า *"ไม่พบ Chat ID ในระบบ Telegram (กรุณาตรวจสอบ Chat ID ให้ถูกต้อง)"* ทำให้ผู้ดูแลระบบเข้าใจผิดว่าตัวเลข ID ผิด ทั้งที่จริงแล้วเป็น ID ที่ใช้งานกับ App อื่นของบริษัทได้อยู่แล้ว แต่เกิดจากกฎความปลอดภัยของ Telegram ที่ผู้ใช้ยังไม่เคยกด `/start` กับบอทตัวของ IRM

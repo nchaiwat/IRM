@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, text
 from app.database import Base, engine, AsyncSessionLocal
-from app.models import Group, User, Menu, AuthMatrix, SystemSetting, POHeader, POItem, ItemMaster, SupplierMaster, SupplierPortalToken
+from app.models import Group, User, Menu, AuthMatrix, SystemSetting, POHeader, POItem, ItemMaster, SupplierMaster, SupplierPortalToken, TelegramBindToken
 from app.utils.security import hash_password
 
 
@@ -17,6 +17,18 @@ async def run_ddl_migrations(conn):
     This handles ANY existing database state — fresh install or partial schema upgrades.
     """
     migrations = [
+        # telegram_bind_tokens table
+        """CREATE TABLE IF NOT EXISTS telegram_bind_tokens (
+            id SERIAL PRIMARY KEY,
+            token VARCHAR(64) UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            is_used BOOLEAN DEFAULT FALSE,
+            telegram_chat_id VARCHAR(50),
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_telegram_bind_tokens_token ON telegram_bind_tokens(token);",
+
         # users table
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(50);",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_inbound_notify BOOLEAN DEFAULT TRUE;",
@@ -272,6 +284,7 @@ async def seed_data():
                 ("sap_password", "", "SAP SQL Read-Only Password", "sap", "string"),
                 ("telegram_api_url", "https://api.telegram.org", "Telegram API Base URL", "telegram", "string"),
                 ("telegram_bot_token", "8231754616:AAHcITgZR6_Gc8XJx-6Fxj-Cyy5bZZQG2hw", "Telegram Bot Token ID", "telegram", "string"),
+                ("telegram_bot_username", "PRORGBOT", "Telegram Bot Username (without @) สำหรับ Deep Linking", "telegram", "string"),
                 ("telegram_group_id", "-5394050672", "Telegram Group ID for Notifications", "telegram", "string"),
                 ("telegram_morning_summary_enabled", "true", "เปิด/ปิดการส่งสรุปสถานะประจำวันเข้า Telegram (Morning Daily Briefing)", "telegram", "boolean"),
                 ("telegram_inbound_dm_enabled", "false", "เปิด/ปิดส่ง Telegram DM สรุปยอดวัตถุดิบรายบุคคลตอนเช้า (Safeguard ช่วง Implement)", "telegram", "boolean"),

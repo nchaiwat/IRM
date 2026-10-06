@@ -5,6 +5,7 @@ from app.models.menu import Menu
 from app.models.po import POHeader, POItem, POItemAuditLog, SubItem
 from app.models.supplier_token import SupplierPortalToken
 from app.models.system_setting import SystemSetting
+from app.models.telegram_bind_token import TelegramBindToken
 from app.models.transaction_log import TransactionLog
 from app.models.user import User
 
@@ -21,5 +22,6 @@ __all__ = [
     "ItemMaster",
     "SupplierMaster",
     "SupplierPortalToken",
+    "TelegramBindToken",
     "TransactionLog",
 ]

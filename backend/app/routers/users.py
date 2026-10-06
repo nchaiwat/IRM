@@ -1,7 +1,5 @@
-"""
-User Management Router.
-"""
-
+from datetime import datetime, timezone, timedelta
+import secrets
 from typing import Annotated
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user, require_permission
 from app.models.system_setting import SystemSetting
+from app.models.telegram_bind_token import TelegramBindToken
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserCreate, UserResponse, UserUpdate
 from app.utils.security import hash_password
@@ -61,6 +60,89 @@ async def create_user(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def _generate_bind_token(db: AsyncSession, user_id: int) -> dict:
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    settings_rows = (await db.execute(select(SystemSetting).where(SystemSetting.category == "telegram"))).scalars().all()
+    s_map = {s.key: s.value for s in settings_rows}
+    bot_username = (s_map.get("telegram_bot_username") or "PRORGBOT").strip().lstrip("@")
+
+    # Generate cryptographically secure token
+    raw_token = f"bind_{secrets.token_hex(16)}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    bind_record = TelegramBindToken(
+        token=raw_token,
+        user_id=user.id,
+        is_used=False,
+        expires_at=expires_at,
+    )
+    db.add(bind_record)
+    await db.commit()
+
+    deep_link = f"https://t.me/{bot_username}?start={raw_token}"
+    return {
+        "token": raw_token,
+        "bot_username": bot_username,
+        "deep_link": deep_link,
+        "user_id": user.id,
+        "full_name": user.full_name,
+        "username": user.username,
+        "expires_at": expires_at.isoformat(),
+        "expires_in_seconds": 900,
+    }
+
+
+@router.post("/me/telegram-bind-token")
+async def create_my_telegram_bind_token(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Generate a temporary one-time Telegram Deep Link bind token for the currently logged-in user."""
+    return await _generate_bind_token(db, current_user.id)
+
+
+@router.get("/telegram-bind-status")
+async def get_telegram_bind_status(
+    token: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Poll status of a Telegram Deep Link bind token."""
+    now = datetime.now(timezone.utc)
+    stmt = select(TelegramBindToken).where(TelegramBindToken.token == token)
+    res = await db.execute(stmt)
+    bind_record = res.scalar_one_or_none()
+    if not bind_record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
+
+    is_admin = getattr(current_user.group, "name", "") == "Admin"
+    if bind_record.user_id != current_user.id and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    if bind_record.is_used:
+        return {
+            "status": "completed",
+            "telegram_chat_id": bind_record.telegram_chat_id,
+            "user_id": bind_record.user_id,
+            "full_name": bind_record.user.full_name if bind_record.user else "",
+        }
+    elif bind_record.expires_at < now:
+        return {
+            "status": "expired",
+            "telegram_chat_id": None,
+            "user_id": bind_record.user_id,
+        }
+    else:
+        return {
+            "status": "pending",
+            "telegram_chat_id": None,
+            "user_id": bind_record.user_id,
+        }
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -265,3 +347,13 @@ async def test_telegram_user(
             detail=detail_msg,
         )
     return {"message": f"ส่งข้อความ Telegram DM หาคุณ {user.full_name} สำเร็จแล้ว"}
+
+
+@router.post("/{user_id}/telegram-bind-token")
+async def create_user_telegram_bind_token(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission("/admin/users", "edit"))],
+):
+    """Generate a temporary one-time Telegram Deep Link bind token for a target user (Admin only)."""
+    return await _generate_bind_token(db, user_id)

@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Group, User } from '@/types';
-import { Users, UserPlus, Key, Edit, CheckCircle2, XCircle, Search, Shield, Send, Clock, Trash2, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, Key, Edit, CheckCircle2, XCircle, Search, Shield, Send, Clock, Trash2, AlertTriangle, QrCode } from 'lucide-react';
+import { TelegramSyncModal } from '@/components/common/TelegramSyncModal';
 
 const STANDARD_ITEM_GROUPS = [
   { code: 'RM-กระจก', label: 'RM-กระจก', desc: 'กระจกและผลิตภัณฑ์กระจก' },
@@ -28,6 +29,7 @@ export default function UsersPage() {
   const [showEditModal, setShowEditModal] = useState<User | null>(null);
   const [showResetModal, setShowResetModal] = useState<User | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<User | null>(null);
+  const [syncTargetUser, setSyncTargetUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -494,6 +496,15 @@ export default function UsersPage() {
 
                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1.5">
+                    {/* Auto Sync Telegram Deep Link Button */}
+                    <button
+                      onClick={() => setSyncTargetUser(u)}
+                      title="สร้าง QR Code และลิงก์เชื่อมต่อ Telegram อัตโนมัติ"
+                      className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                    </button>
+
                     {/* Small Test Telegram DM Button */}
                     {u.telegram_chat_id && (
                       <button
@@ -954,6 +965,17 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* Telegram Deep Link Sync Modal */}
+      <TelegramSyncModal
+        isOpen={!!syncTargetUser}
+        onClose={() => setSyncTargetUser(null)}
+        userId={syncTargetUser?.id}
+        targetUserName={syncTargetUser?.full_name}
+        onSuccess={() => {
+          fetchData();
+        }}
+      />
     </div>
   );
 }

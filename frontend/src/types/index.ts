@@ -13,6 +13,8 @@ export interface UserMe {
   username: string;
   full_name: string;
   email: string;
+  telegram_chat_id?: string | null;
+  telegram_inbound_notify?: boolean;
   department?: string | null;
   use_ad_auth?: boolean;
   group_id: number | null;

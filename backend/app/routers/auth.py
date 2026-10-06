@@ -371,6 +371,8 @@ async def get_me(
         username=current_user.username,
         full_name=current_user.full_name,
         email=current_user.email,
+        telegram_chat_id=current_user.telegram_chat_id,
+        telegram_inbound_notify=current_user.telegram_inbound_notify,
         group_id=current_user.group_id,
         group_name=current_user.group.name if current_user.group else None,
         allowed_item_groups=effective_groups,
