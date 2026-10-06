@@ -145,6 +145,45 @@ async def get_telegram_bind_status(
         }
 
 
+async def _send_user_telegram_test(db: AsyncSession, target_user: User) -> dict:
+    if not target_user.telegram_chat_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ผู้ใช้ยังไม่ได้ระบุหรือผูก Telegram Chat ID ในระบบ",
+        )
+
+    from app.services.telegram_service import format_telegram_header, send_telegram_message_detailed
+
+    msg = (
+        f"{format_telegram_header('🔔 <b>ทดสอบการส่งข้อความส่วนตัว (Direct Message)</b>')}\n\n"
+        f"• 👤 <b>ผู้รับ:</b> คุณ{target_user.full_name} (@{target_user.username})\n"
+        f"• 🆔 <b>Telegram Chat ID:</b> <code>{target_user.telegram_chat_id}</code>\n"
+        f"• ⚡ <b>สถานะ:</b> บัญชี Telegram พร้อมใช้งานและสามารถรับการแจ้งเตือนจากระบบ IRM ได้เรียบร้อยแล้ว"
+    )
+
+    success, detail_msg = await send_telegram_message_detailed(
+        db=db,
+        message_text=msg,
+        category="user_management",
+        chat_id=target_user.telegram_chat_id,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg,
+        )
+    return {"message": f"ส่งข้อความ Telegram DM หาคุณ {target_user.full_name} สำเร็จแล้ว"}
+
+
+@router.post("/me/test-telegram")
+async def test_my_telegram(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Send a test Direct Message (DM) to verify the currently logged-in user's Telegram connection."""
+    return await _send_user_telegram_test(db, current_user)
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
@@ -322,31 +361,7 @@ async def test_telegram_user(
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    if not user.telegram_chat_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User does not have a Telegram Chat ID")
-
-    from app.services.telegram_service import format_telegram_header, send_telegram_message_detailed
-
-    msg = (
-        f"{format_telegram_header('🔔 <b>ทดสอบการส่งข้อความส่วนตัว (Direct Message)</b>')}\n\n"
-        f"• 👤 <b>ผู้รับ:</b> คุณ{user.full_name} (@{user.username})\n"
-        f"• 🆔 <b>Telegram Chat ID:</b> <code>{user.telegram_chat_id}</code>\n"
-        f"• ⚡ <b>สถานะ:</b> เชื่อมต่อการแจ้งเตือนส่วนบุคคลกับระบบ IRM สำเร็จเรียบร้อยแล้ว"
-    )
-
-    success, detail_msg = await send_telegram_message_detailed(
-        db=db,
-        message_text=msg,
-        category="user_management",
-        chat_id=user.telegram_chat_id,
-    )
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=detail_msg,
-        )
-    return {"message": f"ส่งข้อความ Telegram DM หาคุณ {user.full_name} สำเร็จแล้ว"}
+    return await _send_user_telegram_test(db, user)
 
 
 @router.post("/{user_id}/telegram-bind-token")

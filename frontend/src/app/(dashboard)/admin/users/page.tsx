@@ -972,6 +972,7 @@ export default function UsersPage() {
         onClose={() => setSyncTargetUser(null)}
         userId={syncTargetUser?.id}
         targetUserName={syncTargetUser?.full_name}
+        existingChatId={syncTargetUser?.telegram_chat_id}
         onSuccess={() => {
           fetchData();
         }}

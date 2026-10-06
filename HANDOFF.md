@@ -33,6 +33,19 @@
   * **Admin User Actions ([`admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx)):** เพิ่มปุ่มไอคอน `QrCode` ในตารางพนักงาน ให้ Admin สามารถเปิด QR หรือคัดลอกลิงก์ส่งให้พนักงานใน LINE ได้ทันที
   * **Admin Settings Webhook Sub-Card ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):** เพิ่มช่องตั้งค่า `telegram_bot_username` และการ์ดควบคุม Webhook พร้อมปุ่ม `[ ลงทะเบียน Webhook อัตโนมัติ ]`
 
+### 2) 🛡️ ปรับปรุง UX สถานะ Telegram: แสดงหน้าต่างพร้อมใช้งานทันที (Connected View) & ปุ่มทดสอบส่งข้อความ (Test Ping)
+* **ปัญหาเดิม:** เมื่อพนักงานที่เชื่อมต่อ Telegram สำเร็จแล้ว (มี Chat ID แล้วและแถบเป็นสีเขียว `[ 🟢 Telegram ]`) คลิกเข้าไปดู ระบบกลับสร้าง QR Code ใหม่และขึ้นว่า *"กำลังรอการกด START จาก Telegram..."* ทำให้เกิดความเข้าใจผิดว่ายังใช้งานไม่ได้
+* **การแก้ไข:**
+  * **สองโหมดการแสดงผลอัตโนมัติ (Two-Mode Smart Modal in [`TelegramSyncModal.tsx`](file:///d:/Python/IRM/frontend/src/components/common/TelegramSyncModal.tsx)):**
+    1. **กรณีเชื่อมต่อแล้ว (Connected View):** แสดงหน้าต่างสีเขียวชอุ่มทันที:
+       * หัวข้อ: *"Telegram ของคุณพร้อมใช้งานเรียบร้อยแล้ว"*
+       * แสดง Chat ID, สถานะพร้อมรับยอดวัตถุดิบรายบุคคล (07:30 น.), และชื่อบอท `@PRORGBOT`
+       * ปุ่ม **`[ ⚡ ทดสอบส่งข้อความหาฉัน (Test Message) ]`**: ยิงข้อความทดสอบจริงไปยัง Telegram เพื่อตรวจสอบความพร้อมและยืนยันว่าไม่ได้เผลอบล็อกบอท
+       * ปุ่ม **`[ 🔄 เปลี่ยนบัญชี Telegram หรือสแกน QR Code ใหม่ ]`**: สำหรับกรณีที่ผู้ใช้ต้องการเปลี่ยนไปใช้อุปกรณ์หรือบัญชี Telegram อื่น
+    2. **กรณีผู้ใช้ใหม่ (QR Sync View):** แสดง QR Code และรอจับคู่แบบอัตโนมัติเช่นเดิม
+  * **Backend ([`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py)):**
+    * เพิ่ม endpoint `POST /api/users/me/test-telegram` ให้ผู้ใช้งานทั่วไปสามารถทดสอบส่งข้อความยืนยันการเชื่อมต่อของตนเองได้ทันที (ไม่จำกัดเฉพาะสิทธิ์ Admin)
+
 ---
 
 ## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (5 ตุลาคม 2026)

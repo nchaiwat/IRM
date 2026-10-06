@@ -150,6 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
         isOpen={showTelegramModal}
         onClose={() => setShowTelegramModal(false)}
         targetUserName={user?.full_name}
+        existingChatId={user?.telegram_chat_id}
         onSuccess={() => {
           setTimeout(() => {
             window.location.reload();
