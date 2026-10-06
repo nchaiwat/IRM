@@ -1,8 +1,8 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 6 ตุลาคม 2026 (11:10 น.)  
+> **วันที่บันทึก:** 6 ตุลาคม 2026 (15:15 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
-> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
+> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`, Latest Commit: `08eec8f`)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -207,12 +207,24 @@
 
 ---
 
+## 📁 5. ไฟล์สำคัญที่ได้รับการปรับปรุงล่าสุด (Key Modified Files)
+
+| ไฟล์ที่แก้ไข | วัตถุประสงค์และการเปลี่ยนแปลงสำคัญ |
+| :--- | :--- |
+| [`frontend/src/components/common/TelegramSyncModal.tsx`](file:///d:/Python/IRM/frontend/src/components/common/TelegramSyncModal.tsx) | **Two-Mode Smart Modal:** แสดง Connected View ทันทีเมื่อผู้ใช้มี Chat ID แล้ว พร้อมปุ่ม `[ ⚡ ทดสอบส่งข้อความหาฉัน ]` และปุ่ม `[ 🔄 เปลี่ยนบัญชี ]` ส่วนผู้ใช้ใหม่แสดง QR Code + Countdown 15m |
+| [`frontend/src/components/layout/Header.tsx`](file:///d:/Python/IRM/frontend/src/components/layout/Header.tsx) | เพิ่มปุ่มสถานะ `[ 🟢 Telegram ]` บน Header ขวาบน ส่ง `existingChatId` เข้า Smart Modal |
+| [`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) | เพิ่มปุ่มไอคอน `QrCode` สำหรับเปิด Modal ผูกบัญชีหรือทดสอบ Telegram ให้พนักงานแต่ละคน |
+| [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) | เพิ่ม `POST /api/users/me/test-telegram` สำหรับส่งข้อความ Ping ทดสอบ, `POST /api/users/me/telegram-bind-token`, `GET /api/users/telegram-bind-status` (จัดวางก่อน `/{user_id}` เพื่อ route precedence) |
+| [`backend/app/routers/telegram.py`](file:///d:/Python/IRM/backend/app/routers/telegram.py) | Webhook Endpoint (`POST /api/telegram/webhook`) ประมวลผล `/start bind_<token>` อัตโนมัติ, พร้อม endpoint `POST /api/telegram/register-webhook` |
+| [`backend/app/models/telegram_bind_token.py`](file:///d:/Python/IRM/backend/app/models/telegram_bind_token.py) | Database Model ตาราง `telegram_bind_tokens` จัดเก็บ Token ชั่วคราว 15 นาที พร้อม Cascade FK |
+| [`frontend/src/types/index.ts`](file:///d:/Python/IRM/frontend/src/types/index.ts) | เพิ่ม `telegram_chat_id` และ `telegram_inbound_notify` ใน interface `UserMe` |
+| [`backend/app/schemas/auth.py`](file:///d:/Python/IRM/backend/app/schemas/auth.py) | เพิ่ม `telegram_chat_id` และ `telegram_inbound_notify` ใน schema `UserMeResponse` |
 | [`backend/app/routers/auth.py`](file:///d:/Python/IRM/backend/app/routers/auth.py) | Direct Login รองรับ AD Auto-Provisioning บัญชีใหม่อัตโนมัติ, AD Fallback เมื่อรหัส Local ไม่ตรง, และ Case-Insensitive Username match |
 | [`backend/app/routers/sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py) | ตัดการฮาร์ดโค้ด override `ciam_sso_enabled = true` ใน `break_glass_toggle` ป้องกันการทับสวิตช์ SSO ของ Admin |
 | [`backend/app/routers/settings.py`](file:///d:/Python/IRM/backend/app/routers/settings.py) | เพิ่ม `invalidate_ciam_cache()` ใน `bulk_update_settings` ล้าง In-memory cache ทันทีหลังบันทึก |
 | [`frontend/src/lib/auth-context.tsx`](file:///d:/Python/IRM/frontend/src/lib/auth-context.tsx) | Invert Safeguard ใน `logout` เด้งไป CIAM Portal เฉพาะเมื่อ `authProvider === 'sso'` เท่านั้น นอกนั้นกลับไป `/login` ของ IRM เสมอ |
 | [`frontend/src/lib/api.ts`](file:///d:/Python/IRM/frontend/src/lib/api.ts) | ปรับ 401 Response Interceptor ให้ส่งกลับ `/login` ของ IRM เสมอยกเว้นกรณี SSO session |
-| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | กรองคีย์ `ciam_*` ออกจาก `handleSave` และซิงค์ State สวิตช์ SSO ไม่ให้เด้งกลับเปิดเอง |
+| [`frontend/src/app/(dashboard)/admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx) | เพิ่ม UI ควบคุม Telegram Webhook Registration และกรองคีย์ `ciam_*` ป้องกันการเขียนทับ |
 | [`frontend/src/app/login/page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx) | Decoupled Clean Login UI เมื่อปิด SSO ซ่อนปุ่ม SSO และการอ้างถึง CIAM พร้อมปรับข้อความปุ่มรองรับ AD/Local |
 | [`backend/app/main.py`](file:///d:/Python/IRM/backend/app/main.py) | เพิ่ม HTTP Anti-Cache Response Headers Middleware สำหรับทุก `/api/*` endpoint |
 | [`frontend/next.config.js`](file:///d:/Python/IRM/frontend/next.config.js) | กำหนด `experimental.staleTimes: { dynamic: 0, static: 0 }` ป้องกัน Next.js Router Cache จำหน้าจอเก่า |
@@ -224,8 +236,6 @@
 | [`frontend/src/app/(dashboard)/suppliers/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/suppliers/page.tsx) | Optimistic State Update + Anti-Cache header ป้องกัน browser cache รีเฟรชทันทีหลังบันทึก |
 | [`frontend/src/app/(dashboard)/items/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/items/page.tsx) | Optimistic State Update + Anti-Cache header รีเฟรชทันทีหลังบันทึก |
 | [`backend/app/schemas/user.py`](file:///d:/Python/IRM/backend/app/schemas/user.py) | เพิ่ม `username: str | None = None` ใน `UserUpdate` |
-| [`backend/app/routers/users.py`](file:///d:/Python/IRM/backend/app/routers/users.py) | รองรับการเปลี่ยน Username พร้อมตรวจซ้ำ และเพิ่ม `DELETE /api/users/{user_id}` พร้อมระบบ Safeguards |
-| [`frontend/src/app/(dashboard)/admin/users/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/users/page.tsx) | ช่องกรอก User ID ใน Edit Modal, ปุ่มไอคอนถังขยะ `Trash2`, และ Modal ยืนยันการลบบัญชี |
 | [`PRD.md`](file:///d:/Python/IRM/PRD.md) | เอกสาร Product Requirements Document ฉบับสมบูรณ์ของระบบ IRM |
 | [`backend/app/services/log_service.py`](file:///d:/Python/IRM/backend/app/services/log_service.py) | ฟังก์ชัน `record_transaction_log` บันทึก Audit Log แบบ Isolated Session ไม่โดน Rollback |
 | [`backend/app/services/email_service.py`](file:///d:/Python/IRM/backend/app/services/email_service.py) | ดึงผู้รับ PU Reminder จากกลุ่ม `PU User` ใน User Management โดยตรง พร้อมไฟล์แนบ Excel 2 Sheet |
@@ -254,16 +264,18 @@ docker compose ps
 ## 📌 7. Checkpoint สำหรับการเริ่มงานในครั้งหน้า (Next Session)
 
 * **สถานะความพร้อมของระบบ (System Readiness):**
-  * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `next build` 19/19 static pages รหัสผ่าน 0)
-  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (`commit: eff470f` และ commit เอกสารล่าสุด)
-  * ระบบ Authentication & SSO ได้รับการปรับปรุงครบทั้ง 3 จุด:
-    1. Logout จาก Direct/Local Login ส่งกลับหน้า `/login` ของ IRM เสมอ (Invert Safeguard)
-    2. รองรับ Active Directory (AD) Direct Login พร้อม Auto-Provisioning พนักงานใหม่ และ Fallback อัตโนมัติ
-    3. ป้องกันสวิตช์ Disable SSO เด้งกลับมาเปิดเอง พร้อมหน้า Login แบบ Clean Standalone เมื่อแยกตัวออกจาก CIAM
-* **ขั้นตอนถัดไปเมื่อกลับมาเริ่มงาน (Next Steps):**
-  1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 6 บน VPS Production Hostinger
-  2. **ทดสอบผลการทำงานบน Production:**
-     - ทดสอบกด Logout จากบัญชี Local หรือ AD ว่ากลับมาหน้า Login ของ IRM โดยไม่กระโดดไป CIAM Portal
-     - ทดสอบล็อกอินด้วย AD Account ทั้งบัญชีที่มีอยู่แล้วและบัญชีใหม่
-     - ทดสอบปิด SSO ในหน้า Settings ตรวจสอบว่าสวิตช์ไม่เปลี่ยนกลับเอง และหน้า Login แสดงแบบ Standalone สะอาดตา
-  3. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
+  * โค้ดทั้งหมดได้รับการตรวจสอบ Syntax และ Compile ผ่าน 100% (`python -m py_compile` & `npm run build` static pages สำเร็จครบ 19/19 หน้า รหัสผ่าน 0)
+  * บันทึก Git Commit & Push ขึ้น GitHub `main` เรียบร้อยแล้ว (Latest Commit: `08eec8f`)
+  * ฟีเจอร์ Telegram Sync และ Smart Modal สมบูรณ์ 100%:
+    1. **Two-Mode Adaptive Modal:** ผู้ใช้ที่เชื่อมต่อแล้วเปิดมาจะพบสถานะพร้อมใช้งานทันที (Connected View) ไม่สับสนเรื่อง QR Code
+    2. **Test Message (Ping):** ผู้ใช้สามารถกดทดสอบส่งข้อความหาตัวเองเพื่อยืนยันว่าบอทไม่โดนบล็อกได้ทันที
+    3. **Zero Manual Setup:** พนักงานใหม่เพียงสแกน QR แล้วกด START ใน Telegram ระบบจะดึง Chat ID และผูกให้อัตโนมัติทันที
+    4. **Webhook Registration:** รองรับการลงทะเบียน Webhook กับ Telegram Server จากหน้า Admin Settings หรือ API
+* **ขั้นตอนถัดไปเมื่อเริ่มงานใหม่ (Next Steps):**
+  1. **Deploy ขึ้น Production:** รันคำสั่งในข้อ 6 บน VPS Hostinger
+  2. **ลงทะเบียน Webhook (ทำครั้งแรกหลัง Deploy):**
+     - เข้าหน้า Admin Settings -> ไปที่ส่วน Telegram -> กดปุ่ม **`[ ลงทะเบียน Webhook อัตโนมัติ ]`** หรือยิง `POST /api/telegram/register-webhook` (เพื่อให้ Telegram Server ส่ง Event การกด START มาที่ IRM)
+  3. **ทดสอบใช้งานจริงบน Production:**
+     - ทดสอบคลิกปุ่ม `[ 🟢 Telegram ]` ที่ Header บน Production เพื่อดู Connected View และกดปุ่มทดสอบส่งข้อความ
+     - ทดสอบสแกน QR Code สำหรับบัญชีที่ยังไม่มี Chat ID
+  4. **ดำเนินงานต่อตามโจทย์ใหม่:** พร้อมรับ Requirements ถัดไปจากผู้ใช้ได้ทันทีครับ
