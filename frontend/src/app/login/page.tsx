@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
-  const [showLocalLogin, setShowLocalLogin] = useState(false);
   const [ssoConfig, setSsoConfig] = useState<{
     sso_enabled: boolean;
     break_glass_active: boolean;
@@ -165,136 +164,137 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Primary Action: Central IAM SSO Button (rendered ONLY when SSO is enabled) */}
-        {ssoConfig?.sso_enabled && (
-          ssoConfig.break_glass_active ? (
-            <div className="w-full py-2.5 px-4 bg-slate-800/80 border border-amber-500/30 rounded-xl flex items-center justify-center gap-2 text-xs text-amber-300/80 font-medium">
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>ระบบ SSO ถูกระงับชั่วคราว (Break-Glass Mode)</span>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={handleCiamSso}
-                disabled={ssoLoading}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-              >
-                {ssoLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-5 h-5 text-cyan-300" />
-                    <span>เข้าสู่ระบบด้วย Window Asia SSO</span>
-                    <Sparkles className="w-4 h-4 text-amber-300 ml-0.5" />
-                  </>
-                )}
-              </button>
-
-              {!showLocalLogin && (
-                <div className="pt-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowLocalLogin(true)}
-                    className="text-xs text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน (AD / Local Account)</span>
-                    <ArrowRight className="w-3 h-3 text-slate-500" />
-                  </button>
-                </div>
+        {/* Desktop SSO Button (Compact & Balanced Option) */}
+        {ssoConfig?.sso_enabled && !ssoConfig.break_glass_active && (
+          <div className="hidden md:block mb-5">
+            <button
+              type="button"
+              onClick={handleCiamSso}
+              disabled={ssoLoading}
+              className="w-full py-2.5 px-3 bg-gradient-to-r from-blue-600/90 via-indigo-600/90 to-sky-600/90 hover:from-blue-500 hover:to-sky-500 text-white font-medium text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            >
+              {ssoLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                  <span>เข้าสู่ระบบด้วย Window Asia SSO</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300 ml-0.5" />
+                </>
               )}
+            </button>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800"></div>
+              </div>
+              <div className="relative flex justify-center text-[11px]">
+                <span className="bg-slate-900 px-3 text-slate-500">หรือเข้าสู่ระบบด้วยชื่อผู้ใช้งาน</span>
+              </div>
             </div>
-          )
+          </div>
         )}
 
-        {/* Standard Login Form (rendered if SSO disabled, break-glass active, or user expanded Local Login) */}
-        {(!ssoConfig?.sso_enabled || ssoConfig?.break_glass_active || showLocalLogin) && (
-          <div className="space-y-4 pt-2">
-            {ssoConfig?.sso_enabled && !ssoConfig.break_glass_active && (
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs">
-                <span className="text-slate-400 font-medium">เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน (AD / Local)</span>
-                <button
-                  type="button"
-                  onClick={() => setShowLocalLogin(false)}
-                  className="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
-                >
-                  กลับไปใช้ Window Asia SSO
-                </button>
+        {/* Standard Login Form (Always visible & familiar on Mobile 100%) */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Username Input */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">ชื่อผู้ใช้งาน (Username)</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <User className="w-4 h-4" />
               </div>
-            )}
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="ชื่อผู้ใช้ AD หรือ Local (เช่น Somchai.P, admin)"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+              />
+            </div>
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username Input */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">ชื่อผู้ใช้งาน (Username)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ชื่อผู้ใช้ AD หรือ Local (เช่น Somchai.P, admin)"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
-                  />
-                </div>
+          {/* Password Input with Show/Hide Toggle */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">รหัสผ่าน (Password)</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <Lock className="w-4 h-4" />
               </div>
-
-              {/* Password Input with Show/Hide Toggle */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">รหัสผ่าน (Password)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="กรอกรหัสผ่าน"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition"
-                    title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Remember Me Checkbox */}
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
-                  />
-                  <span>จำฉันไว้ในระบบ (Remember Me)</span>
-                </label>
-              </div>
-
-              {/* Submit Button */}
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="กรอกรหัสผ่าน"
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+              />
               <button
-                type="submit"
-                disabled={submitting}
-                className="w-full mt-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 transition"
+                title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
               >
-                {submitting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <span>เข้าสู่ระบบด้วยบัญชี Local (Sign In)</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
-            </form>
+            </div>
+          </div>
+
+          {/* Remember Me Checkbox */}
+          <div className="flex items-center justify-between text-xs">
+            <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+              />
+              <span>จำฉันไว้ในระบบ (Remember Me)</span>
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full mt-2 py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/25 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <>
+                <span>เข้าสู่ระบบ (Sign In)</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Mobile Secondary SSO Option (Subtle & Compact below form) */}
+        {ssoConfig?.sso_enabled && !ssoConfig.break_glass_active && (
+          <div className="block md:hidden pt-4 mt-1">
+            <div className="relative mb-3">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px]">
+                <span className="bg-slate-900 px-2.5 text-slate-500">หรือเข้าสู่ระบบด้วย</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCiamSso}
+              disabled={ssoLoading}
+              className="w-full py-2.5 px-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 hover:text-white text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            >
+              {ssoLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Window Asia SSO</span>
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                </>
+              )}
+            </button>
           </div>
         )}
 
