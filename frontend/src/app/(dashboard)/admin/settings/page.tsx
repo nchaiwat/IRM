@@ -106,10 +106,21 @@ export default function SettingsPage() {
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
 
+  // Eye/EyeOff visibility toggles for sensitive secret fields
+  const [showIngestToken, setShowIngestToken] = useState(false);
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [showBotToken, setShowBotToken] = useState(false);
+  const [showSapPass, setShowSapPass] = useState(false);
+  const [showCiamSecret, setShowCiamSecret] = useState(false);
+  const [showMgmtKey, setShowMgmtKey] = useState(false);
+  const [showQmsKey, setShowQmsKey] = useState(false);
+  const [showAiKey, setShowAiKey] = useState(false);
+
   // Central IAM SSO State
   const [ciamSettings, setCiamSettings] = useState<{
     ciam_base_url: string;
     ciam_client_id: string;
+    ciam_client_secret?: string;
     ciam_client_secret_masked: string;
     ciam_sso_enabled: boolean;
     ciam_break_glass_active: boolean;
@@ -121,6 +132,7 @@ export default function SettingsPage() {
   }>({
     ciam_base_url: 'https://ciam.windowasia.com',
     ciam_client_id: 'irm-spoke-client',
+    ciam_client_secret: '',
     ciam_client_secret_masked: 'sec_****2026',
     ciam_sso_enabled: true,
     ciam_break_glass_active: false,
@@ -151,6 +163,7 @@ export default function SettingsPage() {
     provider: string;
     model: string;
     has_api_key: boolean;
+    api_key?: string;
     api_key_masked?: string | null;
     base_url?: string;
     system_prompt?: string;
@@ -161,6 +174,7 @@ export default function SettingsPage() {
     provider: 'google',
     model: 'gemini-2.5-flash',
     has_api_key: false,
+    api_key: '',
     api_key_masked: '',
     base_url: '',
     system_prompt: '',
@@ -199,6 +213,7 @@ export default function SettingsPage() {
           provider: res.data.provider || 'google',
           model: res.data.model || 'gemini-2.5-flash',
           has_api_key: Boolean(res.data.has_api_key),
+          api_key: res.data.api_key || '',
           api_key_masked: res.data.api_key_masked || '',
           base_url: res.data.base_url || '',
           system_prompt: res.data.system_prompt || '',
@@ -258,6 +273,7 @@ export default function SettingsPage() {
           provider: res.data.settings.provider || prev.provider,
           model: res.data.settings.model || prev.model,
           has_api_key: Boolean(res.data.settings.has_api_key),
+          api_key: res.data.settings.api_key || (newAiKey.trim() || prev.api_key || ''),
           api_key_masked: res.data.settings.api_key_masked || '',
           base_url: res.data.settings.base_url || '',
           system_prompt: res.data.settings.system_prompt || '',
@@ -267,6 +283,13 @@ export default function SettingsPage() {
       }
       setEditingAiKey(false);
       setNewAiKey('');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('irm_ai_settings_updated', {
+            detail: { enabled: Boolean(aiSettings.ai_copilot_enabled) },
+          })
+        );
+      }
       setMessage({ type: 'success', text: 'บันทึกการตั้งค่า AI Copilot สำเร็จเรียบร้อยแล้ว' });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'บันทึกการตั้งค่า AI Copilot ล้มเหลว' });
@@ -885,6 +908,13 @@ export default function SettingsPage() {
           <FileJson className="w-4 h-4 text-teal-600" />
           <span>8. QMS Integration API</span>
         </a>
+        <a
+          href="#sec-ai-copilot"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 transition shadow-sm whitespace-nowrap"
+        >
+          <Bot className="w-4 h-4 text-purple-600" />
+          <span>9. In-App AI Copilot</span>
+        </a>
       </div>
 
       {/* Alert Message */}
@@ -1003,12 +1033,22 @@ export default function SettingsPage() {
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={settings.sap_ingest_token || currentToken}
-                  onChange={(e) => handleChange('sap_ingest_token', e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 font-bold select-all outline-none"
-                />
+                <div className="relative flex-1">
+                  <input
+                    type={showIngestToken ? 'text' : 'password'}
+                    value={settings.sap_ingest_token || currentToken}
+                    onChange={(e) => handleChange('sap_ingest_token', e.target.value)}
+                    className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 font-bold select-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowIngestToken(!showIngestToken)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    title={showIngestToken ? 'ซ่อน Token' : 'แสดง Token'}
+                  >
+                    {showIngestToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -1128,13 +1168,25 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">SMTP Password / App Password</label>
-              <input
-                type="password"
-                value={settings.smtp_password || ''}
-                onChange={(e) => handleChange('smtp_password', e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">SMTP Password / App Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowSmtpPass(!showSmtpPass)}
+                  className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {showSmtpPass ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showSmtpPass ? 'ซ่อน' : 'แสดง'}</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showSmtpPass ? 'text' : 'password'}
+                  value={settings.smtp_password || ''}
+                  onChange={(e) => handleChange('smtp_password', e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:bg-white focus:ring-1 focus:ring-sky-500 outline-none"
+                />
+              </div>
             </div>
           </div>
 
@@ -1268,9 +1320,19 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Bot Token ID</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Bot Token ID</label>
+                <button
+                  type="button"
+                  onClick={() => setShowBotToken(!showBotToken)}
+                  className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {showBotToken ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showBotToken ? 'ซ่อน' : 'แสดง'}</span>
+                </button>
+              </div>
               <input
-                type="text"
+                type={showBotToken ? 'text' : 'password'}
                 value={settings.telegram_bot_token || ''}
                 onChange={(e) => handleChange('telegram_bot_token', e.target.value)}
                 placeholder="8231754616:AAHcITgZR6_Gc8XJx..."
@@ -1712,9 +1774,19 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">SQL Read-Only Password *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">SQL Read-Only Password *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowSapPass(!showSapPass)}
+                  className="text-[11px] text-emerald-600 hover:text-emerald-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {showSapPass ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showSapPass ? 'ซ่อน' : 'แสดง'}</span>
+                </button>
+              </div>
               <input
-                type="password"
+                type={showSapPass ? 'text' : 'password'}
                 value={settings.sap_password || ''}
                 onChange={(e) => handleChange('sap_password', e.target.value)}
                 placeholder="รหัสผ่าน SQL Server"
@@ -1982,20 +2054,30 @@ export default function SettingsPage() {
                 <label className="block text-xs font-semibold text-slate-700">
                   OIDC Client Secret *
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingSecret(!editingSecret);
-                    if (editingSecret) setNewClientSecret('');
-                  }}
-                  className="text-[11px] text-sky-600 hover:text-sky-700 font-medium cursor-pointer"
-                >
-                  {editingSecret ? 'ยกเลิก' : 'เปลี่ยน Secret ใหม่'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCiamSecret(!showCiamSecret)}
+                    className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    {showCiamSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showCiamSecret ? 'ซ่อน' : 'แสดง'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSecret(!editingSecret);
+                      if (editingSecret) setNewClientSecret('');
+                    }}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
+                  >
+                    {editingSecret ? 'ยกเลิก' : 'เปลี่ยน Secret ใหม่'}
+                  </button>
+                </div>
               </div>
               {editingSecret ? (
                 <input
-                  type="password"
+                  type={showCiamSecret ? 'text' : 'password'}
                   value={newClientSecret}
                   onChange={(e) => setNewClientSecret(e.target.value)}
                   placeholder="กรอก Secret ใหม่ที่ได้รับจาก Central IAM"
@@ -2003,14 +2085,18 @@ export default function SettingsPage() {
                 />
               ) : (
                 <input
-                  type="text"
+                  type={showCiamSecret ? 'text' : 'password'}
                   disabled
-                  value={ciamSettings.ciam_client_secret_masked || 'sec_****2026'}
-                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-sm font-mono text-xs select-none"
+                  value={
+                    showCiamSecret
+                      ? (ciamSettings.ciam_client_secret || ciamSettings.ciam_client_secret_masked || 'sec_****2026')
+                      : (ciamSettings.ciam_client_secret_masked || 'sec_****2026')
+                  }
+                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-sm font-mono text-xs select-all"
                 />
               )}
               <span className="text-[10px] text-slate-400 mt-1 block">
-                {editingSecret ? 'ใส่ค่าใหม่เฉพาะเมื่อต้องการหมุนเวียน (Rotate) Secret' : 'รหัสลับถูก Mask ไว้ตามมาตรฐานความปลอดภัย ISO 27001'}
+                {editingSecret ? 'ใส่ค่าใหม่เฉพาะเมื่อต้องการหมุนเวียน (Rotate) Secret' : 'กดปุ่มแสดง/ซ่อน เพื่อดูค่า Client Secret'}
               </span>
             </div>
 
@@ -2217,6 +2303,14 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setShowMgmtKey(!showMgmtKey)}
+                    className="text-[11px] text-sky-600 hover:text-sky-700 flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    {showMgmtKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showMgmtKey ? 'ซ่อน' : 'แสดง'}</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(settings.management_api_key || '');
                       setCopiedMgmtKey(true);
@@ -2239,7 +2333,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <input
-                type="text"
+                type={showMgmtKey ? 'text' : 'password'}
                 value={settings.management_api_key || ''}
                 onChange={(e) => handleChange('management_api_key', e.target.value)}
                 placeholder="sec_irm_mgmt_..."
@@ -2319,6 +2413,14 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setShowQmsKey(!showQmsKey)}
+                  className="text-[11px] text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  {showQmsKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showQmsKey ? 'ซ่อน' : 'แสดง'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(settings.qms_api_key || 'irm_qms_secure_key_2026');
                     setCopiedQmsKey(true);
@@ -2341,7 +2443,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <input
-              type="text"
+              type={showQmsKey ? 'text' : 'password'}
               value={settings.qms_api_key || 'irm_qms_secure_key_2026'}
               onChange={(e) => handleChange('qms_api_key', e.target.value)}
               placeholder="irm_qms_..."
@@ -2460,21 +2562,31 @@ export default function SettingsPage() {
                 <label className="block text-xs font-semibold text-slate-700">
                   AI API Key (Encrypted Secret)
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingAiKey(!editingAiKey);
-                    setNewAiKey('');
-                  }}
-                  className="text-[11px] text-purple-600 hover:text-purple-700 font-semibold cursor-pointer"
-                >
-                  {editingAiKey ? 'ยกเลิกการแก้ไข' : 'เปลี่ยน API Key ใหม่'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiKey(!showAiKey)}
+                    className="text-[11px] text-purple-600 hover:text-purple-700 flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    {showAiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showAiKey ? 'ซ่อน' : 'แสดง'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAiKey(!editingAiKey);
+                      setNewAiKey('');
+                    }}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold cursor-pointer"
+                  >
+                    {editingAiKey ? 'ยกเลิกการแก้ไข' : 'เปลี่ยน API Key ใหม่'}
+                  </button>
+                </div>
               </div>
 
               {editingAiKey ? (
                 <input
-                  type="password"
+                  type={showAiKey ? 'text' : 'password'}
                   value={newAiKey}
                   onChange={(e) => setNewAiKey(e.target.value)}
                   placeholder="วาง API Key ใหม่ที่นี่ (เช่น AIzaSy... หรือ sk-...)"
@@ -2482,14 +2594,18 @@ export default function SettingsPage() {
                 />
               ) : (
                 <input
-                  type="text"
+                  type={showAiKey ? 'text' : 'password'}
                   disabled
-                  value={aiSettings.has_api_key ? (aiSettings.api_key_masked || '••••••••••••••••') : 'ยังไม่ได้ตั้งค่า API Key'}
-                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm text-slate-600 outline-none font-mono text-xs cursor-not-allowed"
+                  value={
+                    showAiKey
+                      ? (aiSettings.api_key || aiSettings.api_key_masked || '••••••••••••••••')
+                      : (aiSettings.has_api_key ? (aiSettings.api_key_masked || '••••••••••••••••') : 'ยังไม่ได้ตั้งค่า API Key')
+                  }
+                  className="w-full px-3.5 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm text-slate-700 outline-none font-mono text-xs select-all"
                 />
               )}
               <span className="text-[10px] text-slate-400 mt-1 block">
-                จัดเก็บลงฐานข้อมูลอย่างปลอดภัย และผ่านการ Masking ทุกครั้ง
+                {editingAiKey ? 'ใส่ API Key ใหม่ แล้วกดปุ่มบันทึกการตั้งค่าด้านล่าง' : 'กดปุ่มแสดง/ซ่อน เพื่อดูค่า AI API Key'}
               </span>
             </div>
 

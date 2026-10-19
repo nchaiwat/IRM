@@ -29,21 +29,43 @@ export function SpokeCopilotWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check if AI Copilot is enabled and configured before rendering
-  useEffect(() => {
-    let isMounted = true;
+  const checkStatus = () => {
     api
       .get('/api/settings/ai')
       .then((res) => {
-        if (isMounted) {
-          // Rule 11.2: Only show widget when enabled is true (both switch is on and credentials/key exist)
-          setEnabled(Boolean(res.data?.enabled));
-        }
+        // Show widget when enabled is true (or ai_copilot_enabled is on)
+        setEnabled(Boolean(res.data?.enabled ?? res.data?.ai_copilot_enabled));
       })
       .catch(() => {
-        if (isMounted) setEnabled(false);
+        setEnabled(false);
       });
+  };
+
+  useEffect(() => {
+    checkStatus();
+
+    const handleCustomUpdate = (e: any) => {
+      if (e?.detail?.enabled !== undefined) {
+        setEnabled(Boolean(e.detail.enabled));
+      } else {
+        checkStatus();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkStatus();
+      }
+    };
+
+    window.addEventListener('irm_ai_settings_updated', handleCustomUpdate);
+    window.addEventListener('storage', checkStatus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
-      isMounted = false;
+      window.removeEventListener('irm_ai_settings_updated', handleCustomUpdate);
+      window.removeEventListener('storage', checkStatus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -104,7 +126,7 @@ export function SpokeCopilotWidget() {
             setIsOpen(true);
             setIsMinimized(false);
           }}
-          className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-full shadow-xl shadow-purple-600/30 flex items-center gap-2.5 transition transform hover:scale-105 cursor-pointer"
+          className="fixed bottom-6 right-6 z-[9999] px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-full shadow-xl shadow-purple-600/30 flex items-center gap-2.5 transition transform hover:scale-105 cursor-pointer"
           title="เปิดผู้ช่วย AI ประจำระบบ IRM"
         >
           <div className="relative">
@@ -120,7 +142,7 @@ export function SpokeCopilotWidget() {
       {/* Floating Chat Modal */}
       {isOpen && (
         <div
-          className={`fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-200 ${
+          className={`fixed bottom-6 right-6 z-[9999] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-200 ${
             isMinimized
               ? 'w-80 h-14'
               : 'w-[92vw] sm:w-[420px] h-[580px] max-h-[85vh]'

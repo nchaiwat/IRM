@@ -73,7 +73,7 @@ async def get_ai_settings_endpoint(
     - Masks `ai_api_key` so the full key is never exposed.
     """
     cfg = await get_ai_copilot_settings(db, force_refresh=True)
-    widget_ready = bool(cfg["ai_copilot_enabled"] and cfg["has_valid_credentials"])
+    widget_ready = bool(cfg["ai_copilot_enabled"])
 
     # Non-admin users only need widget visibility and basic model metadata
     if not is_admin_user(current_user):
@@ -94,6 +94,7 @@ async def get_ai_settings_endpoint(
         "provider": cfg["ai_provider"],
         "model": cfg["ai_model"],
         "has_api_key": cfg["has_api_key"],
+        "api_key": cfg["ai_api_key"],
         "api_key_masked": cfg["ai_api_key_masked"],
         "base_url": cfg["ai_base_url"],
         "system_prompt": cfg["ai_system_prompt"],

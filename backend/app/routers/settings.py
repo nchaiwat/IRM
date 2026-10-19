@@ -50,14 +50,11 @@ async def get_all_settings(
     settings = result.scalars().all()
     resp_list = []
     for s in settings:
-        val = s.value
-        if s.key == "ai_api_key" and val:
-            val = mask_ai_api_key(val)
         resp_list.append(
             SystemSettingResponse(
                 id=s.id,
                 key=s.key,
-                value=val,
+                value=s.value,
                 description=s.description,
                 category=s.category,
                 data_type=s.data_type,
@@ -763,6 +760,7 @@ async def get_ciam_sso_settings(
         "settings": {
             "ciam_base_url": cfg["ciam_base_url"],
             "ciam_client_id": cfg["ciam_client_id"],
+            "ciam_client_secret": cfg.get("ciam_client_secret", ""),
             "ciam_client_secret_masked": mask_secret(cfg.get("ciam_client_secret")),
             "ciam_sso_enabled": cfg["ciam_sso_enabled"],
             "ciam_break_glass_active": cfg["ciam_break_glass_active"],
