@@ -309,6 +309,20 @@ async def seed_data():
                 ("ciam_auto_provision_group", "PU User", "กลุ่มสิทธิ์เริ่มต้นสำหรับพนักงานใหม่ที่ล็อกอินผ่าน SSO ครั้งแรก", "central_iam", "string"),
                 ("ciam_session_ttl_minutes", "480", "อายุ Access Token ประจำระบบ IRM (นาที)", "central_iam", "integer"),
                 ("ciam_allowed_ips", "", "IP ของเซิร์ฟเวอร์ Central IAM ที่อนุญาตให้เชื่อมต่อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "central_iam", "string"),
+                # In-App AI Copilot & MCP Tools Settings (v2.8.0 Standard - Zero .env)
+                ("ai_copilot_enabled", "false", "สวิตช์หลักเปิด/ปิดการแสดงผลหน้า Chat หรือ Floating Widget ประจำระบบลูก", "ai_copilot", "boolean"),
+                ("ai_provider", "google", "ผู้ให้บริการ AI: google, openai, anthropic, ollama, custom", "ai_copilot", "string"),
+                ("ai_model", "gemini-2.5-flash", "รหัสโมเดล เช่น gemini-2.5-flash, gpt-4o-mini, claude-3-5-sonnet", "ai_copilot", "string"),
+                ("ai_api_key", "", "API Key ของผู้ให้บริการ AI (Encrypted / Masked)", "ai_copilot", "encrypted"),
+                ("ai_base_url", "", "Endpoint URL กำหนดเอง (สำหรับ Ollama หรือ Private LLM Proxy)", "ai_copilot", "string"),
+                (
+                    "ai_system_prompt",
+                    "คุณคือผู้ช่วย AI อัจฉริยะประจำระบบ IRM (Incoming Raw Material Management System) ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) มีหน้าที่ช่วยตรวจสอบ ค้นหา วิเคราะห์ และสรุปสถานะใบสั่งซื้อวัตถุดิบ (PO), กำหนดการส่งมอบ (Calendar & Receiving Checklist), ข้อมูลสินค้า (Item Master), และข้อมูลผู้ขาย (Supplier Master) แบบอ่านอย่างเดียว (Strict Read-Only) ภายใต้สิทธิ์ของผู้ใช้งานจริง ห้ามแก้ไข เพิ่ม หรือลบข้อมูลใดๆ ในระบบ และแสดงผลวันที่ในรูปแบบ dd/mm/yyyy เสมอ",
+                    "ข้อความกำกับบทบาท หน้าที่ และข้อจำกัดความปลอดภัยของ AI ประจำระบบ IRM",
+                    "ai_copilot",
+                    "string",
+                ),
+                ("ai_allow_mcp_tools", "true", "สวิตช์อนุญาตให้ AI เรียกใช้งาน Central IAM และ IRM Read-Only MCP Tools", "ai_copilot", "boolean"),
             ]
 
             for key, val, desc, cat, dtype in settings_seed:

@@ -6,6 +6,7 @@ import { useAuth, getLandingPage } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { SpokeCopilotWidget } from '@/components/common/SpokeCopilotWidget';
 import { MenuNode } from '@/types';
 import { ShieldAlert } from 'lucide-react';
 
@@ -143,6 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </main>
       </div>
+      <SpokeCopilotWidget />
     </div>
   );
 }

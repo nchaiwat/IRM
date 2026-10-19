@@ -32,6 +32,7 @@ from app.routers import (
     central_management_router,
     sso_router,
     telegram_router,
+    ai_copilot_router,
 )
 
 settings = get_settings()
@@ -104,6 +105,7 @@ app.include_router(users_router)
 app.include_router(groups_router)
 app.include_router(menus_router)
 app.include_router(auth_matrix_router)
+app.include_router(ai_copilot_router)
 app.include_router(settings_router)
 app.include_router(operation_router)
 app.include_router(calendar_router)

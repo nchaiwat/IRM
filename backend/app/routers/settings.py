@@ -23,6 +23,7 @@ from app.services.ciam_config_service import (
     invalidate_ciam_cache,
     test_ciam_connection_sync,
 )
+from app.services.ai_copilot_service import invalidate_ai_cache, mask_ai_api_key
 from app.services.log_service import record_transaction_log
 
 router = APIRouter(prefix="/api/settings", tags=["System Settings"])
@@ -43,11 +44,27 @@ async def get_all_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission("/admin/settings", "view"))],
 ):
-    """Get all system settings."""
+    """Get all system settings (with encrypted keys masked in response)."""
     stmt = select(SystemSetting).order_by(SystemSetting.category.asc(), SystemSetting.id.asc())
     result = await db.execute(stmt)
     settings = result.scalars().all()
-    return settings
+    resp_list = []
+    for s in settings:
+        val = s.value
+        if s.key == "ai_api_key" and val:
+            val = mask_ai_api_key(val)
+        resp_list.append(
+            SystemSettingResponse(
+                id=s.id,
+                key=s.key,
+                value=val,
+                description=s.description,
+                category=s.category,
+                data_type=s.data_type,
+                updated_at=s.updated_at,
+            )
+        )
+    return resp_list
 
 
 @router.put("", status_code=status.HTTP_200_OK)
@@ -59,6 +76,8 @@ async def bulk_update_settings(
     """Bulk update system settings by key."""
     updated_count = 0
     for item in data.settings:
+        if item.key == "ai_api_key" and item.value and ("..." in item.value or "****" in item.value):
+            continue
         stmt = select(SystemSetting).where(SystemSetting.key == item.key)
         result = await db.execute(stmt)
         setting = result.scalar_one_or_none()
@@ -83,6 +102,8 @@ async def bulk_update_settings(
                     cat = "telegram"
                 elif item.key.startswith("ad_"):
                     cat = "ad"
+                elif item.key.startswith("ai_"):
+                    cat = "ai_copilot"
                 else:
                     cat = "general"
 
@@ -98,6 +119,7 @@ async def bulk_update_settings(
 
     await db.commit()
     invalidate_ciam_cache()
+    invalidate_ai_cache()
     return {"message": f"Successfully updated {updated_count} settings"}
 
 

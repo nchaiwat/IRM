@@ -18,6 +18,7 @@ from app.routers.qms_integration import router as qms_integration_router
 from app.routers.receiving_checklist import router as receiving_checklist_router
 from app.routers.central_management import router as central_management_router
 from app.routers.telegram import router as telegram_router
+from app.routers.ai_copilot import router as ai_copilot_router
 
 __all__ = [
     "auth_router",
@@ -40,4 +41,5 @@ __all__ = [
     "central_management_router",
     "sso_router",
     "telegram_router",
+    "ai_copilot_router",
 ]

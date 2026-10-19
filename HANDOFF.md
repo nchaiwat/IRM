@@ -1,19 +1,42 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 6 ตุลาคม 2026 (15:15 น.)  
+> **วันที่บันทึก:** 19 ตุลาคม 2026 (08:55 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
-> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`, Latest Commit: `08eec8f`)  
+> **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
 
 ## 🎯 1. ภาพรวมระบบ (System Overview)
 
-ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ให้ทีมจัดซื้อ (**PU Reminder Email**), ส่งต่อข้อมูลให้ระบบ **QMS**, และรองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อมทั้งการสำรองฉุกเฉินด้วย **Break-Glass Mode**
+ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ให้ทีมจัดซื้อ (**PU Reminder Email**), ส่งต่อข้อมูลให้ระบบ **QMS**, รองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อม Break-Glass Mode, และมีระบบ **In-App AI Copilot & Read-Only MCP Tools (Enterprise Standard v2.8.0)** สำหรับวิเคราะห์และสรุปข้อมูลงานอย่างปลอดภัย
 
 ---
 
-## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (6 ตุลาคม 2026)
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (19 ตุลาคม 2026)
+
+### 1) 🤖 พัฒนาระบบ In-App AI Copilot & Read-Only MCP Tools (Enterprise Standard v2.8.0)
+* **โจทย์ความต้องการ:** พัฒนาผู้ช่วย AI อัจฉริยะส่วนตัวประจำระบบ IRM ตามมาตรฐาน Enterprise Central IAM Integration v2.8.0 (หมวด E) โดยทำงานภายใต้กฎเหล็ก **Strict Read-Only**, **Strict Role-Based Access Control (RBAC)**, และ **Strict Zero-Training & Enterprise Data Sovereignty** (ISO/IEC 27001)
+* **การพัฒนา Backend:**
+  * **Database Seed ([`init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py)):** เพิ่มการตั้งค่าหมวด `ai_copilot` ลงในตาราง `system_settings` (`ai_copilot_enabled`, `ai_provider`, `ai_model`, `ai_api_key`, `ai_base_url`, `ai_system_prompt`, `ai_allow_mcp_tools`)
+  * **AI Copilot Service ([`ai_copilot_service.py`](file:///d:/Python/IRM/backend/app/services/ai_copilot_service.py)):**
+    * **Read-Only Analytical Tools:** รวบรวมฟังก์ชันดึงและสรุปข้อมูลแบบอ่านอย่างเดียว (`irm_get_dashboard_summary`, `irm_search_open_pos`, `irm_get_delivery_calendar`, `irm_lookup_masters`, `irm_search_closed_history`, `irm_get_admin_audit_summary`) ที่กรองข้อมูลตามสิทธิ์ Item Groups และ Role ของผู้ใช้งานจริง (`get_effective_user_allowed_groups`) พร้อมฟอร์แมตวันที่แบบ Pure Date Standard (`dd/mm/yyyy`) 100%
+    * **Strict Mutation Guard (`detect_mutation_intent`):** ตรวจจับคำสั่งแก้ไข/เพิ่ม/ลบ/อนุมัติข้อมูล และปฏิเสธอย่างสุภาพพร้อมจำลองข้อมูลปัจจุบัน (Preview) และแนะนำเมนูบนหน้าเว็บให้ผู้ใช้กดทำเอง
+    * **DLP Scrubber & Mandatory Zero-Training Headers:** กรองรหัสผ่าน/Token/Key ออก 100% (`sanitize_context_for_privacy`) พร้อมแนบ Headers `X-No-Model-Training: true`, `X-Data-Retention: none`, `X-OpenAI-Data-Usage-Opt-Out: true`, `store: false` ไปยัง External LLM Provider (Google Gemini, OpenAI, Anthropic, Ollama)
+    * **Zero-Cost Local Rule-Based Engine:** รองรับการตอบคำถามภาษาไทยจากข้อมูลจริงในฐานข้อมูลได้ทันทีแม้ยังไม่ได้ใส่ External API Key
+  * **AI Copilot Router ([`ai_copilot_router.py`](file:///d:/Python/IRM/backend/app/routers/ai_copilot.py)):**
+    * `GET /api/settings/ai`: ดึงคอนฟิก AI และสถานะความพร้อมแสดงผล Widget (Masking API Key)
+    * `PUT /api/settings/ai`: บันทึกการตั้งค่า AI แบบ Dynamic Runtime พร้อมบันทึก Transaction Audit Log
+    * `POST /api/settings/ai/test`: ทดสอบการเชื่อมต่อ API Key กับ Provider พร้อมวัด Latency (ms)
+    * `POST /api/ai/chat`: เอนด์พอยต์สนทนาหลักที่ประมวลผลภายใต้บริบทสิทธิ์ของผู้ใช้
+* **การพัฒนา Frontend:**
+  * **Floating Chat Widget ([`SpokeCopilotWidget.tsx`](file:///d:/Python/IRM/frontend/src/components/common/SpokeCopilotWidget.tsx)):** หน้าต่างแชท AI ลอยมุมขวาล่าง มีปุ่มคำถามแนะนำด่วน (Quick Prompts), ป้ายกำกับความปลอดภัย Read-Only & Zero-Training, รองรับการย่อ/ขยาย และตรวจสอบสถานะ `enabled` จาก Backend โดยซ่อนอัตโนมัติหากยังไม่เปิดใช้งานหรือยังไม่มี API Key (Rule 11.2.1) และซ่อนในโหมด Print
+  * **Dashboard Layout ([`layout.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/layout.tsx)):** ติดตั้ง `SpokeCopilotWidget` ครอบคลุมทุกหน้าจอการทำงาน
+  * **Admin Settings Section 9 ([`admin/settings/page.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/admin/settings/page.tsx)):** เพิ่มการ์ดตั้งค่า "9. In-App AI Copilot & MCP Tools" รองรับการเลือก Provider, Model, Masked Key Toggle, System Prompt, ปุ่มทดสอบ API Key และปุ่มบันทึกการตั้งค่าแยกอิสระ (กรองคีย์ `ai_*` ป้องกันการทับซ้อน)
+
+---
+
+## 🏗️ 3. สรุปความคืบหน้าการพัฒนาก่อนหน้า (6 ตุลาคม 2026)
 
 ### 1) 🚀 ระบบเชื่อมต่อ Telegram อัตโนมัติด้วย Deep Linking & Webhook Sync (Zero Manual Input)
 * **โจทย์ความต้องการ:** ตัดขั้นตอนที่พนักงานต้องไปค้นหาตัวเลข Chat ID ส่งให้ Admin กรอก โดยต้องการวิธีที่ High-Tech และ Automate ที่สุด พนักงานเพียงสแกน QR Code แล้วกดปุ่ม START ใน Telegram ระบบจะดึง Chat ID และผูกบัญชีให้อัตโนมัติทันที
