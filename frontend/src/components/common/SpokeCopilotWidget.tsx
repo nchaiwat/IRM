@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   ChevronDown,
   Minimize2,
+  Maximize2,
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -23,6 +24,7 @@ export function SpokeCopilotWidget() {
   const [enabled, setEnabled] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -142,10 +144,12 @@ export function SpokeCopilotWidget() {
       {/* Floating Chat Modal */}
       {isOpen && (
         <div
-          className={`fixed bottom-6 right-6 z-[9999] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-200 ${
+          className={`fixed bottom-6 right-6 z-[9999] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 ${
             isMinimized
               ? 'w-80 h-14'
-              : 'w-[92vw] sm:w-[420px] h-[580px] max-h-[85vh]'
+              : isExpanded
+              ? 'w-[96vw] sm:w-[720px] lg:w-[840px] h-[88vh] max-h-[920px]'
+              : 'w-[92vw] sm:w-[440px] h-[590px] max-h-[85vh]'
           }`}
         >
           {/* Header */}
@@ -168,18 +172,55 @@ export function SpokeCopilotWidget() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              {/* Reset/Clear Chat in header like CIAM */}
+              {messages.length > 0 && !isMinimized && (
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition cursor-pointer"
+                  title="เริ่มบทสนทนาใหม่"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Expand / Collapse Fullsize Toggle (CIAM Style) */}
+              {!isMinimized && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-1.5 text-slate-300 hover:text-white rounded-lg border border-slate-600/70 hover:border-slate-400 hover:bg-slate-700/50 transition cursor-pointer"
+                  title={isExpanded ? 'ย่อขนาดปกติ' : 'ขยายหน้าต่างให้ใหญ่ขึ้น'}
+                >
+                  {isExpanded ? (
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
+
+              {/* Minimize/Dock */}
               <button
                 type="button"
-                onClick={() => setIsMinimized(!isMinimized)}
+                onClick={() => {
+                  setIsMinimized(!isMinimized);
+                  if (!isMinimized) setIsExpanded(false);
+                }}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition cursor-pointer"
-                title={isMinimized ? 'ขยายหน้าต่าง' : 'ย่อหน้าต่าง'}
+                title={isMinimized ? 'เปิดหน้าต่าง' : 'พับเก็บชั่วคราว'}
               >
-                {isMinimized ? <ChevronDown className="w-4 h-4 rotate-180" /> : <Minimize2 className="w-3.5 h-3.5" />}
+                {isMinimized ? <ChevronDown className="w-4 h-4 rotate-180" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
+
+              {/* Close */}
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsExpanded(false);
+                }}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/50 transition cursor-pointer"
                 title="ปิดหน้าต่างแชท"
               >
