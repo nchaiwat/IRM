@@ -1,16 +1,51 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 19 ตุลาคม 2026 (11:58 น.)  
+> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (12:50 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `12ee325` (`feat(copilot): add maximize expand button and responsive fullsize layout to ai copilot widget`)  
+> **Latest Commit:** Pending Git Commit (`feat(security): implement central iam v2.12.0 - 90-day password rotation, 3-layer bot defense and rfc 9700 sso bounce`)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
 
 ## 🎯 1. ภาพรวมระบบ (System Overview)
 
-ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ให้ทีมจัดซื้อ (**PU Reminder Email**), ส่งต่อข้อมูลให้ระบบ **QMS**, รองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อม Break-Glass Mode, และมีระบบ **In-App AI Copilot & Read-Only MCP Tools (Enterprise Standard v2.8.0)** สำหรับวิเคราะห์และสรุปข้อมูลงานอย่างปลอดภัย พร้อมระบบ Fullsize Maximize UI
+ระบบ **IRM (Incoming Raw Material Management System)** ของบริษัท วินโดว์ เอเชีย จำกัด (มหาชน) ทำหน้าที่เชื่อมโยงข้อมูล PO วัตถุดิบ 7 กลุ่มหลักจาก **SAP Business One** ส่งต่อให้ Supplier ระบุวันส่งมอบผ่าน **Cryptographic Portal**, วางแผนนัดหมายลง **ปฏิทินส่งของ (Calendar)**, พิมพ์ใบตรวจรับสินค้าจริง (**Receiving Checklist**), แจ้งเตือนยอดวัตถุดิบเข้าประจำวันรายบุคคลผ่าน **Telegram Direct Message (DM)**, ส่งอีเมลสรุปงานและไฟล์แนบ Excel 2 Sheet ให้ทีมจัดซื้อ (**PU Reminder Email**), ส่งต่อข้อมูลให้ระบบ **QMS**, รองรับการยืนยันตัวตนระดับองค์กรผ่าน **Central IAM (OAuth2 / OIDC SSO)** พร้อม Break-Glass Mode, ระบบ **In-App AI Copilot & Read-Only MCP Tools (Enterprise Standard v2.8.0)** และมาตรฐานความปลอดภัยล่าสุดตาม **Central IAM Specification v2.12.0** (90-Day Local Password Policy, In-App Bot Defense 3 ชั้น, RFC 9700 Seamless Launchpad)
+
+---
+
+## 🏗️ 2. สรุปความคืบหน้าและการพัฒนางานล่าสุด (12 พฤศจิกายน 2026)
+
+### 1) 🔒 มาตรฐานความปลอดภัยรหัสผ่านบัญชีท้องถิ่น 90 วัน (หมวด G v2.12.0)
+* **โมเดลผู้ใช้ & การย้ายฐานข้อมูล:**
+  * เพิ่มคอลัมน์ `password_changed_at` (TIMESTAMPTZ) และ `must_change_password` (BOOLEAN) ในตาราง `users`
+  * บรรจุลงใน DDL Migrations ของ [`init_db.py`](file:///d:/Python/IRM/backend/app/init_db.py) และสร้างสคริปต์ Standalone Migration [`add_password_policy_columns.py`](file:///d:/Python/IRM/backend/app/migrations/add_password_policy_columns.py)
+* **Enterprise Password Complexity Engine ([`password_policy.py`](file:///d:/Python/IRM/backend/app/utils/password_policy.py)):**
+  * ตรวจสอบความยาว 8 - 16 ตัวอักษร, พิมพ์ใหญ่ (A-Z) &ge; 1, พิมพ์เล็ก (a-z) &ge; 1, ตัวเลข (0-9) &ge; 1, อักขระพิเศษ (!@#$%^&*...) &ge; 1, และห้ามมี Username ปะปน
+  * ตรวจสอบรอบอายุ 90 วัน: `(now - password_changed_at).days >= 90`
+* **API Endpoints ([`auth.py`](file:///d:/Python/IRM/backend/app/routers/auth.py)):**
+  * คำนวณสถานะและส่งคืน `must_change_password` และ `days_until_password_expiry` ใน `/api/auth/login` และ `/api/auth/me` สำหรับบัญชีที่ไม่ใช่ AD
+  * เพิ่มเอนด์พอยต์ `POST /api/auth/local/change-password` สำหรับเปลี่ยนรหัสผ่าน บันทึก `password_changed_at = now`, เคลียร์ `must_change_password = false`, และบันทึก Audit Log ลง `transaction_logs`
+* **Forced Modal Interception ([`ForcedPasswordChangeModal.tsx`](file:///d:/Python/IRM/frontend/src/components/common/ForcedPasswordChangeModal.tsx)):**
+  * หน้าต่างแจ้งเตือนบังคับเปลี่ยนรหัสผ่านแบบไม่สามารถกดข้ามได้ พร้อม Real-time Checklist 6 ข้อ ติดตั้งใน [`layout.tsx`](file:///d:/Python/IRM/frontend/src/app/(dashboard)/layout.tsx)
+
+### 2) 🛡️ ระบบป้องกันบอทและ Brute-Force ภายในแอปพลิเคชัน 3 ชั้น (หมวด F v2.10.0)
+* **Layer 1: Sliding-Window IP Rate Limiter ([`bot_defense.py`](file:///d:/Python/IRM/backend/app/utils/bot_defense.py)):**
+  * กำหนดอัตรา 10 requests / 60 วินาที ต่อ Client IP พร้อมยกเว้น Corporate Whitelist (`127.0.0.1`, Docker Host, Central IAM VPS `157.173.219.153`, HQ IP `49.231.185.245`, สำนักงานสาขา `58.8.190.63`)
+  * หากเกินกำหนดจะส่ง HTTP 429 Too Many Requests พร้อม Header `Retry-After` และบันทึก Log `ip_rate_limited`
+* **Layer 2: Decoy Honeypot Trap:**
+  * เพิ่มฟิลด์ดักบอทซ่อนสายตา `corporate_fax` และ `security_honey` ใน [`page.tsx`](file:///d:/Python/IRM/frontend/src/app/login/page.tsx)
+  * Backend ตรวจจับและปฏิเสธด้วย HTTP 401 Silent Rejection ทันที พร้อมบันทึก Log `bot_honeypot_detected`
+* **Layer 3: Submission Velocity Guard:**
+  * ฝั่ง Frontend บันทึก Epoch Milliseconds เมื่อหน้าจอ Render เสร็จ (`form_render_ts`)
+  * Backend ตรวจสอบระยะเวลากรอกฟอร์ม หากส่งเร็วกว่า 400ms จะถือเป็น Automated Bot Script และปฏิเสธด้วย HTTP 400 ทันที
+
+### 3) 🚀 RFC 9700 Seamless SSO Initiation Bounce (หมวด B.3 v2.6.0 & v2.7.0)
+* **Frontend Launch Endpoint ([`page.tsx`](file:///d:/Python/IRM/frontend/src/app/auth/start/page.tsx)):**
+  * รองรับการเปิดแอป IRM จากการ์ดบน Central IAM Portal (`https://irm.windowasia.com/auth/start`)
+  * ทำการสร้าง PKCE `code_verifier` และ `state` ผูกกับเบราว์เซอร์ แล้ว 302 Redirect ไปยัง CIAM เพื่อทำ Auto-Approval ในเวลา < 400ms ปลอดภัย 100% ตามมาตรฐาน RFC 9700
+* **SSO Callback Resiliency ([`sso.py`](file:///d:/Python/IRM/backend/app/routers/sso.py)):**
+  * ปรับ `code_verifier: Optional[str] = None` ใน `SsoCallbackRequest` เพื่อรองรับทั้ง Spoke-Initiated และ Portal Launch
 
 ---
 

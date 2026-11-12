@@ -58,7 +58,7 @@ class SsoAuthorizeUrlResponse(BaseModel):
 class SsoCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
-    code_verifier: str
+    code_verifier: Optional[str] = None
     state: Optional[str] = None
 
 

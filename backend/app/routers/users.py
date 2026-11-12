@@ -55,6 +55,8 @@ async def create_user(
         group_id=data.group_id,
         allowed_item_groups=data.allowed_item_groups or "*",
         is_active=data.is_active,
+        password_changed_at=datetime.now(timezone.utc),
+        must_change_password=True if not data.use_ad_auth else False,
     )
     db.add(user)
     await db.commit()
@@ -347,6 +349,8 @@ async def reset_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
+    user.must_change_password = True
     await db.commit()
     return {"message": f"Password reset successfully for user '{user.username}'"}
 

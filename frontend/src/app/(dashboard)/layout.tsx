@@ -7,11 +7,12 @@ import { api } from '@/lib/api';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { SpokeCopilotWidget } from '@/components/common/SpokeCopilotWidget';
+import { ForcedPasswordChangeModal } from '@/components/common/ForcedPasswordChangeModal';
 import { MenuNode } from '@/types';
 import { ShieldAlert } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [menus, setMenus] = useState<MenuNode[]>([]);
@@ -145,6 +146,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       <SpokeCopilotWidget />
+
+      {/* Enterprise ISO 27001 / CIAM v2.12.0: 90-Day Forced Password Rotation Modal */}
+      {user?.must_change_password && !user?.use_ad_auth && (
+        <ForcedPasswordChangeModal
+          username={user.username}
+          isExpired={user.must_change_password}
+          onSuccess={refreshUser}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ from app.models.menu import Menu
 from app.models.transaction_log import TransactionLog
 from app.models.user import User
 from app.schemas.auth import (
+    ChangeLocalPasswordRequest,
     LoginRequest,
     PermissionItem,
     RefreshTokenRequest,
@@ -25,6 +26,8 @@ from app.schemas.auth import (
 )
 from app.services.ad_service import get_ad_settings, verify_ad_credentials
 from app.services.log_service import record_transaction_log
+from app.utils.bot_defense import extract_client_ip, spoke_rate_limiter
+from app.utils.password_policy import is_password_expired, validate_password_complexity
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -42,11 +45,71 @@ async def login(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Authenticate user with username and password, supporting Active Directory and Local passwords."""
+    """Authenticate user with username and password, supporting Active Directory and Local passwords with 3-Layer In-App Bot Defense."""
+    client_ip = extract_client_ip(request)
     username_clean = req.username.strip()
-    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Layer 1: In-App Sliding-Window Rate Limiting (10 req / 60s per client IP)
+    # ──────────────────────────────────────────────────────────────────────────
+    allowed, retry_after = spoke_rate_limiter.is_allowed(client_ip)
+    if not allowed:
+        await record_transaction_log(
+            category="user_auth",
+            action="ip_rate_limited",
+            status="warning",
+            message=f"คำขอเข้าสู่ระบบถี่เกินกำหนด (Rate Limit Exceeded) กรุณารอ {retry_after} วินาที จาก IP: {client_ip}",
+            details={"ip": client_ip, "retry_after": retry_after, "username": username_clean},
+            triggered_by=f"ip:{client_ip}",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"คำขอเข้าสู่ระบบถี่เกินกำหนด กรุณารอ {retry_after} วินาที แล้วลองใหม่อีกครั้ง",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Layer 2: Decoy Honeypot Trap (corporate_fax / security_honey)
+    # ──────────────────────────────────────────────────────────────────────────
+    if req.corporate_fax or req.security_honey:
+        await record_transaction_log(
+            category="user_auth",
+            action="bot_honeypot_detected",
+            status="failed",
+            message=f"ตรวจพบบอทผ่าน Honeypot Trap (corporate_fax / security_honey) จาก IP: {client_ip}",
+            details={
+                "ip": client_ip,
+                "corporate_fax": req.corporate_fax,
+                "security_honey": req.security_honey,
+                "username": username_clean,
+            },
+            triggered_by=f"ip:{client_ip}",
+        )
+        # Silent rejection as per spec F.3
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Layer 3: Submission Velocity & Timing Guard (< 400ms rejection)
+    # ──────────────────────────────────────────────────────────────────────────
+    if req.form_render_ts:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        delta_ms = now_ms - req.form_render_ts
+        if delta_ms < 400 or delta_ms < -10000:
+            await record_transaction_log(
+                category="user_auth",
+                action="bot_timing_violation",
+                status="failed",
+                message=f"ตรวจพบความเร็วการส่งข้อมูลผิดปกติของระบบอัตโนมัติ ({delta_ms}ms < 400ms) จาก IP: {client_ip}",
+                details={"ip": client_ip, "delta_ms": delta_ms, "form_render_ts": req.form_render_ts, "username": username_clean},
+                triggered_by=f"ip:{client_ip}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ตรวจพบความเร็วการส่งข้อมูลผิดปกติของระบบอัตโนมัติ (Automated submission rejected)",
+            )
 
     stmt = select(User).where(func.lower(User.username) == username_clean.lower())
 
@@ -265,6 +328,17 @@ async def login(
         except Exception as log_err:
             print(f"⚠️ Could not write login_local success log: {log_err}")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Check 90-Day Forced Password Expiration for Local Accounts (หมวด G v2.12.0)
+    # ──────────────────────────────────────────────────────────────────────────
+    must_change = False
+    days_left = None
+    if not getattr(user, "use_ad_auth", False):
+        is_expired, days_left = is_password_expired(user.password_changed_at, user.created_at)
+        must_change = bool(user.must_change_password or is_expired)
+        if is_expired and not user.must_change_password:
+            user.must_change_password = True
+
     # Safely update last_login_at
     try:
         user.last_login_at = datetime.now(timezone.utc)
@@ -280,6 +354,8 @@ async def login(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
+        must_change_password=must_change,
+        days_until_password_expiry=days_left,
     )
 
 
@@ -366,6 +442,16 @@ async def get_me(
         else "/dashboard"
     )
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Check 90-Day Forced Password Expiration for Local Accounts (หมวด G v2.12.0)
+    # ──────────────────────────────────────────────────────────────────────────
+    is_ad = getattr(current_user, "use_ad_auth", False)
+    must_change = False
+    days_left = None
+    if not is_ad:
+        is_expired, days_left = is_password_expired(current_user.password_changed_at, current_user.created_at)
+        must_change = bool(current_user.must_change_password or is_expired)
+
     return UserMeResponse(
         id=current_user.id,
         username=current_user.username,
@@ -373,9 +459,95 @@ async def get_me(
         email=current_user.email,
         telegram_chat_id=current_user.telegram_chat_id,
         telegram_inbound_notify=current_user.telegram_inbound_notify,
+        department=current_user.department,
+        use_ad_auth=is_ad,
         group_id=current_user.group_id,
         group_name=current_user.group.name if current_user.group else None,
         allowed_item_groups=effective_groups,
         default_page=default_landing,
         permissions=permissions,
+        must_change_password=must_change,
+        days_until_password_expiry=days_left,
+        password_changed_at=current_user.password_changed_at,
     )
+
+
+@router.post("/local/change-password")
+async def change_local_password(
+    req: ChangeLocalPasswordRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
+):
+    """
+    Enterprise Local Password Policy (หมวด G v2.12.0):
+    Allows local users (including emergency Break-Glass admin) to change their password,
+    enforcing strict password complexity and the 90-day rotation framework.
+    """
+    client_ip = extract_client_ip(request)
+
+    # 1. Verify old password
+    if not verify_password(req.old_password, current_user.password_hash):
+        await record_transaction_log(
+            category="user_auth",
+            action="change_password_failed",
+            status="failed",
+            message=f"เปลี่ยนรหัสผ่านล้มเหลว: รหัสผ่านเดิมไม่ถูกต้อง ({current_user.username})",
+            details={"username": current_user.username, "ip": client_ip, "reason": "Old password mismatch"},
+            triggered_by=f"user:{current_user.username}",
+            db=db,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านเดิมไม่ถูกต้อง",
+        )
+
+    # 2. Check confirm password if provided
+    if req.confirm_password and req.confirm_password != req.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน",
+        )
+
+    # 3. Prevent using identical password
+    if req.old_password == req.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม",
+        )
+
+    # 4. Strict Complexity Validation (8-16 chars, upper, lower, digit, special, no username)
+    complexity_err = validate_password_complexity(req.new_password, username=current_user.username)
+    if complexity_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=complexity_err,
+        )
+
+    # 5. Update password hash, update password_changed_at, clear must_change_password
+    current_user.password_hash = hash_password(req.new_password)
+    current_user.password_changed_at = datetime.now(timezone.utc)
+    current_user.must_change_password = False
+    await db.commit()
+
+    # 6. Record ISO 27001 Security Audit Log
+    await record_transaction_log(
+        category="user_auth",
+        action="change_password_success",
+        status="success",
+        message=f"เปลี่ยนรหัสผ่านบัญชีท้องถิ่นสำเร็จ (รอบอายุ 90 วัน): '{current_user.username}'",
+        details={
+            "username": current_user.username,
+            "ip": client_ip,
+            "complexity_verified": True,
+            "policy": "90_DAY_ROTATION",
+        },
+        triggered_by=f"user:{current_user.username}",
+        db=db,
+    )
+
+    return {
+        "status": "SUCCESS",
+        "message": "เปลี่ยนรหัสผ่านใหม่เรียบร้อยแล้ว (มีอายุการใช้งาน 90 วัน)",
+        "password_changed_at": current_user.password_changed_at,
+    }

@@ -22,6 +22,9 @@ export interface UserMe {
   allowed_item_groups?: string | null;
   default_page?: string | null;
   permissions: PermissionItem[];
+  must_change_password?: boolean;
+  days_until_password_expiry?: number | null;
+  password_changed_at?: string | null;
 }
 
 export interface MenuNode {
@@ -48,6 +51,8 @@ export interface User {
   group?: { id: number; name: string; allowed_item_groups?: string | null; default_page?: string | null };
   allowed_item_groups?: string | null;
   is_active: boolean;
+  password_changed_at?: string | null;
+  must_change_password?: boolean;
   last_login_at?: string | null;
   created_at: string;
   updated_at: string;

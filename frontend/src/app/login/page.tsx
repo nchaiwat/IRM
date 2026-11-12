@@ -13,6 +13,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
+  // Layer 2 & 3: Bot Defense (Decoy Honeypots & Velocity Timestamp)
+  const [corporateFax, setCorporateFax] = useState('');
+  const [securityHoney, setSecurityHoney] = useState('');
+  const [renderTs, setRenderTs] = useState<number>(0);
   const [ssoConfig, setSsoConfig] = useState<{
     sso_enabled: boolean;
     break_glass_active: boolean;
@@ -22,6 +26,7 @@ export default function LoginPage() {
 
   // Load remembered username from localStorage on mount & check SSO status
   useEffect(() => {
+    setRenderTs(Date.now());
     const savedUsername = localStorage.getItem('irm_remembered_username');
     const savedRememberState = localStorage.getItem('irm_remember_me');
 
@@ -93,7 +98,13 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await api.post('/api/auth/login', { username, password });
+      const res = await api.post('/api/auth/login', {
+        username,
+        password,
+        corporate_fax: corporateFax || undefined,
+        security_honey: securityHoney || undefined,
+        form_render_ts: renderTs || undefined,
+      });
 
       // Save or clear remembered username
       if (rememberMe) {
@@ -195,7 +206,43 @@ export default function LoginPage() {
         )}
 
         {/* Standard Login Form (Always visible & familiar on Mobile 100%) */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 relative">
+          {/* Invisible Anti-Bot Honeypot Decoy Fields (Enterprise Bot Defense Layer 2) */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '-9999px',
+              opacity: 0,
+              height: 0,
+              width: 0,
+              overflow: 'hidden',
+              pointerEvents: 'none',
+            }}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            <label htmlFor="corporate_fax">Corporate Fax</label>
+            <input
+              id="corporate_fax"
+              type="text"
+              name="corporate_fax"
+              value={corporateFax}
+              onChange={(e) => setCorporateFax(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+            <label htmlFor="security_honey">Security Code</label>
+            <input
+              id="security_honey"
+              type="text"
+              name="security_honey"
+              value={securityHoney}
+              onChange={(e) => setSecurityHoney(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
+
           {/* Username Input */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">ชื่อผู้ใช้งาน (Username)</label>

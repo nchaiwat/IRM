@@ -59,6 +59,8 @@ class UserResponse(BaseModel):
     group: GroupMinimal | None
     allowed_item_groups: str | None = "*"
     is_active: bool
+    password_changed_at: datetime | None = None
+    must_change_password: bool = False
     last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

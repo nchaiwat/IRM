@@ -31,10 +31,13 @@
   - [x] อัปเดตหน้า Login (`/login`) ให้ตรวจเช็คสถานะ SSO/Break-Glass พร้อมแสดงป้ายเตือนอัตโนมัติ
 - [x] **Step 5: การตรวจสอบความสมบูรณ์และทดสอบระบบโดยรวม (Local Verification)**
   - [x] Python syntax compile check (`py_compile` backend files: 100% PASS)
-  - [x] Next.js Type Check & Build (Compile PASS 19/19 Static Pages)
+  - [x] Next.js Type Check & Build (Compile PASS 20/20 Static Pages)
   - [x] ทดสอบ Backward Compatibility: การล็อกอินด้วย Username/Password ปกติยังทำงานได้ 100%
-  - [x] Docker Container Backend synchronization & verification ผ่าน 100%
-  - [ ] รอ User ตรวจสอบและยืนยันก่อนดำเนินการ Git Commit & Push ไปยัง VPS Production
+- [x] **Step 6: มาตรฐานความปลอดภัย Enterprise Central IAM v2.12.0 (12/11/2026)**
+  - [x] **หมวด G (ข้อกำหนดที่ 13):** Local Password Policy & 90-Day Forced Rotation Framework (คอลัมน์ `password_changed_at`, `must_change_password`, Complexity 6 ข้อ, Endpoint `/api/auth/local/change-password`, และ `ForcedPasswordChangeModal`)
+  - [x] **หมวด F (ข้อกำหนดที่ 12):** In-App 3-Layer Bot Defense (Sliding-Window IP Rate Limiter 10 req/60s, Decoy Honeypot `corporate_fax`/`security_honey`, Timing Velocity Guard < 400ms)
+  - [x] **หมวด B.3:** RFC 9700 Seamless SSO Initiation Bounce (`/auth/start`) และรองรับ `code_verifier: Optional` ใน `/callback`
+- [x] พร้อม Git Commit & Push เพื่อ Deploy ขึ้น VPS Hostinger (`/var/www/Irm`)
 
 ---
 

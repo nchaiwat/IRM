@@ -36,6 +36,9 @@ async def run_ddl_migrations(conn):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS use_ad_auth BOOLEAN DEFAULT FALSE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ DEFAULT NOW();",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE;",
+        "UPDATE users SET password_changed_at = COALESCE(created_at, NOW()) WHERE password_changed_at IS NULL;",
 
         # groups table
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS allowed_item_groups VARCHAR(200) DEFAULT '*';",
