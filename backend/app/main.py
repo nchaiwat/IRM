@@ -3,6 +3,7 @@ IRM — Incoming Raw Material System
 FastAPI Application Entry Point
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan context manager for startup and shutdown events."""
     print(f"🚀 Starting {settings.APP_NAME} Backend (Env: {settings.APP_ENV})...")
     try:
-        await seed_data()
+        await asyncio.wait_for(seed_data(), timeout=15.0)
     except Exception as e:
         print(f"⚠️ Warning: Auto-seed on startup failed or skipped: {e}")
     try:

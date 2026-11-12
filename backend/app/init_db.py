@@ -109,6 +109,7 @@ async def run_ddl_migrations():
     for sql in migrations:
         try:
             async with engine.begin() as conn:
+                await conn.execute(text("SET lock_timeout = '2s';"))
                 await conn.execute(text(sql))
         except Exception as e:
             print(f"  ⚠️ DDL notice (non-fatal): {sql[:60]}... → {e}")

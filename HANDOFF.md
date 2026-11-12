@@ -1,9 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (13:35 น.)  
+> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (13:52 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `fix(auth): isolate ddl migrations in init_db and harden sso callback with timeout resilience`  
+> **Latest Commit:** `fix(backend): safeguard lifespan with 15s timeout and add postgres lock_timeout to prevent startup hang`  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
