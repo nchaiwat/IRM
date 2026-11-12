@@ -11,10 +11,11 @@ from app.models import Group, User, Menu, AuthMatrix, SystemSetting, POHeader, P
 from app.utils.security import hash_password
 
 
-async def run_ddl_migrations(conn):
+async def run_ddl_migrations():
     """
     Run all DDL ALTER TABLE migrations safely with IF NOT EXISTS.
-    This handles ANY existing database state — fresh install or partial schema upgrades.
+    Each migration is executed in its own isolated transaction so that
+    a failure or notice on one does not abort or roll back other migrations.
     """
     migrations = [
         # telegram_bind_tokens table
@@ -107,7 +108,8 @@ async def run_ddl_migrations(conn):
 
     for sql in migrations:
         try:
-            await conn.execute(text(sql))
+            async with engine.begin() as conn:
+                await conn.execute(text(sql))
         except Exception as e:
             print(f"  ⚠️ DDL notice (non-fatal): {sql[:60]}... → {e}")
 
@@ -120,10 +122,11 @@ async def seed_data():
             async with engine.begin() as conn:
                 # Create all tables that don't yet exist
                 await conn.run_sync(Base.metadata.create_all)
-                print("✅ Phase 0a: Tables created/verified.")
-                # Run column-level migrations
-                await run_ddl_migrations(conn)
-                print("✅ Phase 0b: DDL Migrations applied.")
+            print("✅ Phase 0a: Tables created/verified.")
+
+            # Run column-level migrations with per-statement transaction isolation
+            await run_ddl_migrations()
+            print("✅ Phase 0b: DDL Migrations applied.")
             break
         except Exception as err:
             if attempt == max_retries:

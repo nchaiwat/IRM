@@ -170,11 +170,12 @@ async def handle_sso_callback(
         )
 
     # Step 1: Exchange code for tokens
+    code_verifier = req.code_verifier.strip() if req.code_verifier and req.code_verifier.strip() else None
     try:
         tokens = sso_client.exchange_code_for_tokens(
             code=req.code,
             redirect_uri=req.redirect_uri,
-            code_verifier=req.code_verifier,
+            code_verifier=code_verifier,
         )
     except Exception as exc:
         logger.error("SSO Code exchange failed: %s", exc)

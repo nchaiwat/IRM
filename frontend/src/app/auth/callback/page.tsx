@@ -43,12 +43,18 @@ function CallbackContent() {
         setStatusText('กำลังแลกเปลี่ยนรหัสและยืนยัน Asymmetric RS256 Signature...');
 
         const redirectUri = window.location.origin + '/auth/callback';
-        const res = await api.post('/api/auth/sso/callback', {
-          code,
-          code_verifier: codeVerifier,
-          redirect_uri: redirectUri,
-          state: state || undefined,
-        });
+        const res = await api.post(
+          '/api/auth/sso/callback',
+          {
+            code,
+            code_verifier: codeVerifier || undefined,
+            redirect_uri: redirectUri,
+            state: state || undefined,
+          },
+          {
+            timeout: 15000,
+          }
+        );
 
         // Clean up session storage
         sessionStorage.removeItem('sso_code_verifier');
@@ -67,16 +73,28 @@ function CallbackContent() {
         router.push('/');
       } catch (err: any) {
         console.error('SSO Exchange error:', err);
-        const detail =
-          err.response?.data?.detail ||
-          err.message ||
-          'เกิดข้อผิดพลาดในการแลกเปลี่ยน Authorization Code กับ Central IAM';
+        let detail = 'เกิดข้อผิดพลาดในการแลกเปลี่ยน Authorization Code กับ Central IAM';
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+          detail = 'การเชื่อมต่อไปยัง IRM Backend หมดเวลา (Request Timeout) กรุณาตรวจสอบว่าเซิร์ฟเวอร์ Backend กำลังทำงานอยู่แล้วลองใหม่อีกครั้ง';
+        } else if (err.response?.status === 502 || err.response?.status === 504) {
+          detail = 'ไม่สามารถเชื่อมต่อ IRM Backend ได้ (502/504 Gateway Error) กรุณาตรวจสอบสถานะคอนเทนเนอร์ irm-backend บนเซิร์ฟเวอร์';
+        } else if (err.response?.data?.detail) {
+          detail = err.response.data.detail;
+        } else if (err.message) {
+          detail = err.message;
+        }
         setError(detail);
       }
     };
 
     exchangeToken();
   }, [searchParams, router, login]);
+
+  const handleRetry = () => {
+    executedRef.current = false;
+    setError(null);
+    window.location.reload();
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
@@ -102,12 +120,21 @@ function CallbackContent() {
               <span>การเข้าสู่ระบบผ่าน SSO ล้มเหลว</span>
             </div>
             <p className="leading-relaxed">{error}</p>
-            <button
-              onClick={() => router.push('/login')}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs transition"
-            >
-              กลับสู่หน้าล็อกอิน (Break-Glass Login)
-            </button>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleRetry}
+                className="flex-1 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs transition flex items-center justify-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                ลองใหม่อีกครั้ง
+              </button>
+              <button
+                onClick={() => router.push('/login')}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold text-xs transition"
+              >
+                กลับหน้าล็อกอิน
+              </button>
+            </div>
           </div>
         ) : success ? (
           <div className="space-y-3 py-4">
