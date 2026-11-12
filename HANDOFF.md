@@ -1,9 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (13:52 น.)  
+> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (13:55 น.)  
 > **สถานะโครงการ:** Production-Ready, Performance-Optimized & Feature Complete (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `fix(backend): safeguard lifespan with 15s timeout and add postgres lock_timeout to prevent startup hang`  
+> **Latest Commit:** `fix(api): fix Query enum argument in central_management.py that caused uvicorn crash`  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---

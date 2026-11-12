@@ -162,7 +162,7 @@ async def verify_central_management_access(
 async def list_accounts_for_central_management(
     db: Annotated[AsyncSession, Depends(get_db)],
     access_info: Annotated[dict, Depends(verify_central_management_access)],
-    status_filter: Optional[str] = Query("all", enum=["all", "active", "inactive"]),
+    status_filter: Optional[str] = Query("all", description="Filter by account status: all, active, inactive"),
     department: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
