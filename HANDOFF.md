@@ -1,9 +1,9 @@
 # 📌 IRM System — HANDOFF & PROGRESS LOG
 
-> **วันที่บันทึก:** 12 พฤศจิกายน 2026 (14:00 น.)  
+> **วันที่บันทึก:** 14 พฤศจิกายน 2026 (16:00 น.)  
 > **สถานะโครงการ:** Production-Ready, Central IAM Specification v2.12.0 Implemented & Hardened (`https://irm.windowasia.com`)  
 > **Repository:** `https://github.com/nchaiwat/IRM` (Branch: `main`)  
-> **Latest Commit:** `07780a2` (`fix(api): fix Query enum argument in central_management.py that caused uvicorn crash`)  
+> **Latest Commit:** Next on `main` — CIAM Origin IP `157.173.219.153` Whitelist & SSO Audit Log Fix (built on `07780a2`)  
 > **VPS Hostinger Path:** `/var/www/Irm`  
 
 ---
@@ -59,6 +59,14 @@
    * เพิ่มคำสั่ง `SET lock_timeout = '2s';` ทุกคำสั่ง เพื่อป้องกันไม่ให้คำสั่ง `ALTER TABLE` ค้างรอคิว Lock ใน PostgreSQL
 3. **Lifespan Startup Safeguard (`main.py`, Commit `9fa597a`):**
    * ครอบ `asyncio.wait_for(seed_data(), timeout=15.0)` ใน FastAPI lifespan เพื่อรับประกันว่า Uvicorn จะเปิดพอร์ต 8000 ให้บริการเสมอแม้กระบวนการเชื่อมต่อฐานข้อมูลภายนอกมี delay
+
+### 5) 🛡️ มาตรฐานตรวจสอบ CIAM Origin IP (`157.173.219.153`) และ Audit Log (14 พฤศจิกายน 2026)
+* **`central_management.py` (`verify_central_management_access`):**
+  * อ่าน Origin IP ตามลำดับ `x-ciam-origin-ip` → `x-origin-ip` → `x-forwarded-for` (สกัด IP แรกด้วย `.split(",")[0].strip()`) พร้อมคง `network_ip` แยกไว้สำหรับกรณี API Key ไม่ถูกต้อง และอนุญาต `"157.173.219.153"` ใน `allowed_ips` เสมอ
+* **`sso.py` (`handle_sso_callback`, `toggle_break_glass_mode`):**
+  * ดึง `ciam_origin_ip` จาก OIDC Claims (`claims.get("ciam_origin_ip") or "157.173.219.153"`) มาบันทึกเป็น `ip` หลักใน `transaction_logs` (`auto_provision_user`, `account_deactivated`, `login_success`) และเก็บ IP เบราว์เซอร์จริงไว้ใน `details["browser_ip"]` ส่วน `toggle_break_glass_mode` อ่านผ่าน `_extract_request_ip(..., prefer_ciam_origin=True)`
+* **`init_db.py`:**
+  * ตั้งค่าเริ่มต้น `"157.173.219.153"` ให้ `management_allowed_ips` และ `ciam_allowed_ips` และเติม `"157.173.219.153"` อัตโนมัติหากมีรายการ Whitelist เดิมที่ขาด IP นี้
 
 ---
 

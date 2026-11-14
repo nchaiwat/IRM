@@ -95,9 +95,15 @@ async def verify_central_management_access(
     Validate that incoming request contains valid X-Management-API-Key
     and originates from an authorized IP address (if configured).
     """
-    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    raw_ip = (
+        request.headers.get("x-ciam-origin-ip")
+        or request.headers.get("x-origin-ip")
+        or request.headers.get("x-forwarded-for")
+        or (request.client.host if request.client else "unknown")
+    )
+    client_ip = raw_ip.split(",")[0].strip() if raw_ip else "unknown"
+    network_raw_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
+    network_ip = network_raw_ip.split(",")[0].strip() if network_raw_ip else "unknown"
 
     # 1. Fetch Management API Settings
     stmt = select(SystemSetting).where(
@@ -118,14 +124,14 @@ async def verify_central_management_access(
 
     # 2. Validate API Key (using constant-time comparison)
     if not x_management_api_key or not secrets.compare_digest(x_management_api_key.strip(), api_key_expected):
-        # Audit log unauthorized attempt
+        # Audit log unauthorized attempt using actual network IP so unauthenticated callers cannot spoof Origin IP
         await record_transaction_log(
             category="central_management",
             action="unauthorized_access",
             status="failed",
-            message=f"ถูกปฏิเสธการเข้าถึง Central Management API (Invalid or missing API Key) จาก IP: {client_ip}",
-            details={"ip": client_ip, "path": str(request.url.path)},
-            triggered_by=f"remote_ip:{client_ip}",
+            message=f"ถูกปฏิเสธการเข้าถึง Central Management API (Invalid or missing API Key) จาก IP: {network_ip}",
+            details={"ip": network_ip, "header_origin_ip": client_ip, "path": str(request.url.path)},
+            triggered_by=f"remote_ip:{network_ip}",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -135,15 +141,15 @@ async def verify_central_management_access(
     # 3. Validate IP Whitelist (if specified)
     if allowed_ips_str and allowed_ips_str != "*":
         allowed_ips = [ip.strip() for ip in allowed_ips_str.split(",") if ip.strip()]
-        # Allow localhost loopback as fallback
-        allowed_ips.extend(["127.0.0.1", "::1", "localhost"])
+        # Always allow Central IAM VPS Origin IP and localhost loopbacks
+        allowed_ips.extend(["157.173.219.153", "127.0.0.1", "::1", "localhost"])
         if client_ip not in allowed_ips:
             await record_transaction_log(
                 category="central_management",
                 action="ip_forbidden",
                 status="failed",
                 message=f"ถูกปฏิเสธเนื่องจาก IP {client_ip} ไม่อยู่ใน Whitelist ของ Central Management API",
-                details={"client_ip": client_ip, "allowed_ips": allowed_ips},
+                details={"client_ip": client_ip, "network_ip": network_ip, "allowed_ips": allowed_ips},
                 triggered_by=f"remote_ip:{client_ip}",
             )
             raise HTTPException(

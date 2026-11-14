@@ -305,7 +305,7 @@ async def seed_data():
                 ("ad_forwarded_ip", "157.173.219.153", "Client Origin IP header (X-Forwarded-For) whitelisted on AD server", "ad", "string"),
                 ("ad_enabled", "false", "เปิดใช้งานการตรวจสอบสิทธิ์ผ่าน Active Directory (AD Authentication)", "ad", "boolean"),
                 ("management_api_key", "sec_irm_mgmt_9a4f21e8d3b76c501e4a", "Secret API Key สำหรับ Central Management App เรียกดูและระงับสิทธิ์บัญชีผู้ใช้", "integration", "string"),
-                ("management_allowed_ips", "", "รายการ IP ของ Central Management Server ที่อนุญาตให้ยิง API (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "integration", "string"),
+                ("management_allowed_ips", "157.173.219.153", "รายการ IP ของ Central Management Server ที่อนุญาตให้ยิง API (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "integration", "string"),
                 # Central IAM SSO Integration Settings (ISO 27001 Zero .env)
                 ("ciam_base_url", "https://ciam.windowasia.com", "Central IAM Engine Base URL (OIDC Issuer)", "central_iam", "string"),
                 ("ciam_client_id", "irm-spoke-client", "Central IAM OIDC Client ID", "central_iam", "string"),
@@ -315,7 +315,7 @@ async def seed_data():
                 ("ciam_ad_gateway_url", "http://192.168.12.11:3100", "URL เซิร์ฟเวอร์ AD Gateway ภายในองค์กรสำหรับโหมดฉุกเฉิน", "central_iam", "string"),
                 ("ciam_auto_provision_group", "PU User", "กลุ่มสิทธิ์เริ่มต้นสำหรับพนักงานใหม่ที่ล็อกอินผ่าน SSO ครั้งแรก", "central_iam", "string"),
                 ("ciam_session_ttl_minutes", "480", "อายุ Access Token ประจำระบบ IRM (นาที)", "central_iam", "integer"),
-                ("ciam_allowed_ips", "", "IP ของเซิร์ฟเวอร์ Central IAM ที่อนุญาตให้เชื่อมต่อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "central_iam", "string"),
+                ("ciam_allowed_ips", "157.173.219.153", "IP ของเซิร์ฟเวอร์ Central IAM ที่อนุญาตให้เชื่อมต่อ (คั่นด้วยจุลภาค หรือเว้นว่างเพื่อรับทุก IP)", "central_iam", "string"),
                 # In-App AI Copilot & MCP Tools Settings (v2.8.0 Standard - Zero .env)
                 ("ai_copilot_enabled", "false", "สวิตช์หลักเปิด/ปิดการแสดงผลหน้า Chat หรือ Floating Widget ประจำระบบลูก", "ai_copilot", "boolean"),
                 ("ai_provider", "google", "ผู้ให้บริการ AI: google, openai, anthropic, ollama, custom", "ai_copilot", "string"),
@@ -353,6 +353,16 @@ async def seed_data():
                 .where(SystemSetting.key == "app_base_url", SystemSetting.value.like("%localhost%"))
                 .values(value="https://irm.windowasia.com")
             )
+            # Ensure Central IAM VPS origin IP (157.173.219.153) is present in non-empty IP whitelists
+            for ip_key in ("management_allowed_ips", "ciam_allowed_ips"):
+                row_ip = (await session.execute(select(SystemSetting).where(SystemSetting.key == ip_key))).scalar_one_or_none()
+                if row_ip and row_ip.value:
+                    raw_val = row_ip.value.strip()
+                    if raw_val and raw_val != "*":
+                        ips = [item.strip() for item in raw_val.split(",") if item.strip()]
+                        if "157.173.219.153" not in ips:
+                            ips.insert(0, "157.173.219.153")
+                            row_ip.value = ",".join(ips)
             await session.commit()
             print("✅ Step 3: System Settings seeded and categories verified.")
     except Exception as e:

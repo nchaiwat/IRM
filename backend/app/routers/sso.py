@@ -134,6 +134,20 @@ async def generate_authorize_url(
     )
 
 
+def _extract_request_ip(request: Request, prefer_ciam_origin: bool = False) -> str:
+    """Extract client or CIAM origin IP safely from comma-separated proxy headers."""
+    if prefer_ciam_origin:
+        raw_ip = (
+            request.headers.get("x-ciam-origin-ip")
+            or request.headers.get("x-origin-ip")
+            or request.headers.get("x-forwarded-for")
+            or (request.client.host if request.client else "unknown")
+        )
+    else:
+        raw_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
+    return raw_ip.split(",")[0].strip() if raw_ip else "unknown"
+
+
 @router.post("/callback", response_model=SsoTokenResponse)
 async def handle_sso_callback(
     req: SsoCallbackRequest,
@@ -145,9 +159,7 @@ async def handle_sso_callback(
     Cryptographically verifies signature via Central IAM JWKS, matches or auto-provisions user,
     and returns an application access token.
     """
-    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = _extract_request_ip(request, prefer_ciam_origin=False)
 
     cfg = await get_ciam_settings(db)
     sso_client = await get_ciam_sso_client(db)
@@ -220,6 +232,7 @@ async def handle_sso_callback(
         )
 
     username = claims.get("sub")
+    ciam_origin_ip = claims.get("ciam_origin_ip") or tokens.get("ciam_origin_ip") or "157.173.219.153"
     if not username:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -274,6 +287,8 @@ async def handle_sso_callback(
             details={
                 "username": username,
                 "email": user.email,
+                "ip": ciam_origin_ip,
+                "browser_ip": client_ip,
                 "group_assigned": assigned_grp.name if assigned_grp else "None",
                 "claims": claims,
             },
@@ -290,7 +305,7 @@ async def handle_sso_callback(
             action="account_deactivated",
             status="warning",
             message=f"ปฏิเสธการเข้าสู่ระบบ: บัญชีพนักงาน '{username}' ถูกระงับสิทธิ์ในระบบนี้",
-            details={"username": username, "ip": client_ip, "reason": "is_active is false"},
+            details={"username": username, "ip": ciam_origin_ip, "browser_ip": client_ip, "reason": "is_active is false"},
             triggered_by=f"user:{username}",
             db=db,
         )
@@ -317,7 +332,8 @@ async def handle_sso_callback(
         message=f"เข้าสู่ระบบผ่าน Central IAM SSO สำเร็จ: ผู้ใช้ '{user.username}'",
         details={
             "username": user.username,
-            "ip": client_ip,
+            "ip": ciam_origin_ip,
+            "browser_ip": client_ip,
             "ciam_issuer": claims.get("iss"),
             "auth_method": "OIDC_PKCE_S256",
             "roles": claims.get("roles", {}),
@@ -352,9 +368,7 @@ async def toggle_break_glass_mode(
     Allows administrators to immediately toggle Central IAM SSO enforcement ON or OFF
     persisting into database system_settings table, triggering immediate cache invalidation.
     """
-    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = _extract_request_ip(request, prefer_ciam_origin=True)
 
     # Update ciam_break_glass_active in system_settings
     stmt_bg = select(SystemSetting).where(SystemSetting.key == "ciam_break_glass_active")

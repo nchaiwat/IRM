@@ -147,6 +147,10 @@
   * ใช้ APScheduler Minute-Checker ร่วมกับฟังก์ชัน `_normalize_hm` จัดรูปแบบเวลามาตรฐาน
   * มีตัวแปร Debounce `_last_pu_remind_date` รับประกันการยิงส่งเพียง 1 ครั้งต่อวัน
 
+### 3.13 มาตรฐานตรวจสอบ CIAM Origin IP (`157.173.219.153`) ใน `central_management.py` และ `sso.py`
+* `verify_central_management_access` อ่าน `x-ciam-origin-ip` -> `x-origin-ip` -> `x-forwarded-for` (`.split(",")[0].strip()`) และบังคับรวม `"157.173.219.153"` ไว้ใน `allowed_ips` เสมอ (พร้อมใช้ `network_ip` เมื่อ `X-Management-API-Key` ไม่ถูกต้อง)
+* `handle_sso_callback` บันทึก `ciam_origin_ip` (`157.173.219.153`) ลง `details["ip"]` สำหรับเหตุการณ์หลังยืนยัน JWKS (`login_success`, `auto_provision_user`, `account_deactivated`) และเก็บ IP เบราว์เซอร์ไว้ใน `details["browser_ip"]`
+
 ---
 
 ## 🛠️ 4. คำสั่งสำคัญในการดูแลระบบ
